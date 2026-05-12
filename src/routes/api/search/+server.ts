@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { requireAuth, AuthError } from '$lib/server/auth';
 import { SEARCH_PROVIDER_URL } from '$lib/constants';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 interface SearchResult {
   title: string;
@@ -11,7 +12,6 @@ interface SearchResult {
 function parseDuckDuckGoHTML(html: string): SearchResult[] {
   const results: SearchResult[] = [];
 
-  // Split by result blocks
   const resultBlocks = html.split(/<div[^>]*class="[^"]*result[^"]*"[^>]*>/i).slice(1);
 
   for (const block of resultBlocks) {
@@ -19,7 +19,6 @@ function parseDuckDuckGoHTML(html: string): SearchResult[] {
 
     const titleMatch = block.match(/<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i);
     const snippetMatch = block.match(/<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
-    const urlMatch = block.match(/<a[^>]*class="[^"]*result__url[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
 
     const title = titleMatch ? titleMatch[2].replace(/<[^>]*>/g, '').trim() : '';
     const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]*>/g, '').trim() : '';
@@ -50,6 +49,16 @@ function formatSearchContext(results: SearchResult[], query: string): string {
   return lines.join('\n');
 }
 
+function getProxyAgent(): HttpsProxyAgent | undefined {
+  const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY;
+  if (proxyUrl) {
+    try {
+      return new HttpsProxyAgent(proxyUrl);
+    } catch {}
+  }
+  return undefined;
+}
+
 export async function GET({ url, request }) {
   try {
     const auth = requireAuth(request);
@@ -60,11 +69,18 @@ export async function GET({ url, request }) {
     }
 
     const searchUrl = `${SEARCH_PROVIDER_URL}?q=${encodeURIComponent(query.trim())}`;
-    const res = await fetch(searchUrl, {
+    const fetchOptions: Record<string, any> = {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
-    });
+    };
+
+    const agent = getProxyAgent();
+    if (agent) {
+      fetchOptions.dispatcher = agent;
+    }
+
+    const res = await fetch(searchUrl, fetchOptions);
 
     if (!res.ok) {
       return json({ error: '搜索请求失败' }, { status: 502 });
