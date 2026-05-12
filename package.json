@@ -3,7 +3,7 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"dev": "cross-env LANG=zh_CN.UTF-8 https_proxy=http://127.0.0.1:7890 vite dev --host --port 8080",
+		"dev": "cross-env LANG=zh_CN.UTF-8 vite dev --host --port 8080",
 		"build": "vite build",
 		"fmt": "npm run prettier:svelte && npm run prettier",
 		"prettier:svelte": "npx -p prettier@2 -- prettier --plugin-search-dir . --write .",
@@ -33,7 +33,6 @@
 		"bcryptjs": "^3.0.3",
 		"file-saver": "^2.0.5",
 		"highlight.js": "^11.9.0",
-		"https-proxy-agent": "^9.0.0",
 		"idb": "^7.1.1",
 		"js-sha256": "^0.10.1",
 		"katex": "^0.16.9",

@@ -147,22 +147,65 @@ export function createChatHandlers(ctx: () => ChatContext) {
     await tick();
     window.scrollTo({ top: document.body.scrollHeight });
 
-    // 联网搜索：如果开启了搜索，先获取搜索结果注入上下文
+    // 联网搜索：如果开启了搜索，浏览器端直接调用搜索 API
     let searchContext = '';
     if (settings.searchEnabled && userPrompt.trim()) {
-      try {
-        const userStr = localStorage.getItem('user');
-        const token = userStr ? JSON.parse(userStr).token : null;
-        const headers: Record<string, string> = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const searchRes = await fetch(`/api/search?q=${encodeURIComponent(userPrompt.trim())}`, { headers });
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          if (searchData.context) {
-            searchContext = searchData.context;
-          }
+      const query = userPrompt.trim();
+      // 并行搜索多个来源
+      const [ddgData, wikiData] = await Promise.allSettled([
+        fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`)
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null),
+        fetch(`https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`)
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null)
+      ]);
+
+      const lines: string[] = [];
+      lines.push(`以下是与用户问题"${query}"相关的搜索结果（请根据这些信息辅助回答）：`);
+      lines.push('');
+
+      // DuckDuckGo Instant Answer
+      const ddg = ddgData.status === 'fulfilled' ? ddgData.value : null;
+      if (ddg) {
+        if (ddg.Abstract) {
+          lines.push(`[摘要] ${ddg.Abstract}`);
+          if (ddg.AbstractURL) lines.push(`来源: ${ddg.AbstractURL}`);
+          lines.push('');
         }
-      } catch {}
+        if (ddg.Answer) {
+          lines.push(`[答案] ${ddg.Answer}`);
+          lines.push('');
+        }
+        if (ddg.RelatedTopics?.length) {
+          const topics = ddg.RelatedTopics.slice(0, 5);
+          for (const t of topics) {
+            const text = typeof t === 'string' ? t : t.Text;
+            const url = typeof t === 'string' ? '' : t.FirstURL;
+            if (text) {
+              lines.push(`- ${text}`);
+              if (url) lines.push(`  来源: ${url}`);
+            }
+          }
+          lines.push('');
+        }
+      }
+
+      // Wikipedia search results
+      const wiki = wikiData.status === 'fulfilled' ? wikiData.value : null;
+      if (wiki?.query?.search?.length) {
+        lines.push('[维基百科相关条目]');
+        for (const r of wiki.query.search.slice(0, 5)) {
+          lines.push(`- ${r.title}: ${r.snippet.replace(/<[^>]*>/g, '')}`);
+          lines.push(`  来源: https://zh.wikipedia.org/wiki/${encodeURIComponent(r.title)}`);
+        }
+        lines.push('');
+      }
+
+      if (lines.length > 2) {
+        lines.push('请基于以上搜索结果，用中文回答用户的问题。请自然地引用来源信息。');
+        searchContext = lines.join('\n');
+      }
     }
 
     const now = new Date();
