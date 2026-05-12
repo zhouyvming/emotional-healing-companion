@@ -43,34 +43,88 @@
 - 响应式布局（移动端侧边栏自动隐藏 + 遮罩层）
 - 深色/浅色主题切换
 
-## 快速开始
+## 新机子上手全流程
 
-### 环境要求
+以下从零开始，逐项配置依赖、数据库、AI 服务和应用。
 
-- Node.js >= 18
-- MySQL 运行在 `localhost:3307`（root，无密码）
-- Ollama 运行在 `http://localhost:11434`
+### 1. 安装 Node.js
 
-### 数据库初始化
+需要 **Node.js >= 18**。
 
+前往 https://nodejs.org 下载 LTS 版本（Windows 选 `.msi`，macOS 选 `.pkg`）。安装完成后验证：
+
+```bash
+node -v   # 应显示 v18 或更高
+npm -v
+```
+
+### 2. 安装并配置 MySQL
+
+端口固定为 **3307**，root 用户无密码（项目已硬编码这些值，可在设置面板修改）。
+
+**Windows**
+从 https://dev.mysql.com/downloads/installer/ 下载 MySQL Installer，安装时选择 MySQL Server 8.x，端口设为 `3307`，root 密码留空。
+
+**macOS**
+```bash
+brew install mysql@8.0
+brew services start mysql@8.0
+# 如果端口不是 3307，编辑 my.cnf 把 port 改为 3307
+```
+
+**Linux (Debian/Ubuntu)**
+```bash
+sudo apt install mysql-server-8.0
+sudo systemctl start mysql
+# 修改端口：编辑 /etc/mysql/mysql.conf.d/mysqld.cnf，port = 3307，重启
+```
+
+**创建数据库**
+```bash
+mysql -u root -h 127.0.0.1 -P 3307
+```
 ```sql
 CREATE DATABASE IF NOT EXISTS webui_chat CHARACTER SET utf8mb4;
 ```
 
-应用启动时自动创建 4 张表（`users`、`chats`、`feedback_table`、`advice_table`）并执行列迁移。
+应用首次启动时会自动建表并执行列迁移，无需手动操作。
 
-### 安装和启动
+### 3. 安装并配置 Ollama
+
+前往 https://ollama.com/download 下载安装。
+
+启动后至少拉取一个模型：
+```bash
+ollama pull qwen3:0.6b
+```
+
+Ollama 默认监听 `http://localhost:11434`，确保服务在运行：
+```bash
+curl http://localhost:11434/api/tags
+```
+
+### 4. 克隆并启动项目
 
 ```bash
+git clone https://github.com/zhouyvming/emotional-healing-companion.git
+cd emotional-healing-companion
 npm install
-npm run dev     # 访问 http://localhost:8080
+npm run dev
 ```
+
+浏览器打开 **http://localhost:8080**，注册账号即可开始使用。
+
+### 5. 修改默认端口/密码（可选）
+
+如果 MySQL 或 Ollama 端口与默认值不同，启动后在 **设置** → **常规** 中修改 API 地址。数据库连接可编辑 `src/lib/server/db.ts` 中的 `pool` 配置。
 
 ### 生产构建
 
 ```bash
 npm run build
 ```
+
+构建产物在 `build/` 目录，可用 `node build` 启动。
 
 ## 项目结构
 
