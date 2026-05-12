@@ -165,13 +165,19 @@ export function createChatHandlers(ctx: () => ChatContext) {
       } catch {}
     }
 
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日，星期${['日','一','二','三','四','五','六'][now.getDay()]}，当前时间 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const dateContext = `今天的日期和时间：${dateStr}。请注意这是当前真实时间，不是训练数据中的时间。`;
+
     const chatMessages = messages.map((message) => ({
       role: message.role,
       content: message.content
     }));
 
     if (searchContext) {
-      chatMessages.unshift({ role: 'system', content: searchContext });
+      chatMessages.unshift({ role: 'system', content: `${dateContext}\n\n${searchContext}` });
+    } else {
+      chatMessages.unshift({ role: 'system', content: dateContext });
     }
 
     const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/chat`, {
