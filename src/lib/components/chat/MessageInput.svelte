@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { settings } from "$lib/stores";
+
 	export let submitPrompt: Function;
 	export let stopResponse: Function;
 
@@ -6,6 +8,14 @@
 
 	export let prompt = "";
 	export let messages = [];
+
+	$: searchEnabled = $settings?.searchEnabled ?? false;
+
+	function toggleSearch() {
+		const next = !searchEnabled;
+		settings.set({ ...$settings, searchEnabled: next });
+		localStorage.setItem("settings", JSON.stringify($settings));
+	}
 </script>
 
 <div class="fixed bottom-0 w-full">
@@ -66,6 +76,20 @@
 						/>
 
 						<div class="self-end mb-2 flex space-x-0.5 mr-2">
+							<!-- 联网搜索切换 -->
+							<button
+								class="{searchEnabled
+									? 'bg-blue-500 text-white hover:bg-blue-600 '
+									: 'text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400'} transition rounded-lg p-1 mr-0.5 w-7 h-7 self-center"
+								type="button"
+								on:click={toggleSearch}
+								title={searchEnabled ? '已开启联网搜索' : '点击开启联网搜索'}
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+									<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+								</svg>
+							</button>
+
 							{#if messages.length == 0 || messages.at(-1)?.done == true}
 								<button
 									class="{prompt !== ''

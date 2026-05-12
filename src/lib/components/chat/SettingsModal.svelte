@@ -21,6 +21,7 @@
 	let theme = "dark";
 	let titleAutoGenerate = true;
 	let responseAutoCopy = false;
+	let searchEnabled = false;
 	let systemAvatarInput: HTMLInputElement;
 	let systemAvatarPreview = "";
 
@@ -182,6 +183,7 @@
 			API_BASE_URL: API_BASE_URL === "" ? OLLAMA_API_BASE_URL : API_BASE_URL,
 			titleAutoGenerate,
 			responseAutoCopy,
+			searchEnabled,
 			requestFormat: requestFormat !== "" ? requestFormat : undefined,
 		};
 
@@ -234,6 +236,7 @@
 		theme = localStorage.theme ?? "dark";
 		titleAutoGenerate = stored.titleAutoGenerate ?? true;
 		responseAutoCopy = stored.responseAutoCopy ?? false;
+		searchEnabled = stored.searchEnabled ?? false;
 		const userData = JSON.parse(localStorage.getItem("user") ?? "{}");
 		systemAvatarPreview = userData.system_avatar ?? "";
 		API_BASE_URL = stored.API_BASE_URL ?? OLLAMA_API_BASE_URL;
@@ -399,6 +402,12 @@
 								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
 									<span class="text-sm">生成完成后自动复制</span>
 									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={responseAutoCopy} />
+								</label>
+								<hr class="border-gray-100 dark:border-gray-700" />
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<span class="text-sm">默认开启联网搜索</span>
+									<span class="text-xs text-gray-400 dark:text-gray-500">发送消息时自动搜索网页</span>
+									<input type="checkbox" class="w-4 h-4 rounded accent-blue-500" bind:checked={searchEnabled} />
 								</label>
 							</div>
 						</div>

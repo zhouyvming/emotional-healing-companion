@@ -147,15 +147,39 @@ export function createChatHandlers(ctx: () => ChatContext) {
     await tick();
     window.scrollTo({ top: document.body.scrollHeight });
 
+    // 联网搜索：如果开启了搜索，先获取搜索结果注入上下文
+    let searchContext = '';
+    if (settings.searchEnabled && userPrompt.trim()) {
+      try {
+        const userStr = localStorage.getItem('user');
+        const token = userStr ? JSON.parse(userStr).token : null;
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const searchRes = await fetch(`/api/search?q=${encodeURIComponent(userPrompt.trim())}`, { headers });
+        if (searchRes.ok) {
+          const searchData = await searchRes.json();
+          if (searchData.context) {
+            searchContext = searchData.context;
+          }
+        }
+      } catch {}
+    }
+
+    const chatMessages = messages.map((message) => ({
+      role: message.role,
+      content: message.content
+    }));
+
+    if (searchContext) {
+      chatMessages.unshift({ role: 'system', content: searchContext });
+    }
+
     const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'text/event-stream' },
       body: JSON.stringify({
         model,
-        messages: messages.map((message) => ({
-          role: message.role,
-          content: message.content
-        })),
+        messages: chatMessages,
         options: {
           seed: settings.seed ?? undefined,
           temperature: settings.temperature ?? undefined,
