@@ -210,7 +210,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 
     const now = new Date();
     const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日，星期${['日','一','二','三','四','五','六'][now.getDay()]}，当前时间 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const dateContext = `今天的日期和时间：${dateStr}。请注意这是当前真实时间，不是训练数据中的时间。`;
+    const dateContext = `当前真实日期和时间：${dateStr}。仅以此为准，不要编造或计算任何日期相关的其他信息（如距离某个日期的天数、农历、节假日等），除非用户提供的搜索结果中有明确信息。`;
 
     const chatMessages = messages.map((message) => ({
       role: message.role,
