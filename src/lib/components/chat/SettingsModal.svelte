@@ -22,6 +22,9 @@
 	let titleAutoGenerate = true;
 	let responseAutoCopy = false;
 	let searchEnabled = false;
+	let searchProvider = 'auto';
+	let systemPrompt = '';
+	let searchPromptTemplate = '';
 	let systemAvatarInput: HTMLInputElement;
 	let systemAvatarPreview = "";
 
@@ -184,6 +187,9 @@
 			titleAutoGenerate,
 			responseAutoCopy,
 			searchEnabled,
+			searchProvider,
+			systemPrompt,
+			searchPromptTemplate,
 			requestFormat: requestFormat !== "" ? requestFormat : undefined,
 		};
 
@@ -237,6 +243,9 @@
 		titleAutoGenerate = stored.titleAutoGenerate ?? true;
 		responseAutoCopy = stored.responseAutoCopy ?? false;
 		searchEnabled = stored.searchEnabled ?? false;
+		searchProvider = stored.searchProvider ?? 'auto';
+		systemPrompt = stored.systemPrompt ?? '';
+		searchPromptTemplate = stored.searchPromptTemplate ?? '';
 		const userData = JSON.parse(localStorage.getItem("user") ?? "{}");
 		systemAvatarPreview = userData.system_avatar ?? "";
 		API_BASE_URL = stored.API_BASE_URL ?? OLLAMA_API_BASE_URL;
@@ -404,11 +413,51 @@
 									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={responseAutoCopy} />
 								</label>
 								<hr class="border-gray-100 dark:border-gray-700" />
-								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-									<span class="text-sm">默认开启联网搜索</span>
-									<span class="text-xs text-gray-400 dark:text-gray-500">发送消息时自动搜索网页</span>
-									<input type="checkbox" class="w-4 h-4 rounded accent-blue-500" bind:checked={searchEnabled} />
-								</label>
+								<div class="py-2.5 px-3">
+									<div class="flex items-center justify-between">
+										<span class="text-sm">默认开启联网搜索</span>
+										<input type="checkbox" class="w-4 h-4 rounded accent-blue-500" bind:checked={searchEnabled} />
+									</div>
+									{#if searchEnabled}
+										<div class="mt-3 space-y-2">
+											<div class="text-xs text-gray-500">搜索引擎</div>
+											<select class="w-full rounded-md py-1.5 px-2 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600" bind:value={searchProvider}>
+												<option value="auto">自动（百度 + Bing）</option>
+												<option value="baidu">百度</option>
+												<option value="bing">Bing</option>
+											</select>
+										</div>
+									{/if}
+								</div>
+							</div>
+						</div>
+
+						<!-- 系统提示词 -->
+						<div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">提示词设置</div>
+							<div class="space-y-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
+								<div>
+									<div class="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+										系统提示词（定义 AI 身份、性格、回复风格）
+									</div>
+									<textarea
+										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
+										placeholder="例如：你是一个温暖贴心的情感疗愈伴侣，名叫小愈。说话语气温柔亲切，像朋友一样交流。回复简洁自然，不啰嗦。"
+										rows="3"
+										bind:value={systemPrompt}
+									></textarea>
+								</div>
+								<div>
+									<div class="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+										搜索指令模板（告诉 AI 如何使用搜索结果）
+									</div>
+									<textarea
+										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
+										placeholder="请基于搜索结果回答用户问题。如果搜索结果不足以回答，请如实说明。引用来源时请标注链接。"
+										rows="3"
+										bind:value={searchPromptTemplate}
+									></textarea>
+								</div>
 							</div>
 						</div>
 

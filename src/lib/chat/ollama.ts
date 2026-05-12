@@ -147,81 +147,49 @@ export function createChatHandlers(ctx: () => ChatContext) {
     await tick();
     window.scrollTo({ top: document.body.scrollHeight });
 
-    // 联网搜索：如果开启了搜索，浏览器端直接调用搜索 API
+    // 联网搜索：调用服务端搜索 API（百度/Bing）
     let searchContext = '';
     if (settings.searchEnabled && userPrompt.trim()) {
-      const query = userPrompt.trim();
-      // 并行搜索多个来源
-      const [ddgData, wikiData] = await Promise.allSettled([
-        fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`)
-          .then(r => r.ok ? r.json() : null)
-          .catch(() => null),
-        fetch(`https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`)
-          .then(r => r.ok ? r.json() : null)
-          .catch(() => null)
-      ]);
-
-      const lines: string[] = [];
-      lines.push(`以下是与用户问题"${query}"相关的搜索结果（请根据这些信息辅助回答）：`);
-      lines.push('');
-
-      // DuckDuckGo Instant Answer
-      const ddg = ddgData.status === 'fulfilled' ? ddgData.value : null;
-      if (ddg) {
-        if (ddg.Abstract) {
-          lines.push(`[摘要] ${ddg.Abstract}`);
-          if (ddg.AbstractURL) lines.push(`来源: ${ddg.AbstractURL}`);
-          lines.push('');
-        }
-        if (ddg.Answer) {
-          lines.push(`[答案] ${ddg.Answer}`);
-          lines.push('');
-        }
-        if (ddg.RelatedTopics?.length) {
-          const topics = ddg.RelatedTopics.slice(0, 5);
-          for (const t of topics) {
-            const text = typeof t === 'string' ? t : t.Text;
-            const url = typeof t === 'string' ? '' : t.FirstURL;
-            if (text) {
-              lines.push(`- ${text}`);
-              if (url) lines.push(`  来源: ${url}`);
-            }
+      try {
+        const userStr = localStorage.getItem('user');
+        const token = userStr ? JSON.parse(userStr).token : null;
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const provider = settings.searchProvider || 'auto';
+        const searchRes = await fetch(`/api/search?q=${encodeURIComponent(userPrompt.trim())}&provider=${provider}`, { headers });
+        if (searchRes.ok) {
+          const searchData = await searchRes.json();
+          if (searchData.context) {
+            searchContext = searchData.context;
           }
-          lines.push('');
         }
-      }
-
-      // Wikipedia search results
-      const wiki = wikiData.status === 'fulfilled' ? wikiData.value : null;
-      if (wiki?.query?.search?.length) {
-        lines.push('[维基百科相关条目]');
-        for (const r of wiki.query.search.slice(0, 5)) {
-          lines.push(`- ${r.title}: ${r.snippet.replace(/<[^>]*>/g, '')}`);
-          lines.push(`  来源: https://zh.wikipedia.org/wiki/${encodeURIComponent(r.title)}`);
-        }
-        lines.push('');
-      }
-
-      if (lines.length > 2) {
-        lines.push('请基于以上搜索结果，用中文回答用户的问题。请自然地引用来源信息。');
-        searchContext = lines.join('\n');
-      }
+      } catch {}
     }
 
+    // 构建 system 消息：日期 + 自定义系统提示词 + 搜索结果
     const now = new Date();
     const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日，星期${['日','一','二','三','四','五','六'][now.getDay()]}，当前时间 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const dateContext = `当前真实日期和时间：${dateStr}。仅以此为准，不要编造或计算任何日期相关的其他信息（如距离某个日期的天数、农历、节假日等），除非用户提供的搜索结果中有明确信息。`;
+
+    // 用户自定义系统提示词
+    const customSystem = settings.systemPrompt?.trim();
+    const searchGuide = searchContext
+      ? (settings.searchPromptTemplate?.trim() || '请基于搜索结果回答用户问题。如果搜索结果不足以回答，请如实说明。引用来源时请标注链接。')
+      : '';
+
+    const systemParts: string[] = [dateContext];
+    if (customSystem) systemParts.push(customSystem);
+    if (searchGuide && searchContext) {
+      systemParts.push(searchGuide);
+      systemParts.push(searchContext);
+    }
 
     const chatMessages = messages.map((message) => ({
       role: message.role,
       content: message.content
     }));
 
-    if (searchContext) {
-      chatMessages.unshift({ role: 'system', content: `${dateContext}\n\n${searchContext}` });
-    } else {
-      chatMessages.unshift({ role: 'system', content: dateContext });
-    }
+    chatMessages.unshift({ role: 'system', content: systemParts.join('\n\n') });
 
     const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/chat`, {
       method: 'POST',
