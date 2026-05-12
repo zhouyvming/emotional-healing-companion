@@ -10,7 +10,7 @@
 | UI | Tailwind CSS（粉色主题，深色/浅色模式切换） |
 | 数据库 | MySQL 8（`mysql2/promise`），`localhost:3307` |
 | AI 服务 | Ollama（本地大语言模型，`http://localhost:11434/api`） |
-| 认证 | bcrypt 密码哈希 + 自定义 HMAC-SHA256 JWT（7天有效期） |
+| 认证 | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7天有效期） |
 | Markdown | `marked` + 代码高亮（`highlight.js`）+ 数学公式（`KaTeX`） |
 
 ## 功能
