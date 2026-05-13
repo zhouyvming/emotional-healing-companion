@@ -166,28 +166,31 @@ export function createChatHandlers(ctx: () => ChatContext) {
       } catch {}
     }
 
-    // 构建 system 消息：日期 + 自定义系统提示词 + 搜索结果
+    // 构建 system 消息：日期 + 自定义系统提示词
     const now = new Date();
     const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日，星期${['日','一','二','三','四','五','六'][now.getDay()]}，当前时间 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const dateContext = `当前真实日期和时间：${dateStr}。仅以此为准，不要编造或计算任何日期相关的其他信息（如距离某个日期的天数、农历、节假日等），除非用户提供的搜索结果中有明确信息。`;
+    const dateContext = `当前真实日期和时间：${dateStr}。仅以此为准，不要编造任何日期相关计算。`;
 
-    // 用户自定义系统提示词
-    const customSystem = settings.systemPrompt?.trim();
-    const searchGuide = searchContext
-      ? (settings.searchPromptTemplate?.trim() || '请基于搜索结果回答用户问题。如果搜索结果不足以回答，请如实说明。引用来源时请标注链接。')
-      : '';
+    const customSystem = settings.systemPrompt?.trim()
+      || '你是一个有帮助的AI助手。回答问题时优先使用搜索结果中的真实信息，不要编造事实。如果不确定，如实说不知道。';
 
     const systemParts: string[] = [dateContext];
     if (customSystem) systemParts.push(customSystem);
-    if (searchGuide && searchContext) {
-      systemParts.push(searchGuide);
-      systemParts.push(searchContext);
-    }
 
     const chatMessages = messages.map((message) => ({
       role: message.role,
       content: message.content
     }));
+
+    // 搜索结果注入到最后一条用户消息末尾，而非 system 层（模型难以忽略）
+    if (searchContext) {
+      const searchGuide = settings.searchPromptTemplate?.trim()
+        || '以上是网络搜索结果。你必须优先依据搜索结果回答，标注来源链接。如果搜索结果与你的训练知识冲突，以搜索结果为准。搜索结果不足以回答时，如实说"搜索结果未找到相关信息"。';
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      if (lastMsg && lastMsg.role === 'user') {
+        lastMsg.content = `[网络搜索结果开始]\n${searchContext}\n[网络搜索结果结束]\n\n${searchGuide}\n\n用户问题：${lastMsg.content}`;
+      }
+    }
 
     chatMessages.unshift({ role: 'system', content: systemParts.join('\n\n') });
 
