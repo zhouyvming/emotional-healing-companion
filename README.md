@@ -1,6 +1,6 @@
 # 情感疗愈伴侣 (Emotional Healing Companion)
 
-基于 Ollama 的本地大语言模型情感支持聊天机器人，使用本地 AI 模型提供温暖、私密的交流体验。
+基于 Ollama 的本地大语言模型情感支持聊天机器人，支持接入第三方 API 模型，提供温暖、私密的交流体验。
 
 ## 技术栈
 
@@ -9,7 +9,7 @@
 | 前端框架 | SvelteKit 1.x + Svelte 4（SPA 模式，`ssr: false`） |
 | UI | Tailwind CSS（粉色主题，深色/浅色模式切换） |
 | 数据库 | MySQL 8（`mysql2/promise`），`localhost:3307` |
-| AI 服务 | Ollama（本地大语言模型，`http://localhost:11434/api`） |
+| AI 服务 | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等） |
 | 认证 | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7天有效期） |
 | Markdown | `marked` + 代码高亮（`highlight.js`）+ 数学公式（`KaTeX`） |
 
@@ -17,31 +17,55 @@
 
 **聊天**
 - 流式响应（SSE 解析，完成后批量保存）
+- 支持 **Ollama 本地模型** + **OpenAI 兼容 API**（DeepSeek / 通义千问 / OpenAI 等）
 - 多模型并行对话（`Promise.all` 同时向多个模型提问）
 - 树形消息结构，支持对话分支
 - 自动生成对话标题（语言自适应）
 - Markdown 渲染 + HTML 净化 + 代码语义高亮 + LaTeX
-- 复制消息 / 重新生成 / 停止响应
+- 复制消息 / Markdown 复制 / 重新生成 / 停止响应
+- 联网搜索（DuckDuckGo）+ URL 链接内容抓取
+- 情绪感知（AI 自动感知并回应用户情绪状态）
+- 文件/图片上传（粘贴/拖拽/选择，图片预览，txt 文本提取）
 
 **用户系统**
 - 注册/登录（密码 bcrypt 加密，JWT 认证）
-- 6 个 API 路由全部受认证中间件保护
+- 8 个 API 路由全部受认证中间件保护
 - 个人资料管理（头像上传、用户名、邮箱、密码修改）
 - 用户名变更时自动同步聊天记录 + 签发新 token
 - 自定义系统头像（每个用户独立，AI 助手头像个性化）
 - 退出登录（含确认步骤）
 
 **模型管理**
-- 查看已安装模型详情（大小、系列、参数量、量化级别）
-- 拉取新模型（流式进度显示）
-- 删除模型（含确认）
+- 查看已安装 Ollama 模型详情（大小、系列、参数量、量化级别）
+- 拉取新模型（流式进度显示）/ 删除模型（含确认）
+- 第三方 API 提供商管理：添加/删除/获取模型列表
+
+**设置面板**
+- 常规：主题（深色/浅色/跟随系统）+ 字体大小（三档）+ 系统头像 + API 地址
+- 偏好：主动问候 / 隐私模式 / 自动标题 / 自动复制 / 联网搜索 / 情绪感知
+- 人设：自定义 AI 身份性格（system prompt）
+- API：第三方 OpenAI 兼容提供商管理
+- 高级：上下文长度（默认 8K，最大 128K）+ 温度/种子/Top P 等参数
+- 关于：版本信息
 
 **其他**
 - 对话导出（JSON 下载）
 - 建议与反馈提交
 - 侧边栏聊天列表按日期分组（今天/昨天/本周/更早），可搜索、折叠
 - 响应式布局（移动端侧边栏自动隐藏 + 遮罩层）
-- 深色/浅色主题切换
+- 深色/浅色主题切换 + 系统主题自动跟随
+
+## 接入第三方 API 模型
+
+1. 打开 **设置 → API** 标签页
+2. 填写提供商信息：
+   - 名称（如 DeepSeek）
+   - API 地址（如 `https://api.deepseek.com/v1`）
+   - API Key
+3. 点击 **添加**，再点击 **获取模型** 拉取可用模型列表
+4. 在聊天页模型选择器中即可选择第三方模型（显示为 `提供商名/模型ID`）
+
+支持的 API 格式：OpenAI Chat Completions 兼容接口。
 
 ## 新机子上手全流程
 
@@ -130,39 +154,42 @@ npm run build
 
 ```
 src/
-├── app.html / app.css                  # HTML 模板 + 全局样式
+├── app.html / app.css / tailwind.css     # HTML 模板 + 全局样式
 ├── lib/
-│   ├── chat/ollama.ts                  # 核心聊天逻辑（流式、多模型、标题生成、剪贴板）
-│   ├── client/http.ts                  # 客户端 HTTP 工具（authFetch 自动附加 JWT）
+│   ├── chat/
+│   │   ├── ollama.ts                     # 核心聊天逻辑 + 消息路由（Ollama/OpenAI）
+│   │   └── openai.ts                     # OpenAI 兼容 API（流式聊天、模型获取）
+│   ├── client/http.ts                    # 客户端 HTTP 工具（authFetch 自动附加 JWT）
 │   ├── server/
-│   │   ├── auth.ts                     # 服务端认证（bcrypt + JWT）
-│   │   └── db.ts                       # MySQL 连接池 + 表初始化
-│   ├── stores/index.ts                 # 8 个 Svelte writable stores
+│   │   ├── auth.ts                       # 服务端认证（bcrypt + JWT）
+│   │   └── db.ts                         # MySQL 连接池 + 表初始化
+│   ├── stores/index.ts                   # 8 个 Svelte writable stores
 │   ├── components/
 │   │   ├── chat/
-│   │   │   ├── Messages.svelte         # 消息渲染（markdown/代码/LaTeX/复制/tooltip）
-│   │   │   ├── MessageInput.svelte     # 输入框（自动伸缩、发送/停止）
-│   │   │   ├── ModelSelector.svelte    # 模型选择器（自动选中首个模型）
-│   │   │   ├── SettingsModal.svelte    # 设置弹窗（常规/模型/高级/关于）
-│   │   │   └── Settings/Advanced.svelte
+│   │   │   ├── Messages.svelte           # 消息渲染（图片/附件/markdown/代码/LaTeX/复制/tooltip）
+│   │   │   ├── MessageInput.svelte       # 输入框（语音/上传/粘贴/拖拽/自动伸缩）
+│   │   │   ├── ModelSelector.svelte      # 模型选择器（Ollama+第三方合并列表）
+│   │   │   ├── SettingsModal.svelte      # 设置弹窗（7标签页）
+│   │   │   └── Settings/Advanced.svelte  # 高级参数（num_ctx 默认8K）
 │   │   ├── layout/
-│   │   │   ├── Sidebar.svelte          # 侧边栏（聊天列表/搜索/分组/导出/用户入口）
-│   │   │   └── Navbar.svelte           # 顶部导航栏（标题/重命名/删除）
-│   │   └── common/                     # Modal、Overlay、Spinner
-│   └── utils/index.ts                  # splitStream、convertMessagesToHistory
+│   │   │   ├── Sidebar.svelte            # 侧边栏（聊天列表/搜索/分组/导出/用户入口）
+│   │   │   └── Navbar.svelte             # 顶部导航栏（标题/重命名/删除）
+│   │   └── common/                       # Modal、Overlay、Spinner
+│   └── utils/index.ts                    # splitStream、convertMessagesToHistory、datetimeNow
 ├── routes/
-│   ├── +layout.js                      # 路由守卫（JWT 检查）
-│   ├── +layout.svelte                  # 根布局（全局 CSS + Toast）
-│   ├── +error.svelte                   # 错误页面
-│   ├── login/register/                 # 登录/注册页
+│   ├── +layout.js                        # 路由守卫（JWT 检查）
+│   ├── +layout.svelte                    # 根布局（全局 CSS + Toast）
+│   ├── +error.svelte                     # 错误页面
+│   ├── login/register/                   # 登录/注册页（Open Redirect 防护）
 │   ├── (app)/
-│   │   ├── +layout.svelte              # 应用布局（模型/DB/迁移/版本检查）
-│   │   ├── +page.svelte                # 新对话页
-│   │   ├── c/[id]/+page.svelte        # 对话详情页
-│   │   └── profile/+page.svelte        # 个人资料页
-│   ├── advice_table/+page.svelte       # 建议反馈页
-│   └── api/                            # 6 个认证 API 路由
-└── static/                             # favicon、默认头像、manifest.json
+│   │   ├── +layout.svelte                # 应用布局（模型/DB/迁移/版本/合并第三方模型）
+│   │   ├── +page.svelte                  # 新对话页
+│   │   ├── c/[id]/+page.svelte          # 对话详情页
+│   │   └── profile/+page.svelte          # 个人资料页
+│   ├── advice_table/+page.svelte         # 建议反馈页
+│   ├── api/                              # 8 个认证 API 路由
+│   └── .well-known/[...path]/            # Chrome DevTools 静默路由
+└── static/                               # favicon、默认头像、字体、manifest.json
 ```
 
 ## 当前已安装模型
