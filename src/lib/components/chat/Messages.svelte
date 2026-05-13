@@ -282,7 +282,7 @@
 				{#if message.role === 'user'}
 					<div class="flex flex-col items-end mb-4">
 						<div class="flex justify-end items-start gap-3">
-							<div class="bg-pink-500 text-white rounded-lg py-2 px-4 max-w-[80%]">
+							<div class="bg-pink-500 text-white rounded-lg py-2 px-4 max-w-[80%] break-words [&_p]:m-0">
 								{@html sanitizeHtml(marked(message.content))}
 							</div>
 							{#if $user?.avatar}
@@ -305,7 +305,7 @@
 								{:else}
 									<img src="/cat.png" alt="Assistant" class="w-8 h-8 rounded-full" />
 								{/if}
-							<div class="bg-gray-200 dark:bg-gray-700 rounded-lg py-2 px-4 max-w-[80%]">
+							<div class="bg-gray-200 dark:bg-gray-700 rounded-lg py-2 px-4 max-w-[80%] break-words [&_p]:m-0">
 								{@html sanitizeHtml(marked(message.content))}
 							</div>
 						</div>

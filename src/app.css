@@ -10,9 +10,6 @@
 	font-display: swap;
 }
 
-html {
-	overflow-wrap: break-word;
-}
 
 code {
 	/* white-space-collapse: preserve !important; */
