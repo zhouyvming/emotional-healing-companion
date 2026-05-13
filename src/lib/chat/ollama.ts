@@ -5,6 +5,7 @@ import toast from 'svelte-french-toast';
 import { OLLAMA_API_BASE_URL } from '$lib/constants';
 import { splitStream, convertMessagesToHistory, datetimeNow } from '$lib/utils';
 import type { Writable } from 'svelte/store';
+import { findProvider, sendPromptOpenAI } from '$lib/chat/openai';
 
 interface Message {
   id: string;
@@ -13,6 +14,7 @@ interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   images?: string[];
+  files?: { name: string; type: string; data: string }[];
   model?: string;
   timestamp?: string;
   done?: boolean;
@@ -190,11 +192,13 @@ export function createChatHandlers(ctx: () => ChatContext) {
     await tick();
     window.scrollTo({ top: document.body.scrollHeight });
 
-    // 构建消息列表（含图片）
+    // 构建消息列表（含图片，剥离 data:...;base64, 前缀）
     const apiMessages = messages.map((message) => ({
       role: message.role,
       content: message.content,
-      ...(message.images?.length ? { images: message.images } : {})
+      ...(message.images?.length ? {
+        images: message.images.map((img: string) => img.includes(',') ? img.split(',')[1] : img)
+      } : {})
     }));
 
     // 注入情绪感知 system prompt
@@ -340,10 +344,18 @@ export function createChatHandlers(ctx: () => ChatContext) {
   };
 
   const sendPrompt = async (userPrompt: string, parentId: string | null, _chatId: string, onTitleSet: (t: string) => void) => {
-    const { selectedModels, chats, db } = c();
+    const ctx = c();
+    const { selectedModels, chats, db } = ctx;
     await Promise.all(
       selectedModels.map(async (model) => {
-        await sendPromptOllama(model, userPrompt, parentId, _chatId, onTitleSet);
+        // 检测第三方 API 模型（格式：提供商名/模型ID）
+        const provider = findProvider(model);
+        if (provider) {
+          const actualModel = model.split('/').slice(1).join('/') || model;
+          await sendPromptOpenAI(provider, actualModel, userPrompt, parentId, _chatId, ctx as any, onTitleSet);
+        } else {
+          await sendPromptOllama(model, userPrompt, parentId, _chatId, onTitleSet);
+        }
       })
     );
     if (!c().settings.privacyMode) {
@@ -402,11 +414,26 @@ export function createChatHandlers(ctx: () => ChatContext) {
       timestamp: datetimeNow()
     };
 
-    // 附加上传的图片
+    // 附加上传的图片和文件
     if (uploadingFiles && uploadingFiles.length > 0) {
       userMessage.images = uploadingFiles
         .filter(f => f.type.startsWith('image/'))
         .map(f => f.data);
+
+      const docs = uploadingFiles.filter(f => !f.type.startsWith('image/'));
+      userMessage.files = docs.map(f => ({ name: f.name, type: f.type, data: f.data }));
+
+      // 提取文本文件内容，注入到 prompt 中
+      for (const doc of docs) {
+        if (doc.type === 'text/plain' || doc.name.endsWith('.txt')) {
+          try {
+            const text = atob(doc.data.includes(',') ? doc.data.split(',')[1] : doc.data);
+            finalPrompt += `\n\n[文件：${doc.name}]\n${text.slice(0, 4000)}`;
+          } catch { /* base64 decode failed, skip */ }
+        } else {
+          finalPrompt += `\n\n[用户上传了文件：${doc.name}（${doc.type || '未知类型'}），但当前暂不支持解析该格式的内容]`;
+        }
+      }
     }
 
     if (messages.length !== 0) {

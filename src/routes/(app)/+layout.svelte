@@ -10,6 +10,7 @@
 	import Sidebar from "$lib/components/layout/Sidebar.svelte";
 	import toast from "svelte-french-toast";
 	import { OLLAMA_API_BASE_URL } from "$lib/constants";
+	import { getThirdPartyModels } from "$lib/chat/openai";
 	import { datetimeNow } from "$lib/utils";
 
 	let requiredOllamaVersion = "0.1.16";
@@ -30,6 +31,7 @@
 		const userStr = localStorage.getItem("user");
 		return userStr ? JSON.parse(userStr).username : "guest";
 	};
+
 
 	const migrateFromIndexedDB = async () => {
 		const MIGRATION_KEY = 'chats_migrated_to_mysql';
@@ -230,9 +232,11 @@
 		const savedUser = JSON.parse(localStorage.getItem("user") ?? "null");
 		await user.set(savedUser);
 
-		await models.set(await getModels());
+		const ollamaModels = await getModels();
+			const thirdPartyModels = getThirdPartyModels();
+			await models.set([...ollamaModels, ...thirdPartyModels]);
 
-		let _db = await getDB();
+			let _db = await getDB();
 		await db.set(_db);
 
 		await setOllamaVersion(await getOllamaVersion());
@@ -243,8 +247,10 @@
 
 	const recheckConnection = async () => {
 		connectionError = "";
-		await models.set(await getModels());
-		await setOllamaVersion(await getOllamaVersion());
+			const ollamaModels = await getModels();
+			const thirdPartyModels = getThirdPartyModels();
+			await models.set([...ollamaModels, ...thirdPartyModels]);
+			await setOllamaVersion(await getOllamaVersion());
 	};
 </script>
 

@@ -228,7 +228,24 @@
 					<div class="flex flex-col items-end mb-4">
 						<div class="flex justify-end items-start gap-3">
 							<div class="bg-pink-500 text-white rounded-lg py-2 px-4 max-w-[80%] break-words [&_p]:m-0">
-								{@html sanitizeHtml(marked(message.content))}
+								{#if message.images?.length}
+								<div class="flex flex-wrap gap-1 mb-1">
+									{#each message.images as img}
+										<img src={img} alt="上传图片" class="max-h-48 rounded-lg object-cover" />
+									{/each}
+								</div>
+							{/if}
+								{#if message.files?.length}
+								<div class="flex flex-wrap gap-1 mb-1">
+									{#each message.files as file}
+										<div class="flex items-center gap-1.5 bg-white/20 rounded-md px-2 py-1">
+											<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/></svg>
+											<span class="text-xs truncate max-w-[120px]">{file.name}</span>
+										</div>
+									{/each}
+								</div>
+								{/if}
+							{@html sanitizeHtml(marked(message.content))}
 							</div>
 							{#if $user?.avatar}
 								<img src={$user.avatar} alt="用户" class="w-8 h-8 rounded-full object-cover" />

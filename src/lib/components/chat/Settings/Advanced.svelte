@@ -11,7 +11,7 @@
 		top_p: "",
 		stop: "",
 		tfs_z: "",
-		num_ctx: ""
+		num_ctx: 8192
 	};
 
 	const paramDefs = [
@@ -25,7 +25,7 @@
 		{ key: "mirostat_eta", label: "Mirostat Eta", type: "range", min: 0, max: 1, step: 0.05, default: 0.1 },
 		{ key: "mirostat_tau", label: "Mirostat Tau", type: "range", min: 0, max: 10, step: 0.5, default: 5 },
 		{ key: "tfs_z", label: "TFS Z", type: "range", min: 0, max: 2, step: 0.05, default: 1 },
-		{ key: "num_ctx", label: "上下文长度", type: "range", min: 256, max: 32768, step: 256, default: 2048 },
+		{ key: "num_ctx", label: "上下文长度", type: "range", min: 512, max: 131072, step: 512, default: 8192 },
 		{ key: "stop", label: "停止序列", type: "text", placeholder: "输入停止序列" },
 	];
 </script>

@@ -63,3 +63,4 @@ pool.execute(`CREATE TABLE IF NOT EXISTS advice_table (
   content TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`).catch((err) => console.error('advice_table init error:', err));
+

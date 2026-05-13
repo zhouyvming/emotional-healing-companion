@@ -5,6 +5,7 @@
 	import { onMount } from "svelte";
 	import { info, settings, models } from "$lib/stores";
 	import Advanced from "./Settings/Advanced.svelte";
+import { getThirdPartyModels } from "$lib/chat/openai";
 
 	export let show = false;
 
@@ -35,6 +36,62 @@
 	let pullProgress = "";
 	let deleting: Record<string, boolean> = {};
 	let showDeleteModelConfirm = "";
+
+	// API 提供商管理
+	let providers: { id: string; name: string; baseUrl: string; apiKey: string; models: { id: string; name: string }[] }[] = [];
+	let newProviderName = "";
+	let newProviderUrl = "";
+	let newProviderKey = "";
+
+	function loadProviders() {
+		try { providers = JSON.parse(localStorage.getItem('apiProviders') ?? '[]'); } catch { providers = []; }
+	}
+	function refreshAllModels() {
+		const ollamaModels = ($models || []).filter((m: any) => !m.details?.family || !getThirdPartyModels().some((t: any) => t.details?.family === m.details?.family));
+		models.set([...ollamaModels, ...getThirdPartyModels()]);
+	}
+
+	function saveProviders() {
+		localStorage.setItem('apiProviders', JSON.stringify(providers));
+		refreshAllModels();
+	}
+	function addProvider() {
+		if (!newProviderName || !newProviderUrl || !newProviderKey) return;
+		providers = [...providers, {
+			id: Date.now().toString(36),
+			name: newProviderName.trim(),
+			baseUrl: newProviderUrl.trim(),
+			apiKey: newProviderKey.trim(),
+			models: []
+		}];
+		newProviderName = ""; newProviderUrl = ""; newProviderKey = "";
+		saveProviders();
+		toast.success('提供商已添加');
+	}
+	function removeProvider(idx: number) {
+		providers = providers.filter((_, i) => i !== idx);
+		saveProviders();
+		toast.success('提供商已删除');
+	}
+	async function fetchProviderModels(idx: number) {
+		const p = providers[idx];
+		toast('正在获取模型列表...');
+		try {
+			const baseUrl = p.baseUrl.replace(/\/+$/, '');
+			const res = await fetch(baseUrl + '/models', {
+				headers: { 'Authorization': `Bearer ${p.apiKey}`, 'Content-Type': 'application/json' }
+			});
+			if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error?.message || `HTTP ${res.status}`); }
+			const data = await res.json();
+			const models = (data.data ?? []).map((m: any) => ({ id: m.id, name: m.id })).filter((m: any) => !m.id.startsWith('dall-e') && !m.id.startsWith('whisper') && !m.id.startsWith('tts'));
+			providers[idx].models = models;
+			providers = [...providers];
+			saveProviders();
+			toast.success(`获取到 ${models.length} 个模型`);
+		} catch (e: any) {
+			toast.error('获取失败：' + (e.message || '未知错误'));
+		}
+	}
 
 	const pullModel = async () => {
 		if (!pullModelName.trim()) {
@@ -275,6 +332,7 @@
 
 	onMount(() => {
 		const stored = JSON.parse(localStorage.getItem("settings") ?? "{}");
+			loadProviders();
 
 		theme = stored.theme ?? localStorage.theme ?? "dark";
 		if (theme === "system") {
@@ -293,9 +351,9 @@
 		API_BASE_URL = stored.API_BASE_URL ?? OLLAMA_API_BASE_URL;
 		requestFormat = stored.requestFormat ?? "";
 
-		if (stored.seed !== undefined) options.seed = stored.seed;
+		if (stored.seed !== undefined && stored.seed !== '') options.seed = stored.seed;
 		for (const key of Object.keys(options)) {
-			if (stored[key] !== undefined) {
+			if (stored[key] !== undefined && stored[key] !== '') {
 				options[key] = stored[key];
 			}
 		}
@@ -333,6 +391,31 @@
 					常规
 				</button>
 
+
+				<button
+					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab === 'preferences'
+						? 'bg-gray-200 dark:bg-gray-700 font-medium'
+						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
+					on:click={() => { selectedTab = "preferences"; }}
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-2">
+						<path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+					</svg>
+					偏好
+				</button>
+
+				<button
+					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab === 'persona'
+						? 'bg-gray-200 dark:bg-gray-700 font-medium'
+						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
+					on:click={() => { selectedTab = "persona"; }}
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-2">
+						<path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+					</svg>
+					人设
+				</button>
+
 				<button
 					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab === 'models'
 						? 'bg-gray-200 dark:bg-gray-700 font-medium'
@@ -345,6 +428,19 @@
 					</svg>
 					模型
 				</button>
+
+
+					<button
+						class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab === 'api'
+							? 'bg-gray-200 dark:bg-gray-700 font-medium'
+							: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
+						on:click={() => { selectedTab = "api"; }}
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-2">
+							<path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd" />
+						</svg>
+						API
+					</button>
 
 				<button
 					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab === 'advanced'
@@ -451,58 +547,6 @@
 							</div>
 						</div>
 
-						<!-- 偏好设置 -->
-						<div>
-							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">偏好设置</div>
-							<div class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden">
-								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-									<div>
-										<span class="text-sm">主动问候</span>
-										<div class="text-xs text-gray-400">打开应用时 AI 主动打招呼</div>
-									</div>
-									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={proactiveGreeting} />
-								</label>
-								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-									<div>
-										<span class="text-sm">隐私模式</span>
-										<div class="text-xs text-gray-400">对话内容不保存到数据库</div>
-									</div>
-									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={privacyMode} />
-								</label>
-								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-									<span class="text-sm">自动生成标题</span>
-									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={titleAutoGenerate} />
-								</label>
-								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-									<span class="text-sm">生成完成后自动复制</span>
-									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={responseAutoCopy} />
-									</label>
-								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-									<div>
-										<span class="text-sm">联网搜索</span>
-										<div class="text-xs text-gray-400">发送前自动搜索相关信息</div>
-									</div>
-									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={webSearch} />
-								</label>
-								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-									<div>
-										<span class="text-sm">情绪感知</span>
-										<div class="text-xs text-gray-400">AI 自动感知并回应你的情绪状态</div>
-									</div>
-									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={emotionSensing} />
-								</label>
-							</div>
-						</div>
-
-						<!-- AI 人设 -->
-						<div>
-							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">AI 人设</div>
-							<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
-								<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">自定义 AI 的身份、性格和说话风格</div>
-								<textarea bind:value={systemPrompt} class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none" rows="3" placeholder="例如：你是一个温柔知心的情感陪伴AI，名叫小愈。你用温暖、共情的语气与用户交流..."/>
-							</div>
-						</div>
-
 						<!-- 连接 -->
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">连接</div>
@@ -528,6 +572,65 @@
 						</div>
 					</div>
 				{/if}
+
+				{#if selectedTab === "preferences"}
+					<div class="flex flex-col space-y-4">
+						<div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">偏好设置</div>
+							<div class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden">
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<div>
+										<span class="text-sm">主动问候</span>
+										<div class="text-xs text-gray-400">打开应用时 AI 主动打招呼</div>
+									</div>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={proactiveGreeting} />
+								</label>
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<div>
+										<span class="text-sm">隐私模式</span>
+										<div class="text-xs text-gray-400">对话内容不保存到数据库</div>
+									</div>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={privacyMode} />
+								</label>
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<span class="text-sm">自动生成标题</span>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={titleAutoGenerate} />
+								</label>
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<span class="text-sm">生成完成后自动复制</span>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={responseAutoCopy} />
+								</label>
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<div>
+										<span class="text-sm">联网搜索</span>
+										<div class="text-xs text-gray-400">发送前自动搜索相关信息</div>
+									</div>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={webSearch} />
+								</label>
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<div>
+										<span class="text-sm">情绪感知</span>
+										<div class="text-xs text-gray-400">AI 自动感知并回应你的情绪状态</div>
+									</div>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={emotionSensing} />
+								</label>
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				{#if selectedTab === "persona"}
+					<div class="flex flex-col space-y-4">
+						<div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">AI 人设</div>
+							<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
+								<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">自定义 AI 的身份、性格和说话风格</div>
+								<textarea bind:value={systemPrompt} class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none" rows="4" placeholder="例如：你是一个温柔知心的情感陪伴AI，名叫小愈。你用温暖、共情的语气与用户交流..."/>
+							</div>
+						</div>
+					</div>
+				{/if}
+
 
 				{#if selectedTab === "models"}
 					<div class="flex flex-col space-y-4">
@@ -591,6 +694,60 @@
 						</div>
 					</div>
 				{/if}
+				{#if selectedTab === "api"}
+					<div class="flex flex-col space-y-4">
+						<div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">第三方 API 提供商</div>
+							<div class="text-xs text-gray-400 dark:text-gray-500 mb-3">支持 OpenAI、DeepSeek、通义千问等兼容 OpenAI API 格式的模型服务</div>
+
+							{#each providers as provider, i}
+								<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 mb-2">
+									<div class="flex items-center justify-between mb-2">
+										<span class="text-sm font-medium">{provider.name}</span>
+										<div class="flex gap-1">
+											<button class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded transition" on:click={() => fetchProviderModels(i)}>获取模型</button>
+											<button class="px-2 py-1 text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-500 rounded transition" on:click={() => removeProvider(i)}>删除</button>
+										</div>
+									</div>
+									<div class="text-xs text-gray-400 truncate mb-1">{provider.baseUrl}</div>
+									{#if provider.models.length > 0}
+										<div class="flex flex-wrap gap-1 mt-2">
+											{#each provider.models as m}
+												<span class="text-xs bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 px-2 py-0.5 rounded-full">{m.name}</span>
+											{/each}
+										</div>
+									{:else}
+										<div class="text-xs text-gray-400 mt-1">尚未获取模型列表</div>
+									{/if}
+								</div>
+							{/each}
+
+							{#if providers.length === 0}
+								<div class="text-xs text-gray-400 text-center py-4">暂无配置的 API 提供商</div>
+							{/if}
+						</div>
+
+						<!-- 添加提供商 -->
+						<div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">添加提供商</div>
+							<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-2">
+								<input class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition" placeholder="提供商名称（如 DeepSeek）" bind:value={newProviderName} />
+								<input class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition" placeholder="API 地址（如 https://api.deepseek.com/v1）" bind:value={newProviderUrl} />
+								<div class="flex gap-2">
+									<input class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition" placeholder="API Key" bind:value={newProviderKey} />
+									<button
+										class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+										on:click={addProvider}
+										disabled={!newProviderName || !newProviderUrl || !newProviderKey}
+									>
+										添加
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				{/if}
+
 
 				{#if selectedTab === "advanced"}
 					<div class="space-y-1">
