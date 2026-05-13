@@ -1,19 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 		<link rel="icon" href="/favicon.png" />
 		<script>
-			// On page load or when changing themes, best to add inline in `head` to avoid FOUC
-			if (
-				localStorage.theme === "light" ||
-				(!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: light)").matches)
-			) {
-				document.documentElement.classList.add("light");
+			// 主题初始化（防闪烁）
+			const stored = localStorage.theme;
+			if (stored === 'light' || stored === 'dark') {
+				document.documentElement.classList.add(stored);
+			} else if (stored === 'system' || !('theme' in localStorage)) {
+				document.documentElement.classList.add(
+					window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+				);
 			} else {
-				document.documentElement.classList.add("dark");
+				document.documentElement.classList.add('dark');
 			}
+			// 字体大小初始化
+			const fontSize = localStorage.getItem('fontSize') || 'normal';
+			document.documentElement.style.setProperty('--font-size-scale', fontSize === 'small' ? '0.875' : fontSize === 'large' ? '1.15' : '1');
 		</script>
 		%sveltekit.head%
 	</head>

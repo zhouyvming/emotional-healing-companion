@@ -215,7 +215,14 @@
 											</div>
 											<button
 												class="flex-shrink-0 p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition cursor-pointer"
-												on:click|stopPropagation={() => { $db.deleteChatById(chat.id); toast.success("会话已删除"); }}
+												on:click|stopPropagation={async () => {
+									try {
+										await $db.deleteChatById(chat.id);
+										toast.success("会话已删除");
+									} catch {
+										toast.error("删除失败");
+									}
+								}}
 												title="删除会话"
 											>
 												<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">

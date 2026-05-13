@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev       # 启动开发服务器（cross-env LANG=zh_CN.UTF-8），运行在 http://localhost:8080
-npm run build     # Vite 生产构建
-npm run fmt       # 用 Prettier 格式化 Svelte + JS/CSS/MD/HTML/JSON 文件
+npm run build     # Vite 生产构建，产物在 build/ 目录，使用 adapter-node
+npm run fmt       # 用 Prettier 2 格式化 Svelte + JS/CSS/MD/HTML/JSON 文件（通过 npx -p 运行）
 ```
 
 本项目没有测试套件。
@@ -15,6 +15,12 @@ npm run fmt       # 用 Prettier 格式化 Svelte + JS/CSS/MD/HTML/JSON 文件
 ## 项目概述
 
 SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。Ollama 本地大模型聊天界面，品牌名"情感疗愈伴侣"——粉色主题的中文情感支持聊天机器人。
+
+## 项目启动与依赖
+
+完整部署流程见 [README.md](./README.md)。关键外部依赖：
+- **MySQL 8**：`localhost:3307`，root 无密码，数据库 `webui_chat`（应用自动建表）
+- **Ollama**：`http://localhost:11434/api`（可在设置中修改）
 
 ## 路由结构
 
@@ -37,15 +43,16 @@ src/routes/
     ├── chats/+server.ts                    # GET(分页)/POST(创建/更新)/DELETE(全部) 聊天
     ├── chats/[id]/+server.ts              # GET/PUT/DELETE 单条聊天
     ├── advice_table/+server.ts             # POST 提交建议
-    └── feedback_table/+server.ts           # POST 提交反馈
+    ├── feedback_table/+server.ts           # POST 提交反馈
+    └── fetch-url/+server.ts               # POST 抓取网页文本（10s超时，限制HTML/text，提取8000字符）
 ```
 
-所有 6 个 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
+所有 7 个 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
 
 ## 认证体系 (`src/lib/server/auth.ts`)
 
 - `hashPassword(p)` / `verifyPassword(p, hash)` — bcryptjs（纯 JS，盐轮 10），2026-05 从 `bcrypt` 迁移以消除原生编译依赖和 `url.parse()` 弃用警告
-- `signToken({userId, username})` / `verifyToken(token)` — 自定义 HMAC-SHA256 JWT，7 天有效期
+- `signToken({userId, username})` / `verifyToken(token)` — 自定义 HMAC-SHA256 JWT（基于 `js-sha256`），7 天有效期
 - `requireAuth(request)` — 从 Authorization header 提取 Bearer token 并验证，失败抛出 `AuthError`
 - Secret 默认硬编码，可通过 `JWT_SECRET` 环境变量覆盖
 
@@ -65,6 +72,8 @@ src/routes/
 
 **IndexedDB→MySQL 迁移**：`+layout.svelte` 中 `migrateFromIndexedDB()`，完成后设 localStorage 标记不重复执行。
 
+**密码迁移脚本**：`scripts/migrate-passwords.ts` 用于将旧 bcrypt 哈希迁移为 bcryptjs 格式。
+
 ## 状态管理 (`src/lib/stores/index.ts`)
 
 | Store | 类型 | 用途 |
@@ -75,8 +84,9 @@ src/routes/
 | `chats` | `[]` | `{id, title, timestamp}` 列表，侧边栏数据源 |
 | `models` | `[]` | 可用 Ollama 模型列表 |
 | `user` | `{id, username, email, avatar?, system_avatar?} \| null` | 当前登录用户 |
-| `settings` | `{}` | 应用设置，持久化到 localStorage |
+| `settings` | `Settings` | 应用设置（`API_BASE_URL`、`theme`、`fontSize`、`proactiveGreeting`、`privacyMode`），持久化到 localStorage |
 | `showSettings` | `boolean` | 设置弹窗开关 |
+| `moodHistory` | `{date, mood, score}[]` | 情绪追踪数据 |
 
 ## 共享模块
 
@@ -115,22 +125,25 @@ src/routes/
 
 ## 核心组件
 
-| 组件 | 关键特性 |
-|------|---------|
-| **Messages.svelte** | Markdown（`marked` + HTML 净化）、代码高亮（`highlight.js` 增量高亮，`data-highlighted` 追踪）、LaTeX（`KaTeX`）、复制按钮（+ toast）、tippy.js tooltip、分支导航函数（UI待连接） |
-| **MessageInput.svelte** | 固定底部、自动伸缩（max 200px）、粉色发送按钮、停止按钮、`focus-within:border-pink-400`、Enter发送/Shift+Enter换行 |
-| **ModelSelector.svelte** | `<select>` 下拉、自动选中首个可用模型、"设为默认模型"持久化 |
-| **SettingsModal.svelte** | 4 标签页，600px×70vh 响应式：常规（主题/系统头像/偏好/API地址）、模型（拉取/列表/删除）、高级（seed/temperature/top_k等）、关于（版本号） |
-| **Sidebar.svelte** | 260px、新对话按钮、搜索、按日期分组（可折叠，"更早"默认折叠）、删除按钮（桌面hover/移动端常显，`<button>` 符合 a11y）、底部5按钮+用户入口+退出、移动端遮罩层（`<button>` 符合 a11y） |
-| **Navbar.svelte** | 对话标题（可重命名）、新对话按钮、删除确认 |
-| **Modal.svelte** | 通用弹窗容器（点击背景关闭） |
-| **Advanced.svelte** | 高级模型参数表单（SettingsModal 子组件） |
-| **Overlay.svelte** | 通用遮罩层（当前未被引用） |
-| **Spinner.svelte** | 加载动画（当前未被引用） |
+| 组件 | 位置 | 关键特性 |
+|------|------|---------|
+| **Messages.svelte** | chat/ | Markdown（`marked` + HTML 净化）、代码高亮（`highlight.js` 增量高亮，`data-highlighted` 追踪）、LaTeX（`KaTeX`）、复制按钮（+ toast）、tippy.js tooltip、分支导航函数（UI待连接） |
+| **MessageInput.svelte** | chat/ | 固定底部、自动伸缩（max 200px）、粉色发送按钮、停止按钮、`focus-within:border-pink-400`、Enter发送/Shift+Enter换行 |
+| **ModelSelector.svelte** | chat/ | `<select>` 下拉、自动选中首个可用模型、"设为默认模型"持久化 |
+| **SettingsModal.svelte** | chat/ | 4 标签页，600px×70vh 响应式：常规（主题/字体大小/系统头像/偏好/API地址）、模型（拉取/列表/删除）、高级（seed/temperature/top_k等）、关于（版本号） |
+| **Advanced.svelte** | chat/Settings/ | 高级模型参数表单（SettingsModal 子组件） |
+| **Sidebar.svelte** | layout/ | 260px、新对话按钮、搜索、按日期分组（可折叠，"更早"默认折叠）、删除按钮（桌面hover/移动端常显，`<button>` 符合 a11y）、底部5按钮+用户入口+退出、移动端遮罩层（`<button>` 符合 a11y） |
+| **Navbar.svelte** | layout/ | 对话标题（可重命名）、新对话按钮、删除确认 |
+| **Modal.svelte** | common/ | 通用弹窗容器（点击背景关闭） |
+| **Overlay.svelte** | common/ | 通用遮罩层（当前未被引用） |
+| **Spinner.svelte** | common/ | 加载动画（当前未被引用） |
 
-## 样式
+## 样式与主题
 
-Tailwind CSS，`class` 策略暗色模式。`localStorage.theme` 持久化，`app.html` 防闪烁脚本。主色系：`pink-500`（操作按钮）、`pink-50/100/200`（浅色侧边栏/状态）、`pink-700/800/900`（深色侧边栏/状态）。
+Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 的 `<script>` 中同步执行以防止闪烁：
+- 从 `localStorage.theme` 读取（`'dark'` / `'light'` / `'system'`），system 模式下跟随 `prefers-color-scheme`
+- 字体大小通过 `--font-size-scale` CSS 变量控制（small: 0.875, normal: 1, large: 1.15）
+- `localStorage.theme` 持久化，主色系：`pink-500`（操作按钮）、`pink-50/100/200`（浅色侧边栏/状态）、`pink-700/800/900`（深色侧边栏/状态）
 
 ## 多模型支持
 
@@ -142,6 +155,7 @@ Tailwind CSS，`class` 策略暗色模式。`localStorage.theme` 持久化，`ap
 |----|------|
 | `bcryptjs` | 密码哈希（纯 JS，零原生依赖） |
 | `mysql2/promise` | MySQL 连接池 + 参数化查询 |
+| `js-sha256` | JWT 签名 HMAC-SHA256 |
 | `marked` + `highlight.js` + `kaTeX` | Markdown 渲染 + 代码高亮 + 数学公式 |
 | `svelte-french-toast` | Toast 通知 |
 | `tippy.js` | 消息 info tooltip（token/s 等流式指标） |

@@ -128,7 +128,7 @@
 		const reader = new FileReader();
 		reader.onload = (ev) => {
 			const img = new Image();
-			img.onload = () => {
+			img.onload = async () => {
 				const canvas = document.createElement("canvas");
 				const maxSize = 200;
 				let w = img.width;
@@ -144,15 +144,20 @@
 				ctx?.drawImage(img, 0, 0, w, h);
 				const base64 = canvas.toDataURL("image/jpeg", 0.85);
 
-				const stored = JSON.parse(localStorage.getItem("user") ?? "{}");
-				stored.avatar = base64;
-				localStorage.setItem("user", JSON.stringify(stored));
-				user.set(stored);
-				authFetch("/api/user/profile", {
-					method: "PUT",
-					body: JSON.stringify({ avatar: base64 })
-				}).catch(() => {});
-				toast.success("头像已更新");
+				try {
+					const res = await authFetch("/api/user/profile", {
+						method: "PUT",
+						body: JSON.stringify({ avatar: base64 })
+					});
+					if (!res.ok) throw new Error();
+					const stored = JSON.parse(localStorage.getItem("user") ?? "{}");
+					stored.avatar = base64;
+					localStorage.setItem("user", JSON.stringify(stored));
+					user.set(stored);
+					toast.success("头像已更新");
+				} catch {
+					toast.error("头像更新失败");
+				}
 			};
 			img.src = ev.target?.result as string;
 		};
@@ -160,16 +165,21 @@
 		target.value = "";
 	};
 
-	const handleRemoveAvatar = () => {
-		const stored = JSON.parse(localStorage.getItem("user") ?? "{}");
-		delete stored.avatar;
-		localStorage.setItem("user", JSON.stringify(stored));
-		user.set(stored);
-		authFetch("/api/user/profile", {
-			method: "PUT",
-			body: JSON.stringify({ avatar: null })
-		}).catch(() => {});
-		toast.success("头像已移除");
+	const handleRemoveAvatar = async () => {
+		try {
+			const res = await authFetch("/api/user/profile", {
+				method: "PUT",
+				body: JSON.stringify({ avatar: null })
+			});
+			if (!res.ok) throw new Error();
+			const stored = JSON.parse(localStorage.getItem("user") ?? "{}");
+			delete stored.avatar;
+			localStorage.setItem("user", JSON.stringify(stored));
+			user.set(stored);
+			toast.success("头像已移除");
+		} catch {
+			toast.error("头像移除失败");
+		}
 	};
 
 	const handleLogout = () => {

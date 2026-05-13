@@ -12,6 +12,7 @@ interface Message {
   childrenIds: string[];
   role: 'user' | 'assistant' | 'system';
   content: string;
+  images?: string[];
   model?: string;
   timestamp?: string;
   done?: boolean;
@@ -44,6 +45,49 @@ export function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
 }
 
+// URL 检测与抓取
+async function fetchUrlContent(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/fetch-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.content?.slice(0, 4000) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// 网页搜索
+async function webSearch(query: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return null;
+    const html = await res.text();
+    const snippets: string[] = [];
+    const matches = html.matchAll(/class="result__snippet"[^>]*>(.*?)<\/a>/gs);
+    for (const m of matches) {
+      const text = m[1].replace(/<[^>]+>/g, '').trim();
+      if (text) snippets.push(text);
+      if (snippets.length >= 3) break;
+    }
+    return snippets.length > 0 ? snippets.join('\n') : null;
+  } catch {
+    return null;
+  }
+}
+
+// 情绪分析 prompt
+function getEmotionPrompt(recentMessages: string): string {
+  return `[内部情绪分析指引]
+请根据用户的最新消息感知其情绪状态（如开心、焦虑、悲伤、愤怒、平静等），并在回复中以温暖共情的方式适当回应。
+不要直白地说"我感知到你很XX"，而是自然地用匹配用户情绪的语调来回应。
+如果用户情绪低落，优先倾听和共情，不要急于给建议。`;
+}
+
 interface ChatContext {
   messages: Message[];
   history: History;
@@ -57,6 +101,7 @@ interface ChatContext {
   chatId: Writable<string>;
   isNewChat: boolean;
   notifyUpdate: () => void;
+  uploadingFiles?: { name: string; data: string; type: string }[];
 }
 
 export function createChatHandlers(ctx: () => ChatContext) {
@@ -65,11 +110,11 @@ export function createChatHandlers(ctx: () => ChatContext) {
   const setChatTitle = async (_chatId: string, _title: string) => {
     const { db, chatId, title } = c();
     await db.updateChatById(_chatId, { title: _title });
-    // title is a string primitive in context, updated via callback
   };
 
   const generateChatTitle = async (_chatId: string, userPrompt: string, onTitleSet: (t: string) => void) => {
     const { settings, selectedModels } = c();
+    if (!selectedModels[0]) return;
     if (settings.titleAutoGenerate ?? true) {
       const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/generate`, {
         method: 'POST',
@@ -83,8 +128,6 @@ export function createChatHandlers(ctx: () => ChatContext) {
 - 标题必须使用与用户输入完全相同的语言
 - 用户输入为中文 → 标题用中文
 - 用户输入为英文 → 标题用英文
-- 用户输入为日文 → 标题用日文
-- 用户输入为韩文 → 标题用韩文
 - 无法确定语言时默认使用中文
 
 只回复标题文本，不要加引号、解释或任何额外内容。
@@ -121,7 +164,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
     onTitleSet: (t: string) => void
   ) => {
     const ctx = c();
-    const { settings, db, chatId, history, messages, title, selectedModels, autoScroll } = ctx;
+    const { settings, db, chatId, history, messages, title, selectedModels, autoScroll, uploadingFiles } = ctx;
 
     let responseMessageId = uuidv4();
     let responseMessage: Message = {
@@ -147,59 +190,26 @@ export function createChatHandlers(ctx: () => ChatContext) {
     await tick();
     window.scrollTo({ top: document.body.scrollHeight });
 
-    // 联网搜索：调用服务端搜索 API（百度/Bing）
-    let searchContext = '';
-    if (settings.searchEnabled && userPrompt.trim()) {
-      try {
-        const userStr = localStorage.getItem('user');
-        const token = userStr ? JSON.parse(userStr).token : null;
-        const headers: Record<string, string> = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const provider = settings.searchProvider || 'auto';
-        const searchRes = await fetch(`/api/search?q=${encodeURIComponent(userPrompt.trim())}&provider=${provider}`, { headers });
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          if (searchData.context) {
-            searchContext = searchData.context;
-          }
-        }
-      } catch {}
-    }
-
-    // 构建 system 消息：日期 + 自定义系统提示词
-    const now = new Date();
-    const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日，星期${['日','一','二','三','四','五','六'][now.getDay()]}，当前时间 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const dateContext = `当前真实日期和时间：${dateStr}。仅以此为准，不要编造任何日期相关计算。`;
-
-    const customSystem = settings.systemPrompt?.trim()
-      || '你是一个有帮助的AI助手。回答问题时优先使用搜索结果中的真实信息，不要编造事实。如果不确定，如实说不知道。';
-
-    const systemParts: string[] = [dateContext];
-    if (customSystem) systemParts.push(customSystem);
-
-    const chatMessages = messages.map((message) => ({
+    // 构建消息列表（含图片）
+    const apiMessages = messages.map((message) => ({
       role: message.role,
-      content: message.content
+      content: message.content,
+      ...(message.images?.length ? { images: message.images } : {})
     }));
 
-    // 搜索结果注入到最后一条用户消息末尾，而非 system 层（模型难以忽略）
-    if (searchContext) {
-      const searchGuide = settings.searchPromptTemplate?.trim()
-        || '以上是网络搜索结果。你必须优先依据搜索结果回答，标注来源链接。如果搜索结果与你的训练知识冲突，以搜索结果为准。搜索结果不足以回答时，如实说"搜索结果未找到相关信息"。';
-      const lastMsg = chatMessages[chatMessages.length - 1];
-      if (lastMsg && lastMsg.role === 'user') {
-        lastMsg.content = `[网络搜索结果开始]\n${searchContext}\n[网络搜索结果结束]\n\n${searchGuide}\n\n用户问题：${lastMsg.content}`;
-      }
+    // 注入情绪感知 system prompt
+    let systemPrompt = settings.systemPrompt ?? '';
+    if (settings.emotionSensing !== false) {
+      systemPrompt = systemPrompt ? `${systemPrompt}\n\n${getEmotionPrompt(userPrompt)}` : getEmotionPrompt(userPrompt);
     }
-
-    chatMessages.unshift({ role: 'system', content: systemParts.join('\n\n') });
 
     const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'text/event-stream' },
       body: JSON.stringify({
         model,
-        messages: chatMessages,
+        messages: apiMessages,
+        system: systemPrompt || undefined,
         options: {
           seed: settings.seed ?? undefined,
           temperature: settings.temperature ?? undefined,
@@ -236,11 +246,10 @@ export function createChatHandlers(ctx: () => ChatContext) {
               let data = JSON.parse(line);
               if ('detail' in data) throw data;
 
-              if (data.done == false) {
-                if (responseMessage.content == '' && data.message.content == '\n') {
-                  continue;
-                } else {
-                  responseMessage.content += data.message.content;
+              if (data.done === false) {
+                const chunk = data.message?.content;
+                if (chunk !== undefined && !(responseMessage.content === '' && chunk === '\n')) {
+                  responseMessage.content += chunk;
                   currentCtx.notifyUpdate();
                 }
               } else {
@@ -264,17 +273,23 @@ export function createChatHandlers(ctx: () => ChatContext) {
             }
           }
         } catch (error: any) {
+          responseMessage.error = true;
+          responseMessage.done = true;
+          if (!responseMessage.content) {
+            responseMessage.content = '响应解析失败，请重试';
+          }
           if ('detail' in error) toast.error(error.detail);
+          c().notifyUpdate();
           break;
         }
 
-        if (autoScroll) {
+        if (currentCtx.autoScroll) {
           window.scrollTo({ top: document.body.scrollHeight });
         }
       }
     } else {
       responseMessage.error = true;
-      responseMessage.content = 'Uh-oh! There was an issue connecting to Ollama.';
+      responseMessage.content = '连接 Ollama 失败，请检查服务是否启动或 API 地址是否正确';
       responseMessage.done = true;
       if (res !== null) {
         try {
@@ -284,38 +299,43 @@ export function createChatHandlers(ctx: () => ChatContext) {
           responseMessage.content = error.detail ?? error.error ?? responseMessage.content;
         } catch {}
       } else {
-        toast.error('Uh-oh! There was an issue connecting to Ollama.');
+        toast.error('连接 Ollama 失败，请检查服务是否启动');
       }
       c().notifyUpdate();
     }
 
     ctx.stopResponseFlag = false;
     await tick();
-    if (autoScroll) {
+    if (c().autoScroll) {
       window.scrollTo({ top: document.body.scrollHeight });
     }
 
-    // Save chat after streaming completes (batch save, not per-token)
-    await db.updateChatById(_chatId, {
-      title: title === '' ? 'New Chat' : title,
-      models: selectedModels,
-      options: {
-        seed: settings.seed ?? undefined,
-        temperature: settings.temperature ?? undefined,
-        repeat_penalty: settings.repeat_penalty ?? undefined,
-        top_k: settings.top_k ?? undefined,
-        top_p: settings.top_p ?? undefined,
-        num_ctx: settings.num_ctx ?? undefined,
-        ...(settings.options ?? {})
-      },
-      messages: c().messages,
-      history
-    });
+    // 隐私模式跳过保存
+    const curSettings = c().settings;
+    if (!curSettings.privacyMode) {
+      await db.updateChatById(_chatId, {
+        title: title === '' ? 'New Chat' : title,
+        models: selectedModels,
+        options: {
+          seed: curSettings.seed ?? undefined,
+          temperature: curSettings.temperature ?? undefined,
+          repeat_penalty: curSettings.repeat_penalty ?? undefined,
+          top_k: curSettings.top_k ?? undefined,
+          top_p: curSettings.top_p ?? undefined,
+          num_ctx: curSettings.num_ctx ?? undefined,
+          ...(curSettings.options ?? {})
+        },
+        messages: c().messages,
+        history
+      });
+    }
 
     const latestMessages = c().messages;
-    if (latestMessages.length == 2 && latestMessages.at(1)?.content !== '') {
+    if (latestMessages.length === 2 && latestMessages.at(1)?.content !== '') {
       window.history.replaceState(history.state, '', `/c/${_chatId}`);
-      await generateChatTitle(_chatId, userPrompt, onTitleSet);
+      if (!curSettings.privacyMode) {
+        await generateChatTitle(_chatId, userPrompt, onTitleSet);
+      }
     }
   };
 
@@ -326,15 +346,17 @@ export function createChatHandlers(ctx: () => ChatContext) {
         await sendPromptOllama(model, userPrompt, parentId, _chatId, onTitleSet);
       })
     );
-    await chats.set(await db.getChats());
+    if (!c().settings.privacyMode) {
+      await chats.set(await db.getChats());
+    }
   };
 
   const submitPrompt = async (userPrompt: string, onTitleSet: (t: string) => void, isNewChat: boolean) => {
     const ctx = c();
-    const { selectedModels, messages, history, chatId, settings, db } = ctx;
+    const { selectedModels, messages, history, chatId, settings, db, uploadingFiles } = ctx;
 
     if (selectedModels.includes('')) {
-      toast.error('Model not selected');
+      toast.error('未选择模型');
       return;
     }
     if (messages.length != 0 && !messages.at(-1)?.done) {
@@ -343,15 +365,49 @@ export function createChatHandlers(ctx: () => ChatContext) {
 
     document.getElementById('chat-textarea')?.style.setProperty('height', '');
 
+    let finalPrompt = userPrompt;
+
+    // URL 检测与抓取
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    const urls = userPrompt.match(urlRegex);
+    if (urls && urls.length > 0) {
+      toast('正在读取链接内容...');
+      for (const url of urls) {
+        const content = await fetchUrlContent(url);
+        if (content) {
+          finalPrompt = finalPrompt.replace(url, '') + `\n\n[链接内容：${url}]\n${content}`;
+        }
+      }
+    }
+
+    // 网页搜索
+    if (settings.webSearch) {
+      const searchQuery = userPrompt.replace(urlRegex, '').trim();
+      if (searchQuery.length > 5) {
+        toast('正在联网搜索...');
+        const searchResults = await webSearch(searchQuery);
+        if (searchResults) {
+          finalPrompt = `[联网搜索结果：${searchQuery}]\n${searchResults}\n\n[用户输入]\n${finalPrompt}`;
+        }
+      }
+    }
+
     let userMessageId = uuidv4();
     let userMessage: Message = {
       id: userMessageId,
       parentId: messages.length !== 0 ? messages.at(-1)!.id : null,
       childrenIds: [],
       role: 'user',
-      content: userPrompt,
+      content: finalPrompt,
       timestamp: datetimeNow()
     };
+
+    // 附加上传的图片
+    if (uploadingFiles && uploadingFiles.length > 0) {
+      userMessage.images = uploadingFiles
+        .filter(f => f.type.startsWith('image/'))
+        .map(f => f.data);
+    }
 
     if (messages.length !== 0) {
       history.messages[messages.at(-1)!.id].childrenIds.push(userMessageId);
@@ -362,31 +418,33 @@ export function createChatHandlers(ctx: () => ChatContext) {
     ctx.notifyUpdate();
 
     await tick();
-    if (isNewChat && c().messages.length == 1) {
+    if (isNewChat && c().messages.length === 1) {
       const _chatId = chatId;
-      await db.createNewChat({
-        id: _chatId,
-        title: 'New Chat',
-        models: selectedModels,
-        options: {
-          seed: settings.seed ?? undefined,
-          temperature: settings.temperature ?? undefined,
-          repeat_penalty: settings.repeat_penalty ?? undefined,
-          top_k: settings.top_k ?? undefined,
-          top_p: settings.top_p ?? undefined,
-          num_ctx: settings.num_ctx ?? undefined,
-          ...(settings.options ?? {})
-        },
-        messages: c().messages,
-        history
-      });
+      if (!settings.privacyMode) {
+        await db.createNewChat({
+          id: _chatId,
+          title: 'New Chat',
+          models: selectedModels,
+          options: {
+            seed: settings.seed ?? undefined,
+            temperature: settings.temperature ?? undefined,
+            repeat_penalty: settings.repeat_penalty ?? undefined,
+            top_k: settings.top_k ?? undefined,
+            top_p: settings.top_p ?? undefined,
+            num_ctx: settings.num_ctx ?? undefined,
+            ...(settings.options ?? {})
+          },
+          messages: c().messages,
+          history
+        });
+      }
     }
 
     setTimeout(() => {
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }, 50);
 
-    await sendPrompt(userPrompt, userMessageId, chatId, onTitleSet);
+    await sendPrompt(finalPrompt, userMessageId, chatId, onTitleSet);
   };
 
   const stopResponse = () => {
@@ -395,12 +453,63 @@ export function createChatHandlers(ctx: () => ChatContext) {
 
   const regenerateResponse = async (onTitleSet: (t: string) => void) => {
     const { messages, chatId } = c();
-    if (messages.length != 0 && messages.at(-1)?.done == true) {
+    if (messages.length !== 0 && messages.at(-1)?.done === true) {
       messages.splice(messages.length - 1, 1);
       let userMessage = messages.at(-1)!;
       await sendPrompt(userMessage.content, userMessage.id, chatId, onTitleSet);
     }
   };
 
-  return { sendPromptOllama, sendPrompt, submitPrompt, generateChatTitle, setChatTitle, stopResponse, regenerateResponse };
+  const deleteMessage = async (messageId: string) => {
+    const ctx = c();
+    const { history, messages } = ctx;
+
+    const message = history.messages[messageId];
+    if (!message) return;
+
+    const removeChildren = (id: string) => {
+      for (const childId of history.messages[id]?.childrenIds ?? []) {
+        removeChildren(childId);
+        delete history.messages[childId];
+      }
+    };
+    removeChildren(messageId);
+
+    if (message.parentId && history.messages[message.parentId]) {
+      history.messages[message.parentId].childrenIds = history.messages[message.parentId].childrenIds.filter(cid => cid !== messageId);
+    }
+
+    if (history.currentId === messageId) {
+      history.currentId = message.parentId;
+    }
+
+    delete history.messages[messageId];
+    ctx.notifyUpdate();
+  };
+
+  const editMessage = async (messageId: string, newContent: string, onTitleSet: (t: string) => void) => {
+    const ctx = c();
+    const { history, chatId } = ctx;
+
+    const message = history.messages[messageId];
+    if (!message || message.role !== 'user') return;
+
+    const removeChildren = (id: string) => {
+      for (const childId of history.messages[id]?.childrenIds ?? []) {
+        removeChildren(childId);
+        delete history.messages[childId];
+      }
+      history.messages[id].childrenIds = [];
+    };
+    removeChildren(messageId);
+
+    message.content = newContent;
+    message.timestamp = datetimeNow();
+    history.currentId = messageId;
+    ctx.notifyUpdate();
+
+    await sendPrompt(newContent, messageId, chatId, onTitleSet);
+  };
+
+  return { sendPromptOllama, sendPrompt, submitPrompt, generateChatTitle, setChatTitle, stopResponse, regenerateResponse, editMessage, deleteMessage };
 }

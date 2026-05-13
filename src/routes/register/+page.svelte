@@ -10,7 +10,13 @@
   let showPassword = false;
   let loading = false;
 
-  $: redirect = $page.url.searchParams.get('redirect');
+  $: redirect = sanitizeRedirect($page.url.searchParams.get('redirect'));
+
+  function sanitizeRedirect(path: string | null): string | null {
+    if (!path) return null;
+    // 仅允许站内相对路径
+    return path.startsWith('/') ? path : null;
+  }
 
   async function handleRegister() {
     if (!username || !email || !password || !confirmPassword) {

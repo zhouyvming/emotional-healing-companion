@@ -19,6 +19,7 @@
 	let selectedModels = [''];
 	let title = '';
 	let prompt = '';
+	let uploadingFiles: { name: string; data: string; type: string }[] = [];
 
 	let messages: any[] = [];
 	let history: any = {
@@ -41,10 +42,12 @@
 		}
 	})();
 
+	$: isStreaming = messages.some(m => m.role === 'assistant' && !m.done && !m.error);
+
 	function getCtx() {
 		return {
 			messages, history, title, selectedModels,
-			stopResponseFlag, autoScroll,
+			stopResponseFlag, autoScroll, uploadingFiles,
 			settings: $settings,
 			db: $db, chats, chatId,
 			get chatId() { return $chatId; },
@@ -54,17 +57,18 @@
 	}
 
 	const handlers = createChatHandlers(getCtx);
-
-	const { submitPrompt, stopResponse, regenerateResponse } = handlers;
+	const { submitPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } = handlers;
 
 	const onTitleSet = (t: string) => { title = t; };
 
 	const wrappedSubmit = async (userPrompt: string) => {
 		prompt = "";
 		await submitPrompt(userPrompt, onTitleSet, false);
+		uploadingFiles = [];
 	};
 
 	const wrappedRegenerate = () => regenerateResponse(onTitleSet);
+	const wrappedEdit = async (messageId: string, newContent: string) => { await editMessage(messageId, newContent, onTitleSet); };
 
 	$: if ($page.params.id) {
 		(async () => {
@@ -129,7 +133,10 @@
 					bind:history
 					bind:messages
 					bind:autoScroll
+					
 					regenerateResponse={wrappedRegenerate}
+					
+					
 				/>
 			</div>
 		</div>
@@ -138,6 +145,7 @@
 			bind:prompt
 			bind:autoScroll
 			{messages}
+			bind:uploadingFiles
 			submitPrompt={wrappedSubmit}
 			{stopResponse}
 		/>

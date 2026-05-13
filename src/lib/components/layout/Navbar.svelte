@@ -34,11 +34,9 @@
 		editTitle = "";
 	}
 
-	function confirmDelete() {
-		goto("/");
-		$db.deleteChatById($chatId);
-		chatId.set(uuidv4());
+	async function confirmDelete() {
 		showDeleteConfirm = false;
+		await $db.deleteChatById($chatId);
 	}
 </script>
 

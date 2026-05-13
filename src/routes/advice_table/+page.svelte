@@ -6,7 +6,8 @@
 	let currentUser: { username: string; token: string } | null = null;
 	let adviceContent = "";
 	let feedbackContent = "";
-	let submitting = false;
+	let submittingAdvice = false;
+	let submittingFeedback = false;
 
 	onMount(() => {
 		const stored = JSON.parse(localStorage.getItem("user") ?? "null");
@@ -34,7 +35,7 @@
 			toast.error("请输入建议内容");
 			return;
 		}
-		submitting = true;
+		submittingAdvice = true;
 		try {
 			const res = await authFetch("/api/advice_table", {
 				method: "POST",
@@ -49,7 +50,7 @@
 		} catch (error: any) {
 			toast.error(error.message || "提交失败");
 		} finally {
-			submitting = false;
+			submittingAdvice = false;
 		}
 	};
 
@@ -58,7 +59,7 @@
 			toast.error("请输入反馈内容");
 			return;
 		}
-		submitting = true;
+		submittingFeedback = true;
 		try {
 			const res = await authFetch("/api/feedback_table", {
 				method: "POST",
@@ -73,7 +74,7 @@
 		} catch (error: any) {
 			toast.error(error.message || "提交失败");
 		} finally {
-			submitting = false;
+			submittingFeedback = false;
 		}
 	};
 </script>
@@ -94,9 +95,9 @@
 				<button
 					class="px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
 					on:click={handleAdviceSubmit}
-					disabled={submitting}
+					disabled={submittingAdvice}
 				>
-					{submitting ? '提交中...' : '提交建议'}
+					{submittingAdvice ? '提交中...' : '提交建议'}
 				</button>
 			</div>
 		</div>
@@ -114,9 +115,9 @@
 				<button
 					class="px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
 					on:click={handleFeedbackSubmit}
-					disabled={submitting}
+					disabled={submittingFeedback}
 				>
-					{submitting ? '提交中...' : '提交反馈'}
+					{submittingFeedback ? '提交中...' : '提交反馈'}
 				</button>
 			</div>
 		</div>

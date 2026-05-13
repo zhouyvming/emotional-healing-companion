@@ -8,7 +8,13 @@
   let showPassword = false;
   let loading = false;
 
-  $: redirect = $page.url.searchParams.get('redirect') ?? '/';
+  $: redirect = sanitizeRedirect($page.url.searchParams.get('redirect'));
+
+  function sanitizeRedirect(path: string | null): string {
+    if (!path) return '/';
+    // 仅允许站内相对路径，阻止 Open Redirect 攻击
+    return path.startsWith('/') ? path : '/';
+  }
 
   async function handleLogin() {
     if (!username || !password) {

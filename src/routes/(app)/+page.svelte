@@ -17,6 +17,7 @@
 	let selectedModels = [""];
 	let title = "";
 	let prompt = "";
+	let uploadingFiles: { name: string; data: string; type: string }[] = [];
 
 	let messages: any[] = [];
 	let history: any = {
@@ -39,10 +40,13 @@
 		}
 	})();
 
+	// 检查是否有流式消息
+	$: isStreaming = messages.some(m => m.role === 'assistant' && !m.done && !m.error);
+
 	function getCtx() {
 		return {
 			messages, history, title, selectedModels,
-			stopResponseFlag, autoScroll,
+			stopResponseFlag, autoScroll, uploadingFiles,
 			settings: $settings,
 			db: $db, chats, chatId,
 			get chatId() { return $chatId; },
@@ -52,22 +56,35 @@
 	}
 
 	const handlers = createChatHandlers(getCtx);
-
-	const { submitPrompt, stopResponse, regenerateResponse } = handlers;
+	const { submitPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } = handlers;
 
 	const onTitleSet = (t: string) => { title = t; };
 
 	const wrappedSubmit = async (userPrompt: string) => {
 		prompt = "";
 		await submitPrompt(userPrompt, onTitleSet, true);
+		uploadingFiles = [];
 	};
 
 	const wrappedRegenerate = () => regenerateResponse(onTitleSet);
+	const wrappedEdit = async (messageId: string, newContent: string) => { await editMessage(messageId, newContent, onTitleSet); };
 
 	let unsubChatId: () => void;
 
 	onMount(async () => {
 		await chatId.set(uuidv4());
+
+		// 系统主题监听
+		const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+		const handleThemeChange = () => {
+			const currentTheme = localStorage.theme;
+			if (currentTheme === 'system') {
+				document.documentElement.classList.remove('light', 'dark');
+				document.documentElement.classList.add(mediaQuery.matches ? 'light' : 'dark');
+			}
+		};
+		mediaQuery.addEventListener('change', handleThemeChange);
+
 		unsubChatId = chatId.subscribe(async () => {
 			await initNewChat();
 		});
@@ -82,6 +99,7 @@
 		title = "";
 		messages = [];
 		history = { messages: {}, currentId: null };
+		uploadingFiles = [];
 		selectedModels = $page.url.searchParams.get("models")
 			? $page.url.searchParams.get("models")?.split(",")
 			: $settings.models ?? [""];
@@ -110,10 +128,13 @@
 				bind:history
 				bind:messages
 				bind:autoScroll
+				
 				regenerateResponse={wrappedRegenerate}
+				
+				
 			/>
 		</div>
 	</div>
 
-	<MessageInput bind:prompt bind:autoScroll {messages} submitPrompt={wrappedSubmit} {stopResponse} />
+	<MessageInput bind:prompt bind:autoScroll {messages} bind:uploadingFiles submitPrompt={wrappedSubmit} {stopResponse} />
 </div>

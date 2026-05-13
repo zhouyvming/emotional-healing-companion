@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Modal from "../common/Modal.svelte";
-
 	import { WEB_UI_VERSION, OLLAMA_API_BASE_URL } from "$lib/constants";
 	import toast from "svelte-french-toast";
 	import { onMount } from "svelte";
@@ -19,12 +18,14 @@
 	// General
 	let API_BASE_URL = OLLAMA_API_BASE_URL;
 	let theme = "dark";
+	let fontSize = "normal";
+	let proactiveGreeting = true;
+	let privacyMode = false;
+	let webSearch = false;
+	let emotionSensing = true;
 	let titleAutoGenerate = true;
 	let responseAutoCopy = false;
-	let searchEnabled = false;
-	let searchProvider = 'auto';
-	let systemPrompt = '';
-	let searchPromptTemplate = '';
+	let systemPrompt = "";
 	let systemAvatarInput: HTMLInputElement;
 	let systemAvatarPreview = "";
 
@@ -140,11 +141,32 @@
 		}
 	};
 
-	const toggleTheme = () => {
-		theme = theme === "dark" ? "light" : "dark";
-		localStorage.theme = theme;
-		document.documentElement.classList.remove(theme === "dark" ? "light" : "dark");
-		document.documentElement.classList.add(theme);
+	const applyTheme = (t: string) => {
+		document.documentElement.classList.remove("light", "dark");
+		if (t === "system") {
+			document.documentElement.classList.add(
+				window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"
+			);
+		} else {
+			document.documentElement.classList.add(t);
+		}
+		localStorage.theme = t;
+	};
+
+	const setTheme = (t: string) => {
+		theme = t;
+		applyTheme(t);
+	};
+
+	const applyFontSize = (size: string) => {
+		const scale = size === "small" ? "0.875" : size === "large" ? "1.15" : "1";
+		document.documentElement.style.setProperty("--font-size-scale", scale);
+		localStorage.setItem("fontSize", size);
+	};
+
+	const setFontSize = (size: string) => {
+		fontSize = size;
+		applyFontSize(size);
 	};
 
 	const handleSystemAvatarUpload = (e: Event) => {
@@ -184,12 +206,15 @@
 	const saveAllSettings = () => {
 		const updated: Record<string, any> = {
 			API_BASE_URL: API_BASE_URL === "" ? OLLAMA_API_BASE_URL : API_BASE_URL,
+			theme,
+			fontSize,
+			proactiveGreeting,
+			privacyMode,
+			webSearch,
+			emotionSensing,
 			titleAutoGenerate,
 			responseAutoCopy,
-			searchEnabled,
-			searchProvider,
 			systemPrompt,
-			searchPromptTemplate,
 			requestFormat: requestFormat !== "" ? requestFormat : undefined,
 		};
 
@@ -236,16 +261,33 @@
 		return res.json();
 	};
 
+	const themeLabel = () => {
+		if (theme === "dark") return "深色";
+		if (theme === "light") return "浅色";
+		return "跟随系统";
+	};
+
+	const fontSizeLabel = () => {
+		if (fontSize === "small") return "小";
+		if (fontSize === "large") return "大";
+		return "标准";
+	};
+
 	onMount(() => {
 		const stored = JSON.parse(localStorage.getItem("settings") ?? "{}");
 
-		theme = localStorage.theme ?? "dark";
+		theme = stored.theme ?? localStorage.theme ?? "dark";
+		if (theme === "system") {
+			applyTheme("system");
+		}
+		fontSize = stored.fontSize ?? localStorage.getItem("fontSize") ?? "normal";
+		proactiveGreeting = stored.proactiveGreeting ?? true;
+		privacyMode = stored.privacyMode ?? false;
 		titleAutoGenerate = stored.titleAutoGenerate ?? true;
 		responseAutoCopy = stored.responseAutoCopy ?? false;
-		searchEnabled = stored.searchEnabled ?? false;
-		searchProvider = stored.searchProvider ?? 'auto';
-		systemPrompt = stored.systemPrompt ?? '';
-		searchPromptTemplate = stored.searchPromptTemplate ?? '';
+		systemPrompt = stored.systemPrompt ?? "";
+			webSearch = stored.webSearch ?? false;
+			emotionSensing = stored.emotionSensing ?? true;
 		const userData = JSON.parse(localStorage.getItem("user") ?? "{}");
 		systemAvatarPreview = userData.system_avatar ?? "";
 		API_BASE_URL = stored.API_BASE_URL ?? OLLAMA_API_BASE_URL;
@@ -333,38 +375,47 @@
 			</div>
 
 			<!-- Content -->
-			<div class="flex-1 min-h-[420px] max-h-[70vh] md:w-[600px] overflow-y-auto">
+			<div class="flex-1 h-[520px] w-[600px] overflow-y-auto">
 				{#if selectedTab === "general"}
 					<div class="flex flex-col space-y-4">
-						<!-- Theme -->
+						<!-- 外观 -->
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">外观</div>
-							<div class="space-y-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
-								<div class="flex items-center justify-between">
+							<div class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden">
+								<button class="flex items-center justify-between py-2.5 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-700 transition" on:click={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}>
 									<span class="text-sm">主题模式</span>
-									<button
-										class="flex items-center gap-2 px-3 py-1.5 rounded-md transition hover:bg-gray-100 dark:hover:bg-gray-700"
-										on:click={toggleTheme}
-									>
+									<div class="flex items-center gap-1.5">
 										{#if theme === "dark"}
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
 												<path fill-rule="evenodd" d="M7.455 2.004a.75.75 0 01.26.77 7 7 0 009.958 7.967.75.75 0 011.067.853A8.5 8.5 0 116.647 1.921a.75.75 0 01.808.083z" clip-rule="evenodd" />
 											</svg>
-											<span class="text-sm">深色</span>
-										{:else}
+										{:else if theme === "light"}
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
 												<path d="M10 2a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 2zM10 15a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 15zM10 7a3 3 0 100 6 3 3 0 000-6zM15.657 5.404a.75.75 0 10-1.06-1.06l-1.061 1.06a.75.75 0 001.06 1.06l1.06-1.06zM6.464 14.596a.75.75 0 10-1.06-1.06l-1.06 1.06a.75.75 0 001.06 1.06l1.06-1.06zM18 10a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 0118 10zM5 10a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 015 10zM14.596 15.657a.75.75 0 001.06-1.06l-1.06-1.061a.75.75 0 10-1.06 1.06l1.06 1.06zM5.404 6.464a.75.75 0 001.06-1.06l-1.06-1.06a.75.75 0 10-1.061 1.06l1.06 1.06z" />
 											</svg>
-											<span class="text-sm">浅色</span>
+										{:else}
+											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+												<path fill-rule="evenodd" d="M2.106 11.883a.75.75 0 01-.027-1.044A9.001 9.001 0 0110 1.75a.75.75 0 01.738.884 7.25 7.25 0 107.378 7.378.75.75 0 01.884-.738 9.001 9.001 0 01-9.09 7.917.75.75 0 01-.485-.176 8.99 8.99 0 01-7.319-5.132z" clip-rule="evenodd" />
+											</svg>
 										{/if}
-									</button>
-								</div>
+										<span class="text-xs text-gray-500">{themeLabel()}</span>
+									</div>
+								</button>
+
+								<hr class="border-gray-100 dark:border-gray-700" />
+
+								<button class="flex items-center justify-between py-2.5 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-700 transition" on:click={() => setFontSize(fontSize === "normal" ? "large" : fontSize === "large" ? "small" : "normal")}>
+									<span class="text-sm">字体大小</span>
+									<div class="flex items-center gap-2">
+										<span class="text-xs text-gray-500">{fontSizeLabel()}</span>
+									</div>
+								</button>
 
 								<hr class="border-gray-100 dark:border-gray-700" />
 
 								<div>
-									<span class="text-sm">系统头像</span>
-									<div class="flex items-center gap-3 mt-2">
+									<span class="text-sm block py-2.5 px-3">系统头像</span>
+									<div class="flex items-center gap-3 px-3 pb-3">
 										<div class="w-10 h-10 rounded-full bg-pink-200 dark:bg-pink-700 overflow-hidden flex items-center justify-center flex-shrink-0">
 											{#if systemAvatarPreview}
 												<img src={systemAvatarPreview} alt="system avatar" class="w-full h-full object-cover" />
@@ -400,10 +451,24 @@
 							</div>
 						</div>
 
-						<!-- Preferences -->
+						<!-- 偏好设置 -->
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">偏好设置</div>
 							<div class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden">
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<div>
+										<span class="text-sm">主动问候</span>
+										<div class="text-xs text-gray-400">打开应用时 AI 主动打招呼</div>
+									</div>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={proactiveGreeting} />
+								</label>
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<div>
+										<span class="text-sm">隐私模式</span>
+										<div class="text-xs text-gray-400">对话内容不保存到数据库</div>
+									</div>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={privacyMode} />
+								</label>
 								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
 									<span class="text-sm">自动生成标题</span>
 									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={titleAutoGenerate} />
@@ -411,57 +476,34 @@
 								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
 									<span class="text-sm">生成完成后自动复制</span>
 									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={responseAutoCopy} />
+									</label>
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<div>
+										<span class="text-sm">联网搜索</span>
+										<div class="text-xs text-gray-400">发送前自动搜索相关信息</div>
+									</div>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={webSearch} />
 								</label>
-								<hr class="border-gray-100 dark:border-gray-700" />
-								<div class="py-2.5 px-3">
-									<div class="flex items-center justify-between">
-										<span class="text-sm">默认开启联网搜索</span>
-										<input type="checkbox" class="w-4 h-4 rounded accent-blue-500" bind:checked={searchEnabled} />
+								<label class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+									<div>
+										<span class="text-sm">情绪感知</span>
+										<div class="text-xs text-gray-400">AI 自动感知并回应你的情绪状态</div>
 									</div>
-									{#if searchEnabled}
-										<div class="mt-3 space-y-2">
-											<div class="text-xs text-gray-500">搜索引擎</div>
-											<select class="w-full rounded-md py-1.5 px-2 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600" bind:value={searchProvider}>
-												<option value="auto">自动（百度 + Bing）</option>
-												<option value="baidu">百度</option>
-												<option value="bing">Bing</option>
-											</select>
-										</div>
-									{/if}
-								</div>
+									<input type="checkbox" class="w-4 h-4 rounded accent-pink-500" bind:checked={emotionSensing} />
+								</label>
 							</div>
 						</div>
 
-						<!-- 系统提示词 -->
+						<!-- AI 人设 -->
 						<div>
-							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">提示词设置</div>
-							<div class="space-y-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
-								<div>
-									<div class="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-										系统提示词（定义 AI 身份、性格、回复风格）
-									</div>
-									<textarea
-										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
-										placeholder="例如：你是一个温暖贴心的情感疗愈伴侣，名叫小愈。说话语气温柔亲切，像朋友一样交流。回复简洁自然，不啰嗦。"
-										rows="3"
-										bind:value={systemPrompt}
-									></textarea>
-								</div>
-								<div>
-									<div class="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-										搜索指令模板（告诉 AI 如何使用搜索结果）
-									</div>
-									<textarea
-										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
-										placeholder="请基于搜索结果回答用户问题。如果搜索结果不足以回答，请如实说明。引用来源时请标注链接。"
-										rows="3"
-										bind:value={searchPromptTemplate}
-									></textarea>
-								</div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">AI 人设</div>
+							<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
+								<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">自定义 AI 的身份、性格和说话风格</div>
+								<textarea bind:value={systemPrompt} class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none" rows="3" placeholder="例如：你是一个温柔知心的情感陪伴AI，名叫小愈。你用温暖、共情的语气与用户交流..."/>
 							</div>
 						</div>
 
-						<!-- API URL -->
+						<!-- 连接 -->
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">连接</div>
 							<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
@@ -489,7 +531,6 @@
 
 				{#if selectedTab === "models"}
 					<div class="flex flex-col space-y-4">
-						<!-- Pull Model -->
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">拉取新模型</div>
 							<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
@@ -514,7 +555,6 @@
 							</div>
 						</div>
 
-						<!-- Model List -->
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">已安装模型</div>
 							<div class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -533,26 +573,11 @@
 												{#if showDeleteModelConfirm === model.name}
 													<div class="flex items-center gap-1 ml-2">
 														<span class="text-xs text-red-400">确认删除?</span>
-														<button
-															class="px-2 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition"
-															on:click={() => deleteModel(model.name)}
-															disabled={deleting[model.name]}
-														>
-															确认
-														</button>
-														<button
-															class="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded transition"
-															on:click={() => { showDeleteModelConfirm = ""; }}
-														>
-															取消
-														</button>
+														<button class="px-2 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition" on:click={() => deleteModel(model.name)} disabled={deleting[model.name]}>确认</button>
+														<button class="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded transition" on:click={() => { showDeleteModelConfirm = ""; }}>取消</button>
 													</div>
 												{:else}
-													<button
-														class="flex-shrink-0 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition ml-2"
-														on:click={() => { showDeleteModelConfirm = model.name; }}
-														title="删除模型"
-													>
+													<button class="flex-shrink-0 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition ml-2" on:click={() => { showDeleteModelConfirm = model.name; }} title="删除模型">
 														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-red-400">
 															<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
 														</svg>
@@ -584,10 +609,8 @@
 							使用本地大语言模型提供温暖、私密的交流体验。
 						</div>
 						<div class="flex gap-3 pt-2">
-							<a href="https://ollama.com" target="_blank"
-								class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline">Ollama</a>
-							<a href="https://github.com/ollama-webui/ollama-webui" target="_blank"
-								class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline">GitHub</a>
+							<a href="https://ollama.com" target="_blank" class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline">Ollama</a>
+							<a href="https://github.com/zhouyvming/emotional-healing-companion" target="_blank" class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline">GitHub</a>
 						</div>
 						<div class="text-xs text-gray-400 dark:text-gray-500 pt-4">
 							Ollama 版本: {$info?.ollama?.version ?? '未知'}
@@ -615,10 +638,8 @@
 	.tabs::-webkit-scrollbar {
 		display: none;
 	}
-
 	.tabs {
 		-ms-overflow-style: none;
 		scrollbar-width: none;
 	}
-
 </style>

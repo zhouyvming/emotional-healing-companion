@@ -12,8 +12,15 @@ export const user = writable<{ id: number; username: string; email: string; avat
 
 interface Settings {
   API_BASE_URL?: string;
+  theme?: 'dark' | 'light' | 'system';
+  fontSize?: 'small' | 'normal' | 'large';
+  proactiveGreeting?: boolean;
+  privacyMode?: boolean;
   [key: string]: any;
 }
 
 export const settings = writable<Settings>({});
 export const showSettings = writable(false);
+
+// 情绪追踪数据
+export const moodHistory = writable<{ date: string; mood: string; score: number }[]>([]);
