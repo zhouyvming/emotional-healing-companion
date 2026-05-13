@@ -66,7 +66,7 @@ function stripHtml(str: string): string {
 }
 
 // ─── 格式化 ──────────────────────────────────────────────────
-export function formatSearchContext(results: SearchResult[], query: string, engine: string): string {
+function formatSearchContext(results: SearchResult[], query: string, engine: string): string {
   if (results.length === 0) return '';
   const lines = [
     `[联网搜索结果 - ${engine}]`,
