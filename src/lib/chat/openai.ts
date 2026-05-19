@@ -258,12 +258,12 @@ export async function sendPromptOpenAI(
 			title: getTitle() || "New Chat",
 			models: selectedModels,
 			options: {
-			temperature: curSettings.temperature ?? undefined,
-			top_p: curSettings.top_p ?? undefined,
-			max_tokens: curSettings.max_tokens ?? undefined,
-			...(curSettings.options ?? {})
-		},
-			messages: ctx.messages,
+				temperature: curSettings.temperature ?? undefined,
+				top_p: curSettings.top_p ?? undefined,
+				max_tokens: curSettings.max_tokens ?? undefined,
+				...(curSettings.options ?? {})
+			},
+			messages: getMessages(),
 			history
 		});
 	}
