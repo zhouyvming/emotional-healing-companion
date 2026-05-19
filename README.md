@@ -4,18 +4,19 @@
 
 ## 技术栈
 
-| 层面 | 技术 |
-|------|------|
-| 前端框架 | SvelteKit 1.x + Svelte 4（SPA 模式，`ssr: false`） |
-| UI | Tailwind CSS（粉色主题，深色/浅色模式切换） |
-| 数据库 | MySQL 8（`mysql2/promise`），`localhost:3307` |
-| AI 服务 | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等） |
-| 认证 | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7天有效期） |
+| 层面     | 技术                                                       |
+| -------- | ---------------------------------------------------------- |
+| 前端框架 | SvelteKit 1.x + Svelte 4（SPA 模式，`ssr: false`）         |
+| UI       | Tailwind CSS（粉色主题，深色/浅色模式切换）                |
+| 数据库   | MySQL 8（`mysql2/promise`），`localhost:3307`              |
+| AI 服务  | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等） |
+| 认证     | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7 天有效期）   |
 | Markdown | `marked` + 代码高亮（`highlight.js`）+ 数学公式（`KaTeX`） |
 
 ## 功能
 
 **聊天**
+
 - 流式响应（SSE 解析，完成后批量保存）
 - 支持 **Ollama 本地模型** + **OpenAI 兼容 API**（DeepSeek / 通义千问 / OpenAI 等）
 - 多模型并行对话（`Promise.all` 同时向多个模型提问）
@@ -28,6 +29,7 @@
 - 文件/图片上传（粘贴/拖拽/选择，图片预览，txt 文本提取）
 
 **用户系统**
+
 - 注册/登录（密码 bcrypt 加密，JWT 认证）
 - 8 个 API 路由全部受认证中间件保护
 - 个人资料管理（头像上传、用户名、邮箱、密码修改）
@@ -36,11 +38,13 @@
 - 退出登录（含确认步骤）
 
 **模型管理**
+
 - 查看已安装 Ollama 模型详情（大小、系列、参数量、量化级别）
 - 拉取新模型（流式进度显示）/ 删除模型（含确认）
 - 第三方 API 提供商管理：添加/删除/获取模型列表
 
 **设置面板**
+
 - 常规：主题（深色/浅色/跟随系统）+ 字体大小（三档）+ 系统头像 + API 地址
 - 偏好：主动问候 / 隐私模式 / 自动标题 / 自动复制 / 联网搜索 / 情绪感知
 - 人设：自定义 AI 身份性格（system prompt）
@@ -49,6 +53,7 @@
 - 关于：版本信息
 
 **其他**
+
 - 对话导出（JSON 下载）
 - 建议与反馈提交
 - 侧边栏聊天列表按日期分组（今天/昨天/本周/更早），可搜索、折叠
@@ -90,6 +95,7 @@ npm -v
 从 https://dev.mysql.com/downloads/installer/ 下载 MySQL Installer，安装时选择 MySQL Server 8.x，端口设为 `3307`，root 密码留空。
 
 **macOS**
+
 ```bash
 brew install mysql@8.0
 brew services start mysql@8.0
@@ -97,6 +103,7 @@ brew services start mysql@8.0
 ```
 
 **Linux (Debian/Ubuntu)**
+
 ```bash
 sudo apt install mysql-server-8.0
 sudo systemctl start mysql
@@ -104,9 +111,11 @@ sudo systemctl start mysql
 ```
 
 **创建数据库**
+
 ```bash
 mysql -u root -h 127.0.0.1 -P 3307
 ```
+
 ```sql
 CREATE DATABASE IF NOT EXISTS webui_chat CHARACTER SET utf8mb4;
 ```
@@ -118,11 +127,13 @@ CREATE DATABASE IF NOT EXISTS webui_chat CHARACTER SET utf8mb4;
 前往 https://ollama.com/download 下载安装。
 
 启动后至少拉取一个模型：
+
 ```bash
 ollama pull qwen3:0.6b
 ```
 
 Ollama 默认监听 `http://localhost:11434`，确保服务在运行：
+
 ```bash
 curl http://localhost:11434/api/tags
 ```
@@ -194,15 +205,15 @@ src/
 
 ## 当前已安装模型
 
-| 模型 | 大小 | 系列 | 参数量 | 量化 |
-|------|------|------|--------|------|
-| `qwen3:0.6b` | 0.5GB | qwen3 | 752M | Q4_K_M |
-| `qwen_data2_3000:latest` | 3.7GB | qwen | 1.8B | F16 |
-| `qwen_data2_3000_q4:latest` | 1.1GB | qwen | 1.8B | Q4_0 |
-| `qwen_3100_q4:latest` | 1.1GB | qwen | 1.8B | Q4_0 |
+| 模型                        | 大小  | 系列  | 参数量 | 量化   |
+| --------------------------- | ----- | ----- | ------ | ------ |
+| `qwen3:0.6b`                | 0.5GB | qwen3 | 752M   | Q4_K_M |
+| `qwen_data2_3000:latest`    | 3.7GB | qwen  | 1.8B   | F16    |
+| `qwen_data2_3000_q4:latest` | 1.1GB | qwen  | 1.8B   | Q4_0   |
+| `qwen_3100_q4:latest`       | 1.1GB | qwen  | 1.8B   | Q4_0   |
 
 ## 优化文档
 
 - [系统后期优化改进（第一轮）](./系统后期优化改进.md) — 基于 Open WebUI/Lobe Chat/ChatGPT/Claude/Gemini 对标分析
-- [系统后期优化改进2（第二轮）](./系统后期优化改进2.md) — 基于 Kimi/豆包/通义千问/文心一言等行业产品对标分析
-- [系统后期优化改进3（第三轮）](./系统后期优化改进3.md) — 基于前两轮 + 最新代码审查，聚焦情感陪伴核心能力
+- [系统后期优化改进 2（第二轮）](./系统后期优化改进2.md) — 基于 Kimi/豆包/通义千问/文心一言等行业产品对标分析
+- [系统后期优化改进 3（第三轮）](./系统后期优化改进3.md) — 基于前两轮 + 最新代码审查，聚焦情感陪伴核心能力

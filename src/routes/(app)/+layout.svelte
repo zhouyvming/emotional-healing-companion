@@ -32,18 +32,17 @@
 		return userStr ? JSON.parse(userStr).username : "guest";
 	};
 
-
 	const migrateFromIndexedDB = async () => {
-		const MIGRATION_KEY = 'chats_migrated_to_mysql';
+		const MIGRATION_KEY = "chats_migrated_to_mysql";
 		if (localStorage.getItem(MIGRATION_KEY)) return;
 
 		try {
-			const oldDB = await openDB('Chats');
-			const allChats = await oldDB.getAll('chats');
+			const oldDB = await openDB("Chats");
+			const allChats = await oldDB.getAll("chats");
 			oldDB.close();
 
 			if (allChats.length === 0) {
-				localStorage.setItem(MIGRATION_KEY, 'true');
+				localStorage.setItem(MIGRATION_KEY, "true");
 				return;
 			}
 
@@ -52,16 +51,16 @@
 			let migrated = 0;
 			for (const chat of allChats) {
 				try {
-					const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-					if (token) headers['Authorization'] = `Bearer ${token}`;
-					await fetch('/api/chats', {
-						method: 'POST',
+					const headers: Record<string, string> = { "Content-Type": "application/json" };
+					if (token) headers["Authorization"] = `Bearer ${token}`;
+					await fetch("/api/chats", {
+						method: "POST",
 						headers,
 						body: JSON.stringify({ ...chat, username })
 					});
 					migrated++;
 				} catch (e) {
-					console.warn('迁移聊天失败:', chat.id, e);
+					console.warn("迁移聊天失败:", chat.id, e);
 				}
 			}
 
@@ -69,9 +68,9 @@
 				toast.success(`已迁移 ${migrated} 条历史会话到云端`);
 			}
 		} catch (e) {
-			console.warn('IndexedDB 迁移跳过:', e);
+			console.warn("IndexedDB 迁移跳过:", e);
 		} finally {
-			localStorage.setItem(MIGRATION_KEY, 'true');
+			localStorage.setItem(MIGRATION_KEY, "true");
 		}
 	};
 
@@ -103,28 +102,29 @@
 
 	const api = (path: string, options?: RequestInit) => {
 		const headers: Record<string, string> = {
-			'Content-Type': 'application/json',
-			...(options?.headers as Record<string, string> ?? {})
+			"Content-Type": "application/json",
+			...((options?.headers as Record<string, string>) ?? {})
 		};
 		const token = getToken();
-		if (token) headers['Authorization'] = `Bearer ${token}`;
+		if (token) headers["Authorization"] = `Bearer ${token}`;
 
-		return fetch(path, { ...options, headers })
-			.then(async (res) => {
-				if (res.status === 401) {
-					localStorage.removeItem('user');
-					goto('/login');
-					throw new Error('登录已过期');
-				}
-				if (!res.ok) throw await res.json();
-				return res.json();
-			});
+		return fetch(path, { ...options, headers }).then(async (res) => {
+			if (res.status === 401) {
+				localStorage.removeItem("user");
+				goto("/login");
+				throw new Error("登录已过期");
+			}
+			if (!res.ok) throw await res.json();
+			return res.json();
+		});
 	};
 
 	const getDB = () => {
 		const refreshChats = async () => {
 			const data = await api(`/api/chats`);
-			await chats.set(data.map((item: any) => ({ title: item.title, id: item.id, timestamp: item.timestamp })));
+			await chats.set(
+				data.map((item: any) => ({ title: item.title, id: item.id, timestamp: item.timestamp }))
+			);
 		};
 
 		const self = {
@@ -133,36 +133,40 @@
 			},
 			getChats: async () => {
 				const data = await api(`/api/chats`);
-				return data.map((item: any) => ({ title: item.title, id: item.id, timestamp: item.timestamp }));
+				return data.map((item: any) => ({
+					title: item.title,
+					id: item.id,
+					timestamp: item.timestamp
+				}));
 			},
 			exportChats: async () => {
 				return api(`/api/chats`);
 			},
 			addChats: async (_chats: any[]) => {
 				for (const chat of _chats) {
-					await api('/api/chats', {
-						method: 'POST',
+					await api("/api/chats", {
+						method: "POST",
 						body: JSON.stringify(chat)
 					});
 				}
 				await refreshChats();
 			},
 			addChat: async (chat: any) => {
-				await api('/api/chats', {
-					method: 'POST',
+				await api("/api/chats", {
+					method: "POST",
 					body: JSON.stringify(chat)
 				});
 			},
 			createNewChat: async (chat: any) => {
-				await api('/api/chats', {
-					method: 'POST',
+				await api("/api/chats", {
+					method: "POST",
 					body: JSON.stringify({ ...chat, timestamp: datetimeNow() })
 				});
 				await refreshChats();
 			},
 			updateChatById: async (id: string, updated: any) => {
 				await api(`/api/chats/${id}`, {
-					method: 'PUT',
+					method: "PUT",
 					body: JSON.stringify({ ...updated, timestamp: datetimeNow() })
 				});
 				await refreshChats();
@@ -172,11 +176,11 @@
 					goto("/");
 					await chatId.set(uuidv4());
 				}
-				await api(`/api/chats/${id}`, { method: 'DELETE' });
+				await api(`/api/chats/${id}`, { method: "DELETE" });
 				await refreshChats();
 			},
 			deleteAllChat: async () => {
-				await api(`/api/chats`, { method: 'DELETE' });
+				await api(`/api/chats`, { method: "DELETE" });
 				await refreshChats();
 			}
 		};
@@ -211,9 +215,12 @@
 	};
 
 	const setOllamaVersion = async (ollamaVersion: string) => {
-		await info.set({ ...$info, ollama: { version: ollamaVersion } });
+		if (ollamaVersion !== "0") {
+			await info.set({ ...$info, ollama: { version: ollamaVersion } });
+		}
 
 		if (
+			ollamaVersion !== "0" &&
 			ollamaVersion.localeCompare(requiredOllamaVersion, undefined, {
 				numeric: true,
 				sensitivity: "case",
@@ -233,10 +240,10 @@
 		await user.set(savedUser);
 
 		const ollamaModels = await getModels();
-			const thirdPartyModels = getThirdPartyModels();
-			await models.set([...ollamaModels, ...thirdPartyModels]);
+		const thirdPartyModels = getThirdPartyModels();
+		await models.set([...ollamaModels, ...thirdPartyModels]);
 
-			let _db = await getDB();
+		let _db = await getDB();
 		await db.set(_db);
 
 		await setOllamaVersion(await getOllamaVersion());
@@ -247,10 +254,10 @@
 
 	const recheckConnection = async () => {
 		connectionError = "";
-			const ollamaModels = await getModels();
-			const thirdPartyModels = getThirdPartyModels();
-			await models.set([...ollamaModels, ...thirdPartyModels]);
-			await setOllamaVersion(await getOllamaVersion());
+		const ollamaModels = await getModels();
+		const thirdPartyModels = getThirdPartyModels();
+		await models.set([...ollamaModels, ...thirdPartyModels]);
+		await setOllamaVersion(await getOllamaVersion());
 	};
 </script>
 
@@ -302,33 +309,56 @@
 
 		{#if connectionError}
 			<div class="fixed top-14 left-0 right-0 z-40 flex justify-center pointer-events-none">
-				<div class="pointer-events-auto mx-4 mt-4 px-5 py-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl shadow-lg max-w-lg w-full">
+				<div
+					class="pointer-events-auto mx-4 mt-4 px-5 py-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl shadow-lg max-w-lg w-full"
+				>
 					<div class="flex items-start gap-3">
 						<div class="text-amber-500 mt-0.5">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-								<path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+								class="w-5 h-5"
+							>
+								<path
+									fill-rule="evenodd"
+									d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z"
+									clip-rule="evenodd"
+								/>
 							</svg>
 						</div>
 						<div class="flex-1 text-sm">
 							<p class="font-medium text-amber-800 dark:text-amber-200">无法连接到 Ollama</p>
 							<p class="mt-1 text-amber-700 dark:text-amber-300">{connectionError}</p>
 						</div>
-						<button class="text-amber-400 hover:text-amber-500 transition" on:click={() => connectionError = ""}>
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-								<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+						<button
+							class="text-amber-400 hover:text-amber-500 transition"
+							on:click={() => (connectionError = "")}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+								class="w-4 h-4"
+							>
+								<path
+									d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"
+								/>
 							</svg>
 						</button>
 					</div>
 					<div class="flex gap-2 mt-3">
 						<button
 							class="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-700 transition"
-							on:click={recheckConnection}>重新检查</button>
+							on:click={recheckConnection}>重新检查</button
+						>
 						<button
 							class="px-3 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition"
 							on:click={async () => {
 								await showSettings.set(true);
 								connectionError = "";
-							}}>打开设置</button>
+							}}>打开设置</button
+						>
 					</div>
 				</div>
 			</div>
@@ -345,4 +375,3 @@
 		</div>
 	</div>
 {/if}
-

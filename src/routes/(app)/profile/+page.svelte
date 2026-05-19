@@ -2,21 +2,17 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user } from "$lib/stores";
+	import { authFetch } from "$lib/client/http";
 	import toast from "svelte-french-toast";
 
 	let avatarInput: HTMLInputElement;
+	let currentUser: { username: string; token: string } | null = null;
 
-	const getToken = () => {
-		const stored = JSON.parse(localStorage.getItem("user") ?? "{}");
-		return stored.token ?? null;
-	};
-
-	const authFetch = (url: string, options: RequestInit = {}) => {
-		const headers: Record<string, string> = { "Content-Type": "application/json", ...(options.headers as Record<string, string> ?? {}) };
-		const token = getToken();
-		if (token) headers["Authorization"] = `Bearer ${token}`;
-		return fetch(url, { ...options, headers });
-	};
+	// 建议与反馈
+	let adviceContent = "";
+	let feedbackContent = "";
+	let submittingAdvice = false;
+	let submittingFeedback = false;
 
 	let editingProfile = false;
 	let editUsername = "";
@@ -32,9 +28,11 @@
 
 	onMount(() => {
 		const stored = JSON.parse(localStorage.getItem("user") ?? "null");
-		if (!stored) {
+		if (!stored || !stored.token) {
 			goto("/login");
+			return;
 		}
+		currentUser = stored;
 	});
 
 	const startEditProfile = () => {
@@ -134,9 +132,15 @@
 				let w = img.width;
 				let h = img.height;
 				if (w > h) {
-					if (w > maxSize) { h = h * maxSize / w; w = maxSize; }
+					if (w > maxSize) {
+						h = (h * maxSize) / w;
+						w = maxSize;
+					}
 				} else {
-					if (h > maxSize) { w = w * maxSize / h; h = maxSize; }
+					if (h > maxSize) {
+						w = (w * maxSize) / h;
+						h = maxSize;
+					}
 				}
 				canvas.width = w;
 				canvas.height = h;
@@ -186,21 +190,79 @@
 		localStorage.removeItem("user");
 		goto("/login");
 	};
+
+	const handleAdviceSubmit = async () => {
+		if (!adviceContent.trim()) {
+			toast.error("请输入建议内容");
+			return;
+		}
+		submittingAdvice = true;
+		try {
+			const res = await authFetch("/api/advice_table", {
+				method: "POST",
+				body: JSON.stringify({ content: adviceContent.trim() })
+			});
+			if (!res.ok) {
+				const err = await res.json();
+				throw new Error(err.error || "提交失败");
+			}
+			toast.success("感谢您的建议！");
+			adviceContent = "";
+		} catch (error: any) {
+			toast.error(error.message || "提交失败");
+		} finally {
+			submittingAdvice = false;
+		}
+	};
+
+	const handleFeedbackSubmit = async () => {
+		if (!feedbackContent.trim()) {
+			toast.error("请输入反馈内容");
+			return;
+		}
+		submittingFeedback = true;
+		try {
+			const res = await authFetch("/api/feedback_table", {
+				method: "POST",
+				body: JSON.stringify({ content: feedbackContent.trim() })
+			});
+			if (!res.ok) {
+				const err = await res.json();
+				throw new Error(err.error || "提交失败");
+			}
+			toast.success("感谢您的反馈！");
+			feedbackContent = "";
+		} catch (error: any) {
+			toast.error(error.message || "提交失败");
+		} finally {
+			submittingFeedback = false;
+		}
+	};
 </script>
 
 <div class="min-h-screen w-full flex justify-center">
 	<div class="max-w-2xl mx-auto w-full px-4 py-8 space-y-6">
-
 		<!-- 个人信息卡片 -->
-		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
+		<div
+			class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6"
+		>
 			<div class="flex items-center gap-5">
 				<div class="relative flex-shrink-0">
-					<div class="w-20 h-20 rounded-full bg-pink-200 dark:bg-pink-700 overflow-hidden flex items-center justify-center">
+					<div
+						class="w-20 h-20 rounded-full bg-pink-200 dark:bg-pink-700 overflow-hidden flex items-center justify-center"
+					>
 						{#if $user?.avatar}
 							<img src={$user.avatar} alt="avatar" class="w-full h-full object-cover" />
 						{:else}
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-10 h-10 text-pink-500 dark:text-pink-300">
-								<path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+								class="w-10 h-10 text-pink-500 dark:text-pink-300"
+							>
+								<path
+									d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z"
+								/>
 							</svg>
 						{/if}
 					</div>
@@ -243,8 +305,8 @@
 					{:else}
 						<div class="text-xl font-semibold dark:text-gray-200">{$user?.username ?? "用户"}</div>
 						{#if $user?.email}
-						<div class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{$user.email}</div>
-					{/if}
+							<div class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{$user.email}</div>
+						{/if}
 						<button
 							class="mt-2 text-xs text-pink-500 hover:text-pink-600 dark:text-pink-400 transition"
 							on:click={startEditProfile}
@@ -280,7 +342,9 @@
 		</div>
 
 		<!-- 修改密码卡片 -->
-		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
+		<div
+			class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6"
+		>
 			{#if showPasswordForm}
 				<h3 class="text-lg font-semibold dark:text-gray-200 mb-4">修改密码</h3>
 				<div class="space-y-3">
@@ -321,7 +385,9 @@
 						</button>
 						<button
 							class="px-5 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-sm font-medium rounded-lg transition"
-							on:click={() => { showPasswordForm = false; }}
+							on:click={() => {
+								showPasswordForm = false;
+							}}
 						>
 							取消
 						</button>
@@ -330,15 +396,59 @@
 			{:else}
 				<button
 					class="w-full py-3 rounded-lg bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
-					on:click={() => { showPasswordForm = true; }}
+					on:click={() => {
+						showPasswordForm = true;
+					}}
 				>
 					修改密码
 				</button>
 			{/if}
 		</div>
 
-		<!-- 账户操作卡片 -->
+		<!-- 建议卡片 -->
 		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
+			<h3 class="text-lg font-semibold dark:text-gray-200 mb-1">您的建议是我们前进的动力</h3>
+			<p class="text-sm text-gray-400 dark:text-gray-500 mb-4">告诉我们您的想法，帮助我们做得更好</p>
+			<textarea
+				class="w-full h-24 rounded-lg py-3 px-4 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
+				placeholder="请输入您的建议..."
+				bind:value={adviceContent}
+			></textarea>
+			<div class="flex justify-end mt-3">
+				<button
+					class="px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+					on:click={handleAdviceSubmit}
+					disabled={submittingAdvice}
+				>
+					{submittingAdvice ? '提交中...' : '提交建议'}
+				</button>
+			</div>
+		</div>
+
+		<!-- 反馈卡片 -->
+		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
+			<h3 class="text-lg font-semibold dark:text-gray-200 mb-1">您的反馈是我们改进的决心</h3>
+			<p class="text-sm text-gray-400 dark:text-gray-500 mb-4">遇到问题或有改进意见？请随时告诉我们</p>
+			<textarea
+				class="w-full h-24 rounded-lg py-3 px-4 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
+				placeholder="请输入您的反馈..."
+				bind:value={feedbackContent}
+			></textarea>
+			<div class="flex justify-end mt-3">
+				<button
+					class="px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+					on:click={handleFeedbackSubmit}
+					disabled={submittingFeedback}
+				>
+					{submittingFeedback ? '提交中...' : '提交反馈'}
+				</button>
+			</div>
+		</div>
+
+		<!-- 账户操作卡片 -->
+		<div
+			class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6"
+		>
 			{#if showLogoutConfirm}
 				<div class="flex items-center justify-center gap-3">
 					<span class="text-sm text-gray-500 dark:text-gray-400">确认退出登录?</span>
@@ -350,7 +460,9 @@
 					</button>
 					<button
 						class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-sm font-medium rounded-lg transition"
-						on:click={() => { showLogoutConfirm = false; }}
+						on:click={() => {
+							showLogoutConfirm = false;
+						}}
 					>
 						取消
 					</button>
@@ -358,12 +470,13 @@
 			{:else}
 				<button
 					class="w-full py-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/50 transition"
-					on:click={() => { showLogoutConfirm = true; }}
+					on:click={() => {
+						showLogoutConfirm = true;
+					}}
 				>
 					退出登录
 				</button>
 			{/if}
 		</div>
-
 	</div>
 </div>

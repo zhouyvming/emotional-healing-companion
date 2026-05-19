@@ -11,7 +11,7 @@
 	import Navbar from "$lib/components/layout/Navbar.svelte";
 	import { page } from "$app/stores";
 
-	let stopResponseFlag = false;
+	const stopRef = { value: false };
 	let autoScroll = true;
 
 	let selectedModels = [""];
@@ -26,48 +26,69 @@
 	};
 	let updateCounter = 0;
 
-	$: updateCounter, (() => {
-		if (history.currentId !== null) {
-			let _messages: any[] = [];
-			let currentMessage = history.messages[history.currentId];
-			while (currentMessage !== null) {
-				_messages.unshift({ ...currentMessage });
-				currentMessage = currentMessage.parentId !== null ? history.messages[currentMessage.parentId] : null;
+	$: updateCounter,
+		(() => {
+			if (history.currentId !== null) {
+				let _messages: any[] = [];
+				let currentMessage = history.messages[history.currentId];
+				while (currentMessage !== null) {
+					_messages.unshift({ ...currentMessage });
+					currentMessage =
+						currentMessage.parentId !== null ? history.messages[currentMessage.parentId] : null;
+				}
+				messages = _messages;
+			} else {
+				messages = [];
 			}
-			messages = _messages;
-		} else {
-			messages = [];
-		}
-	})();
+		})();
 
 	// 检查是否有流式消息
-	$: isStreaming = messages.some(m => m.role === 'assistant' && !m.done && !m.error);
+	$: isStreaming = messages.some((m) => m.role === "assistant" && !m.done && !m.error);
 
 	function getCtx() {
 		return {
-			messages, history, title, selectedModels,
-			stopResponseFlag, autoScroll, uploadingFiles,
+			messages,
+			history,
+			title,
+			selectedModels,
+			stopRef,
+			autoScroll,
+			uploadingFiles,
 			settings: $settings,
-			db: $db, chats, chatId,
-			get chatId() { return $chatId; },
+			db: $db,
+			chats,
+			chatId,
+			get chatId() {
+				return $chatId;
+			},
 			isNewChat: true,
-			notifyUpdate: () => { updateCounter++; }
+			notifyUpdate: () => {
+				updateCounter++;
+			}
 		};
 	}
 
 	const handlers = createChatHandlers(getCtx);
 	const { submitPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } = handlers;
 
-	const onTitleSet = (t: string) => { title = t; };
+	const onTitleSet = (t: string) => {
+		title = t;
+	};
 
 	const wrappedSubmit = async (userPrompt: string) => {
 		prompt = "";
 		await submitPrompt(userPrompt, onTitleSet, true);
 		uploadingFiles = [];
+		// 确保侧边栏拿到最新的聊天列表（含生成后的标题）
+		if ($db && !$settings.privacyMode) {
+			await chats.set(await $db.getChats());
+		}
 	};
 
 	const wrappedRegenerate = () => regenerateResponse(onTitleSet);
-	const wrappedEdit = async (messageId: string, newContent: string) => { await editMessage(messageId, newContent, onTitleSet); };
+	const wrappedEdit = async (messageId: string, newContent: string) => {
+		await editMessage(messageId, newContent, onTitleSet);
+	};
 
 	let unsubChatId: () => void;
 
@@ -75,15 +96,15 @@
 		await chatId.set(uuidv4());
 
 		// 系统主题监听
-		const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+		const mediaQuery = window.matchMedia("(prefers-color-scheme: light)");
 		const handleThemeChange = () => {
 			const currentTheme = localStorage.theme;
-			if (currentTheme === 'system') {
-				document.documentElement.classList.remove('light', 'dark');
-				document.documentElement.classList.add(mediaQuery.matches ? 'light' : 'dark');
+			if (currentTheme === "system") {
+				document.documentElement.classList.remove("light", "dark");
+				document.documentElement.classList.add(mediaQuery.matches ? "light" : "dark");
 			}
 		};
-		mediaQuery.addEventListener('change', handleThemeChange);
+		mediaQuery.addEventListener("change", handleThemeChange);
 
 		unsubChatId = chatId.subscribe(async () => {
 			await initNewChat();
@@ -128,13 +149,22 @@
 				bind:history
 				bind:messages
 				bind:autoScroll
-				
 				regenerateResponse={wrappedRegenerate}
-				
-				
+			onBranchNavigate={async () => {
+				if (!$settings.privacyMode && $db) {
+					await $db.updateChatById($chatId, { messages, history });
+				}
+			}}
 			/>
 		</div>
 	</div>
 
-	<MessageInput bind:prompt bind:autoScroll {messages} bind:uploadingFiles submitPrompt={wrappedSubmit} {stopResponse} />
+	<MessageInput
+		bind:prompt
+		bind:autoScroll
+		{messages}
+		bind:uploadingFiles
+		submitPrompt={wrappedSubmit}
+		{stopResponse}
+	/>
 </div>

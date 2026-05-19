@@ -1,24 +1,24 @@
 <script lang="ts">
-	import { tick } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { tick } from "svelte";
+	import { goto } from "$app/navigation";
 
-	import { convertMessagesToHistory } from '$lib/utils';
-	import { settings, db, chats, chatId } from '$lib/stores';
-	import { createChatHandlers } from '$lib/chat/ollama';
+	import { convertMessagesToHistory } from "$lib/utils";
+	import { settings, db, chats, chatId } from "$lib/stores";
+	import { createChatHandlers } from "$lib/chat/ollama";
 
-	import MessageInput from '$lib/components/chat/MessageInput.svelte';
-	import Messages from '$lib/components/chat/Messages.svelte';
-	import ModelSelector from '$lib/components/chat/ModelSelector.svelte';
-	import Navbar from '$lib/components/layout/Navbar.svelte';
-	import { page } from '$app/stores';
+	import MessageInput from "$lib/components/chat/MessageInput.svelte";
+	import Messages from "$lib/components/chat/Messages.svelte";
+	import ModelSelector from "$lib/components/chat/ModelSelector.svelte";
+	import Navbar from "$lib/components/layout/Navbar.svelte";
+	import { page } from "$app/stores";
 
 	let loaded = false;
-	let stopResponseFlag = false;
+	const stopRef = { value: false };
 	let autoScroll = true;
 
-	let selectedModels = [''];
-	let title = '';
-	let prompt = '';
+	let selectedModels = [""];
+	let title = "";
+	let prompt = "";
 	let uploadingFiles: { name: string; data: string; type: string }[] = [];
 
 	let messages: any[] = [];
@@ -28,47 +28,68 @@
 	};
 	let updateCounter = 0;
 
-	$: updateCounter, (() => {
-		if (history.currentId !== null) {
-			let _messages: any[] = [];
-			let currentMessage = history.messages[history.currentId];
-			while (currentMessage !== null) {
-				_messages.unshift({ ...currentMessage });
-				currentMessage = currentMessage.parentId !== null ? history.messages[currentMessage.parentId] : null;
+	$: updateCounter,
+		(() => {
+			if (history.currentId !== null) {
+				let _messages: any[] = [];
+				let currentMessage = history.messages[history.currentId];
+				while (currentMessage !== null) {
+					_messages.unshift({ ...currentMessage });
+					currentMessage =
+						currentMessage.parentId !== null ? history.messages[currentMessage.parentId] : null;
+				}
+				messages = _messages;
+			} else {
+				messages = [];
 			}
-			messages = _messages;
-		} else {
-			messages = [];
-		}
-	})();
+		})();
 
-	$: isStreaming = messages.some(m => m.role === 'assistant' && !m.done && !m.error);
+	$: isStreaming = messages.some((m) => m.role === "assistant" && !m.done && !m.error);
 
 	function getCtx() {
 		return {
-			messages, history, title, selectedModels,
-			stopResponseFlag, autoScroll, uploadingFiles,
+			messages,
+			history,
+			title,
+			selectedModels,
+			stopRef,
+			autoScroll,
+			uploadingFiles,
 			settings: $settings,
-			db: $db, chats, chatId,
-			get chatId() { return $chatId; },
+			db: $db,
+			chats,
+			chatId,
+			get chatId() {
+				return $chatId;
+			},
 			isNewChat: false,
-			notifyUpdate: () => { updateCounter++; }
+			notifyUpdate: () => {
+				updateCounter++;
+			}
 		};
 	}
 
 	const handlers = createChatHandlers(getCtx);
 	const { submitPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } = handlers;
 
-	const onTitleSet = (t: string) => { title = t; };
+	const onTitleSet = (t: string) => {
+		title = t;
+	};
 
 	const wrappedSubmit = async (userPrompt: string) => {
 		prompt = "";
 		await submitPrompt(userPrompt, onTitleSet, false);
 		uploadingFiles = [];
+		// 确保侧边栏拿到最新的聊天列表（含生成后的标题）
+		if ($db && !$settings.privacyMode) {
+			await chats.set(await $db.getChats());
+		}
 	};
 
 	const wrappedRegenerate = () => regenerateResponse(onTitleSet);
-	const wrappedEdit = async (messageId: string, newContent: string) => { await editMessage(messageId, newContent, onTitleSet); };
+	const wrappedEdit = async (messageId: string, newContent: string) => {
+		await editMessage(messageId, newContent, onTitleSet);
+	};
 
 	$: if ($page.params.id) {
 		(async () => {
@@ -77,7 +98,7 @@
 			if (chat) {
 				loaded = true;
 			} else {
-				await goto('/');
+				await goto("/");
 			}
 		})();
 	}
@@ -87,13 +108,14 @@
 		const chat = await $db.getChatById($chatId);
 
 		if (chat) {
-			selectedModels = (chat?.models ?? undefined) !== undefined ? chat.models : [chat.model ?? ''];
-			history = (chat?.history ?? undefined) !== undefined
-				? chat.history
-				: convertMessagesToHistory(chat.messages);
+			selectedModels = (chat?.models ?? undefined) !== undefined ? chat.models : [chat.model ?? ""];
+			history =
+				(chat?.history ?? undefined) !== undefined
+					? chat.history
+					: convertMessagesToHistory(chat.messages);
 			title = chat.title;
 
-			let _settings = JSON.parse(localStorage.getItem('settings') ?? '{}');
+			let _settings = JSON.parse(localStorage.getItem("settings") ?? "{}");
 			await settings.set({
 				..._settings,
 				system: chat.system ?? _settings.system,
@@ -133,10 +155,12 @@
 					bind:history
 					bind:messages
 					bind:autoScroll
-					
 					regenerateResponse={wrappedRegenerate}
-					
-					
+				onBranchNavigate={async () => {
+					if (!$settings.privacyMode && $db) {
+						await $db.updateChatById($chatId, { messages, history });
+					}
+				}}
 				/>
 			</div>
 		</div>

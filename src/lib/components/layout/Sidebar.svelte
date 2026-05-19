@@ -8,7 +8,7 @@
 
 	let show = false;
 	let chatListExpanded = true;
-	let collapsedGroups: Set<string> = new Set(['更早']);
+	let collapsedGroups: Set<string> = new Set(["更早"]);
 	let navElement;
 
 	let search = "";
@@ -30,20 +30,24 @@
 		await $db.deleteAllChat();
 	};
 
-
 	// 日期分组
 	function getDateGroup(timestamp: number | string): string {
-		if (!timestamp) return '更早';
+		if (!timestamp) return "更早";
 		const now = new Date();
-		const date = new Date(timestamp);
+		let ts = timestamp;
+		// Safari 兼容：'YYYY-MM-DD HH:MM:SS' 需转为 ISO 格式
+		if (typeof ts === "string" && ts.includes(" ") && !ts.includes("T")) {
+			ts = ts.replace(" ", "T");
+		}
+		const date = new Date(ts);
 		const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 		const yesterday = new Date(today.getTime() - 86400000);
 		const weekAgo = new Date(today.getTime() - 7 * 86400000);
 
-		if (date >= today) return '今天';
-		if (date >= yesterday) return '昨天';
-		if (date >= weekAgo) return '本周';
-		return '更早';
+		if (date >= today) return "今天";
+		if (date >= yesterday) return "昨天";
+		if (date >= weekAgo) return "本周";
+		return "更早";
 	}
 
 	// 过滤并分组
@@ -54,9 +58,9 @@
 
 	$: groupedChats = (() => {
 		const groups: { label: string; chats: typeof filteredChats }[] = [];
-		const order = ['今天', '昨天', '本周', '更早'];
+		const order = ["今天", "昨天", "本周", "更早"];
 		for (const label of order) {
-			const items = filteredChats.filter(c => getDateGroup(c.timestamp) === label);
+			const items = filteredChats.filter((c) => getDateGroup(c.timestamp) === label);
 			if (items.length > 0) groups.push({ label, chats: items });
 		}
 		return groups;
@@ -141,16 +145,22 @@
 		<div class="pl-2.5 flex-1 flex flex-col min-h-0">
 			<button
 				class="flex items-center justify-between pr-3 py-1.5 hover:bg-pink-100 dark:hover:bg-pink-800 rounded-md transition"
-				on:click={() => { chatListExpanded = !chatListExpanded; }}
+				on:click={() => {
+					chatListExpanded = !chatListExpanded;
+				}}
 			>
-				<span class="text-xs text-gray-500 dark:text-gray-400 font-medium select-none">会话列表</span>
+				<span class="text-xs text-gray-500 dark:text-gray-400 font-medium select-none"
+					>会话列表</span
+				>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					fill="none"
 					viewBox="0 0 24 24"
 					stroke-width="2"
 					stroke="currentColor"
-					class="w-3.5 h-3.5 text-gray-400 transition-transform duration-200 {chatListExpanded ? 'rotate-90' : ''}"
+					class="w-3.5 h-3.5 text-gray-400 transition-transform duration-200 {chatListExpanded
+						? 'rotate-90'
+						: ''}"
 				>
 					<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
 				</svg>
@@ -176,9 +186,15 @@
 								viewBox="0 0 24 24"
 								stroke-width="2"
 								stroke="currentColor"
-								class="w-3 h-3 transition-transform duration-200 {collapsedGroups.has(group.label) ? '' : 'rotate-90'}"
+								class="w-3 h-3 transition-transform duration-200 {collapsedGroups.has(group.label)
+									? ''
+									: 'rotate-90'}"
 							>
-								<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M8.25 4.5l7.5 7.5-7.5 7.5"
+								/>
 							</svg>
 							<span>{group.label}</span>
 							<span class="ml-auto pr-2 text-xs">{group.chats.length}</span>
@@ -186,56 +202,72 @@
 						{#if !collapsedGroups.has(group.label)}
 							<div class="flex flex-col space-y-0.5">
 								{#each group.chats as chat}
-								<div class="w-full pr-2 relative group">
-									<button
-										class="w-full flex rounded-md px-3 py-2 hover:bg-pink-100 dark:hover:bg-pink-800 {chat.id === $chatId
-											? 'bg-pink-200 dark:bg-pink-700'
-											: ''} transition text-left"
-										on:click={() => { loadChat(chat.id); }}
-									>
-										<div class="flex self-center flex-1 min-w-0">
-											<div class="self-center mr-2 flex-shrink-0">
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke-width="1.5"
-													stroke="currentColor"
-													class="w-4 h-4"
+									<div class="w-full pr-2 relative group">
+										<button
+											class="w-full flex rounded-md px-3 py-2 hover:bg-pink-100 dark:hover:bg-pink-800 {chat.id ===
+											$chatId
+												? 'bg-pink-200 dark:bg-pink-700'
+												: ''} transition text-left"
+											on:click={() => {
+												loadChat(chat.id);
+											}}
+										>
+											<div class="flex self-center flex-1 min-w-0">
+												<div class="self-center mr-2 flex-shrink-0">
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke-width="1.5"
+														stroke="currentColor"
+														class="w-4 h-4"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"
+														/>
+													</svg>
+												</div>
+												<div
+													class="text-left self-center overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0"
 												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"
-													/>
-												</svg>
+													{chat.title}
+												</div>
+												<button
+													class="flex-shrink-0 p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition cursor-pointer"
+													on:click|stopPropagation={async () => {
+														try {
+															await $db.deleteChatById(chat.id);
+															toast.success("会话已删除");
+														} catch {
+															toast.error("删除失败");
+														}
+													}}
+													title="删除会话"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke-width="2"
+														stroke="currentColor"
+														class="w-3.5 h-3.5"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															d="M6 18L18 6M6 6l12 12"
+														/>
+													</svg>
+												</button>
 											</div>
-											<div class="text-left self-center overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0">
-												{chat.title}
-											</div>
-											<button
-												class="flex-shrink-0 p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition cursor-pointer"
-												on:click|stopPropagation={async () => {
-									try {
-										await $db.deleteChatById(chat.id);
-										toast.success("会话已删除");
-									} catch {
-										toast.error("删除失败");
-									}
-								}}
-												title="删除会话"
-											>
-												<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
-													<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-												</svg>
-											</button>
-										</div>
-									</button>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				{/each}
+										</button>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					{/each}
 					{#if filteredChats.length === 0}
 						<div class="text-center text-gray-400 dark:text-gray-500 text-xs py-4">暂无会话</div>
 					{/if}
@@ -335,32 +367,6 @@
 					</button>
 				{/if}
 
-				<!-- 建议及反馈 -->
-				<button
-					class="flex rounded-md py-3 px-3.5 w-full hover:bg-pink-50 dark:hover:bg-pink-900 transition"
-					on:click={() => {
-						goto('/advice_table');
-					}}
-				>
-					<div class="self-center mr-3">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke-width="1.5"
-							stroke="currentColor"
-							class="w-5 h-5"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"
-							/>
-						</svg>
-					</div>
-					<div class="self-center font-medium">建议及反馈</div>
-				</button>
-
 				<!-- 导出对话 -->
 				<button
 					class="flex rounded-md py-3 px-3.5 w-full hover:bg-pink-50 dark:hover:bg-pink-900 transition"
@@ -410,45 +416,71 @@
 				</button>
 
 				<!-- 用户信息入口 -->
-				<div class="flex items-center gap-3 rounded-md py-2.5 px-3.5 w-full hover:bg-pink-100 dark:hover:bg-pink-800 transition mt-2">
-					<button class="flex items-center gap-3 flex-1 min-w-0" on:click={() => goto('/profile')}>
-						<div class="flex-shrink-0 w-8 h-8 rounded-full bg-pink-200 dark:bg-pink-700 overflow-hidden flex items-center justify-center">
+				<div
+					class="flex items-center gap-3 rounded-md py-2.5 px-3.5 w-full hover:bg-pink-100 dark:hover:bg-pink-800 transition mt-2"
+				>
+					<button class="flex items-center gap-3 flex-1 min-w-0" on:click={() => goto("/profile")}>
+						<div
+							class="flex-shrink-0 w-8 h-8 rounded-full bg-pink-200 dark:bg-pink-700 overflow-hidden flex items-center justify-center"
+						>
 							{#if $user?.avatar}
 								<img src={$user.avatar} alt="avatar" class="w-full h-full object-cover" />
 							{:else}
-								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-pink-500 dark:text-pink-300">
-									<path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 20 20"
+									fill="currentColor"
+									class="w-5 h-5 text-pink-500 dark:text-pink-300"
+								>
+									<path
+										d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z"
+									/>
 								</svg>
 							{/if}
 						</div>
 						<div class="flex-1 text-left min-w-0">
-							<div class="text-sm font-medium truncate">{$user?.username ?? '用户'}</div>
-							<div class="text-xs text-gray-400 dark:text-gray-500 truncate">{$user?.email ?? ''}</div>
+							<div class="text-sm font-medium truncate">{$user?.username ?? "用户"}</div>
+							<div class="text-xs text-gray-400 dark:text-gray-500 truncate">
+								{$user?.email ?? ""}
+							</div>
 						</div>
 					</button>
 					<button
 						class="flex-shrink-0 p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition"
-						on:click={() => { localStorage.removeItem("user"); goto("/login"); }}
-						title="退出登录"
+						on:click={() => {
+							goto("/profile");
+						}}
+						title="个人资料"
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-red-500">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke-width="1.5"
+							stroke="currentColor"
+							class="w-5 h-5 text-red-500"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"
+							/>
 						</svg>
 					</button>
 				</div>
-
 			</div>
 		</div>
 	</div>
 
-
-		<!-- 移动端遮罩层 -->
-		{#if show}
-			<button
-				class="fixed inset-0 z-30 bg-black/30 md:hidden border-0 cursor-default"
-				on:click={() => { show = false; }}
-			/>
-		{/if}
+	<!-- 移动端遮罩层 -->
+	{#if show}
+		<button
+			class="fixed inset-0 z-30 bg-black/30 md:hidden border-0 cursor-default"
+			on:click={() => {
+				show = false;
+			}}
+		/>
+	{/if}
 	<div
 		class="fixed left-0 top-[50dvh] z-40 -translate-y-1/2 transition-transform translate-x-[255px] md:translate-x-[260px] rotate-0"
 	>

@@ -11,8 +11,9 @@
 	}
 
 	const saveDefaultModel = () => {
-		settings.set({ ...$settings, models: selectedModels });
-		localStorage.setItem("settings", JSON.stringify($settings));
+		const updated = { ...$settings, models: [...selectedModels] };
+		settings.set(updated);
+		localStorage.setItem("settings", JSON.stringify(updated));
 		toast.success("已更新默认模型");
 	};
 </script>
@@ -28,7 +29,7 @@
 			>
 				<option class=" text-gray-700" value="" selected>选择一个模型</option>
 
-				{#each $models as model}
+				{#each $models.filter((m) => m.name !== "hr") as model}
 					<option value={model.name} class="text-gray-700 text-lg">{model.name}</option>
 				{/each}
 			</select>

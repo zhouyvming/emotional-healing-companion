@@ -15,24 +15,75 @@
 	};
 
 	const paramDefs = [
-		{ key: "seed", label: "随机种子", type: "number", min: 0, max: 9999999, step: 1, default: 0, placeholder: "0" },
+		{
+			key: "seed",
+			label: "随机种子",
+			type: "number",
+			min: 0,
+			max: 9999999,
+			step: 1,
+			default: 0,
+			placeholder: "0"
+		},
 		{ key: "temperature", label: "温度", type: "range", min: 0, max: 2, step: 0.05, default: 0.8 },
 		{ key: "top_k", label: "Top K", type: "range", min: 1, max: 100, step: 1, default: 40 },
 		{ key: "top_p", label: "Top P", type: "range", min: 0, max: 1, step: 0.05, default: 0.9 },
-		{ key: "repeat_penalty", label: "重复惩罚", type: "range", min: 0, max: 2, step: 0.05, default: 1.1 },
-		{ key: "repeat_last_n", label: "重复最后 N 个", type: "range", min: -1, max: 128, step: 1, default: 64 },
+		{
+			key: "repeat_penalty",
+			label: "重复惩罚",
+			type: "range",
+			min: 0,
+			max: 2,
+			step: 0.05,
+			default: 1.1
+		},
+		{
+			key: "repeat_last_n",
+			label: "重复最后 N 个",
+			type: "range",
+			min: -1,
+			max: 128,
+			step: 1,
+			default: 64
+		},
 		{ key: "mirostat", label: "Mirostat", type: "range", min: 0, max: 2, step: 1, default: 0 },
-		{ key: "mirostat_eta", label: "Mirostat Eta", type: "range", min: 0, max: 1, step: 0.05, default: 0.1 },
-		{ key: "mirostat_tau", label: "Mirostat Tau", type: "range", min: 0, max: 10, step: 0.5, default: 5 },
+		{
+			key: "mirostat_eta",
+			label: "Mirostat Eta",
+			type: "range",
+			min: 0,
+			max: 1,
+			step: 0.05,
+			default: 0.1
+		},
+		{
+			key: "mirostat_tau",
+			label: "Mirostat Tau",
+			type: "range",
+			min: 0,
+			max: 10,
+			step: 0.5,
+			default: 5
+		},
 		{ key: "tfs_z", label: "TFS Z", type: "range", min: 0, max: 2, step: 0.05, default: 1 },
-		{ key: "num_ctx", label: "上下文长度", type: "range", min: 512, max: 131072, step: 512, default: 8192 },
-		{ key: "stop", label: "停止序列", type: "text", placeholder: "输入停止序列" },
+		{
+			key: "num_ctx",
+			label: "上下文长度",
+			type: "range",
+			min: 512,
+			max: 131072,
+			step: 512,
+			default: 8192
+		},
+		{ key: "stop", label: "停止序列", type: "text", placeholder: "输入停止序列" }
 	];
 </script>
 
 <div class="space-y-2">
 	{#each paramDefs as param}
-		<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
+		<div
+			class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
+		>
 			<div class="flex items-center justify-between">
 				<span class="text-sm">{param.label}</span>
 
@@ -55,7 +106,9 @@
 					/>
 				{:else}
 					<button
-						class="text-xs px-2.5 py-1 rounded-md transition {options[param.key] === '' ? 'text-gray-400 bg-gray-100 dark:bg-gray-700' : 'text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/30'}"
+						class="text-xs px-2.5 py-1 rounded-md transition {options[param.key] === ''
+							? 'text-gray-400 bg-gray-100 dark:bg-gray-700'
+							: 'text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/30'}"
 						on:click={() => {
 							options[param.key] = options[param.key] === "" ? param.default : "";
 						}}

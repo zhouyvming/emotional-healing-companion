@@ -22,8 +22,14 @@
 	}
 
 	@keyframes bounce {
-		0%, 80%, 100% { transform: translateY(0); }
-		40% { transform: translateY(-4px); }
+		0%,
+		80%,
+		100% {
+			transform: translateY(0);
+		}
+		40% {
+			transform: translateY(-4px);
+		}
 	}
 
 	:global(.animate-bounce) {
