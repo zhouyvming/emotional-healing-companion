@@ -247,7 +247,7 @@ export async function sendPromptOpenAI(
 
 	ctx.stopRef.value = false;
 	await tick();
-	if (ctx.autoScroll) {
+	if (getAutoScroll()) {
 		window.scrollTo({ top: document.body.scrollHeight });
 	}
 

@@ -168,7 +168,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					newTitle = userPrompt.slice(0, 20);
 				}
 				await c().db.updateChatById(_chatId, { title: newTitle });
-					onTitleSet(newTitle);
+				onTitleSet(newTitle);
 			} else {
 				await c().db.updateChatById(_chatId, { title: userPrompt.slice(0, 50) });
 				onTitleSet(userPrompt.slice(0, 50));
@@ -559,10 +559,23 @@ export function createChatHandlers(ctx: () => ChatContext) {
 	};
 
 	const regenerateResponse = async (onTitleSet: (t: string) => void) => {
-		const { messages, chatId } = c();
+		const ctx = c();
+		const { messages, history, chatId } = ctx;
 		if (messages.length !== 0 && messages.at(-1)?.done === true) {
-			messages.splice(messages.length - 1, 1);
-			let userMessage = messages.at(-1)!;
+			const lastMsg = messages.at(-1);
+			// 从 history 中移除旧的 AI 回复及其子分支
+			if (lastMsg && lastMsg.role === "assistant") {
+				delete history.messages[lastMsg.id];
+				if (lastMsg.parentId && history.messages[lastMsg.parentId]) {
+					history.messages[lastMsg.parentId].childrenIds = history.messages[
+						lastMsg.parentId
+					].childrenIds.filter((cid: string) => cid !== lastMsg.id);
+				}
+				history.currentId = lastMsg.parentId;
+			}
+			ctx.notifyUpdate();
+			await tick();
+			let userMessage = c().messages.at(-1)!;
 			await sendPrompt(userMessage.content, userMessage.id, chatId, onTitleSet);
 		}
 	};
