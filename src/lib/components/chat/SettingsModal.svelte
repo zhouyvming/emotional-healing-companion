@@ -29,7 +29,9 @@
 	let fontSize = "normal";
 	let proactiveGreeting = true;
 	let privacyMode = false;
-	let webSearch = false;
+	let webSearch = true;
+	let searchEngine = 'cn.bing.com';
+	let customSearchUrl = '';
 	let emotionSensing = true;
 	let titleAutoGenerate = true;
 	let responseAutoCopy = false;
@@ -290,6 +292,8 @@
 			proactiveGreeting,
 			privacyMode,
 			webSearch,
+			searchEngine,
+			customSearchUrl,
 			emotionSensing,
 			titleAutoGenerate,
 			responseAutoCopy,
@@ -368,7 +372,9 @@
 		titleAutoGenerate = stored.titleAutoGenerate ?? true;
 		responseAutoCopy = stored.responseAutoCopy ?? false;
 		systemPrompt = stored.systemPrompt ?? "";
-		webSearch = stored.webSearch ?? false;
+		webSearch = stored.webSearch ?? true;
+		searchEngine = stored.searchEngine ?? 'cn.bing.com';
+		customSearchUrl = stored.customSearchUrl ?? '';
 		emotionSensing = stored.emotionSensing ?? true;
 		const userData = JSON.parse(localStorage.getItem("user") ?? "{}");
 		systemAvatarPreview = userData.system_avatar ?? "";
@@ -812,6 +818,31 @@
 										bind:checked={webSearch}
 									/>
 								</label>
+								<!-- 搜索引擎选择 -->
+								<div class="py-2.5 px-3">
+									<div class="flex items-center justify-between mb-2">
+										<span class="text-sm">搜索引擎</span>
+										<select
+											class="rounded-md py-1 px-2 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
+											bind:value={searchEngine}
+										>
+											<option value="cn.bing.com">Bing 中国 (cn.bing.com)</option>
+											<option value="www.baidu.com">百度 (www.baidu.com)</option>
+											<option value="www.bing.com">Bing 国际 (www.bing.com)</option>
+											<option value="html.duckduckgo.com">DuckDuckGo</option>
+											<option value="custom">自定义...</option>
+										</select>
+									</div>
+									{#if searchEngine === 'custom'}
+										<div class="mt-1">
+											<input
+												class="w-full rounded-md py-1.5 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
+												placeholder="输入搜索引擎 URL，用 {query} 代表搜索词"
+												bind:value={customSearchUrl}
+											/>
+										</div>
+									{/if}
+								</div>
 								<label
 									class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
 								>

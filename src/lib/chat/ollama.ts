@@ -63,24 +63,28 @@ async function fetchUrlContent(url: string): Promise<string | null> {
 	}
 }
 
-// 网页搜索
-async function webSearch(query: string): Promise<string | null> {
-	try {
-		const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
-		if (!res.ok) return null;
-		const html = await res.text();
-		const snippets: string[] = [];
-		const matches = html.matchAll(/class="result__snippet"[^>]*>(.*?)<\/a>/gs);
-		for (const m of matches) {
-			const text = m[1].replace(/<[^>]+>/g, "").trim();
-			if (text) snippets.push(text);
-			if (snippets.length >= 3) break;
+	// 网页搜索（通过服务端代理，避免 CORS 和反爬拦截）
+	async function webSearch(query: string): Promise<string | null> {
+		try {
+			const settings = JSON.parse(localStorage.getItem("settings") ?? "{}");
+			const engine = settings.searchEngine || "cn.bing.com";
+			const customUrl = settings.customSearchUrl || "";
+			const token = JSON.parse(localStorage.getItem("user") ?? "{}").token;
+			const res = await fetch("/api/web-search", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+				body: JSON.stringify({ query, engine, customUrl })
+			});
+			if (!res.ok) return null;
+			const data = await res.json();
+			if (!data.results?.length) return null;
+			return data.results.map((r: any, i: number) => `${i + 1}. **${r.title}**\n   ${r.snippet}\n   ${r.url}`).join("\n\n");
+		} catch {
+			return null;
 		}
-		return snippets.length > 0 ? snippets.join("\n") : null;
-	} catch {
-		return null;
 	}
-}
+
+
 
 // 情绪分析 prompt
 function getEmotionPrompt(recentMessages: string): string {
@@ -491,7 +495,12 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				toast("正在联网搜索...");
 				const searchResults = await webSearch(searchQuery);
 				if (searchResults) {
-					finalPrompt = `[联网搜索结果：${searchQuery}]\n${searchResults}\n\n[用户输入]\n${finalPrompt}`;
+				finalPrompt = `[以下是根据「${searchQuery}」搜索到的网络信息，请参考这些信息回答用户问题]
+
+${searchResults}
+
+[用户输入]
+${finalPrompt}`;
 				}
 			}
 		}

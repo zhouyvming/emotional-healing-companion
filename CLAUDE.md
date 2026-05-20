@@ -48,10 +48,11 @@ src/routes/
     ├── chats/[id]/+server.ts              # GET/PUT/DELETE 单条聊天
     ├── advice_table/+server.ts             # POST 提交建议
     ├── feedback_table/+server.ts           # POST 提交反馈
-    └── fetch-url/+server.ts               # POST 抓取网页文本（10s超时，SSRF 私有IP防护，提取8000字符）
+    ├── fetch-url/+server.ts               # POST 抓取网页文本（10s超时，SSRF 私有IP防护，提取8000字符）
+	    └── web-search/+server.ts              # POST 联网搜索（Bing/百度/DDG 多引擎，GBK/UTF-8 自适应解码，回退机制）
 ```
 
-所有 8 个 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
+所有 9 个 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
 
 **SPA 模式**：`ssr: false`（`src/routes/+layout.js`），认证完全在客户端进行——JWT 存储在 `localStorage.user`，路由守卫在 `+layout.js` 的 load 函数中检查，无服务端 session。
 
