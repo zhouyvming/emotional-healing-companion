@@ -96,6 +96,7 @@ interface ChatContext {
 	title: string;
 	selectedModels: string[];
 	stopRef: { value: boolean };
+	abortRef: { value: AbortController | null };
 	autoScroll: boolean;
 	settings: Record<string, any>;
 	db: any;
@@ -207,6 +208,8 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			uploadingFiles
 		} = ctx;
 
+		const abortController = new AbortController();
+		ctx.abortRef.value = abortController;
 		let responseMessageId = uuidv4();
 		let responseMessage: Message = {
 			parentId,
@@ -254,6 +257,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 
 		const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/chat`, {
 			method: "POST",
+			signal: abortController.signal,
 			headers: { "Content-Type": "text/event-stream" },
 			body: JSON.stringify({
 				model,
@@ -270,7 +274,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				},
 				format: settings.requestFormat ?? undefined
 			})
-		}).catch(() => null);
+		}).catch((err) => (err.name === "AbortError" ? null : null));
 
 		if (res && res.ok) {
 			const reader = res.body
@@ -278,9 +282,10 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				.pipeThrough(splitStream("\n"))
 				.getReader();
 
-			while (true) {
-				const { value, done } = await reader.read();
-				const currentCtx = c();
+			try {
+				while (true) {
+					const { value, done } = await reader.read();
+					const currentCtx = c();
 
 				if (done || currentCtx.stopRef.value || _chatId !== currentCtx.chatId) {
 					responseMessage.done = true;
@@ -336,7 +341,18 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					window.scrollTo({ top: document.body.scrollHeight });
 				}
 			}
-		} else {
+		} catch (err: any) {
+			// 用户主动停止或连接中断，静默处理
+			if (err.name !== "AbortError" || !c().stopRef.value) {
+				responseMessage.error = true;
+				if (!responseMessage.content) {
+					responseMessage.content = "连接中断，请重试";
+				}
+			}
+			responseMessage.done = true;
+			c().notifyUpdate();
+		}
+	} else {
 			responseMessage.error = true;
 			responseMessage.content = "连接 Ollama 失败，请检查服务是否启动或 API 地址是否正确";
 			responseMessage.done = true;
@@ -555,7 +571,9 @@ export function createChatHandlers(ctx: () => ChatContext) {
 	};
 
 	const stopResponse = () => {
-		c().stopRef.value = true;
+		const ctx = c();
+		ctx.stopRef.value = true;
+		ctx.abortRef.value?.abort();
 	};
 
 	const regenerateResponse = async (onTitleSet: (t: string) => void) => {

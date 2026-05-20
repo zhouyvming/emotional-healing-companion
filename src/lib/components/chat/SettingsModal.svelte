@@ -9,6 +9,13 @@
 
 	export let show = false;
 
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && show) {
+			show = false;
+			e.preventDefault();
+		}
+	}
+
 	const saveSettings = async (updated: Record<string, any>) => {
 		await settings.set({ ...$settings, ...updated });
 		localStorage.setItem("settings", JSON.stringify($settings));
@@ -347,6 +354,7 @@
 	};
 
 	onMount(() => {
+		window.addEventListener('keydown', handleKeydown);
 		const stored = JSON.parse(localStorage.getItem("settings") ?? "{}");
 		loadProviders();
 
@@ -373,6 +381,9 @@
 				options[key] = stored[key];
 			}
 		}
+			return () => {
+				window.removeEventListener('keydown', handleKeydown);
+			};
 	});
 </script>
 

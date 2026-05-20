@@ -13,6 +13,19 @@
 
 	let search = "";
 	let showDeleteHistoryConfirm = false;
+	let pinnedIds: string[] = JSON.parse(localStorage.getItem("pinnedChats") ?? "[]");
+
+	function togglePin(cid: string) {
+		const idx = pinnedIds.indexOf(cid);
+		if (idx >= 0) {
+			pinnedIds.splice(idx, 1);
+		} else {
+			pinnedIds.unshift(cid);
+		}
+		pinnedIds = [...pinnedIds];
+		localStorage.setItem("pinnedChats", JSON.stringify(pinnedIds));
+	}
+
 
 	onMount(async () => {
 		if (window.innerWidth > 1280) {
@@ -56,11 +69,16 @@
 		return chat.title.toLowerCase().includes(search.toLowerCase());
 	});
 
+	$: pinnedChats = $chats.filter((c) => pinnedIds.includes(c.id));
+	$: unpinnedFiltered = filteredChats.filter((c) => !pinnedIds.includes(c.id));
 	$: groupedChats = (() => {
 		const groups: { label: string; chats: typeof filteredChats }[] = [];
+		if (pinnedChats.length > 0) {
+			groups.push({ label: "已置顶", chats: pinnedChats });
+		}
 		const order = ["今天", "昨天", "本周", "更早"];
 		for (const label of order) {
-			const items = filteredChats.filter((c) => getDateGroup(c.timestamp) === label);
+			const items = unpinnedFiltered.filter((c) => getDateGroup(c.timestamp) === label);
 			if (items.length > 0) groups.push({ label, chats: items });
 		}
 		return groups;
@@ -234,6 +252,16 @@
 												>
 													{chat.title}
 												</div>
+											<button
+												class="flex-shrink-0 p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition cursor-pointer {pinnedIds.includes(chat.id) ? 'text-amber-500' : 'text-gray-400'}"
+												on:click|stopPropagation={() => togglePin(chat.id)}
+												title={pinnedIds.includes(chat.id) ? "取消置顶" : "置顶"}
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
+													<path d="M11.77 1.16a1.5 1.5 0 012.12 0l.95.95a1.5 1.5 0 010 2.12l-.95.95a1.5 1.5 0 01-2.12 0l-.95-.95a1.5 1.5 0 010-2.12l.95-.95zM8.083 6.035a1.5 1.5 0 01-1.061.44H3.467l3.462 3.462A1.5 1.5 0 017.39 11H6.93a1.5 1.5 0 01-1.06-.44L2.22 6.91a1.5 1.5 0 01-.28-1.692l.886-1.77a1.5 1.5 0 011.558-.836l5.268.388a1.5 1.5 0 011.207 2.207l-.776 1.828z"/>
+												</svg>
+											</button>
+
 												<button
 													class="flex-shrink-0 p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition cursor-pointer"
 													on:click|stopPropagation={async () => {

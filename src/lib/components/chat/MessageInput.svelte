@@ -225,11 +225,14 @@
 							placeholder="发送消息"
 							bind:value={prompt}
 							on:keydown={(e) => {
-								if (e.key === "Enter" && !e.shiftKey) {
+								if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
 									e.preventDefault();
 									if (prompt.trim() !== "") {
 										doSubmit();
 									}
+								} else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+									e.preventDefault();
+									doSubmit();
 								}
 							}}
 							rows="1"

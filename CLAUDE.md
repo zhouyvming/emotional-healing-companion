@@ -102,8 +102,8 @@ src/routes/
 
 | 文件                     | 内容                                                                                                                                                                                                                                                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama）、`sendPrompt`（多模型并行，自动路由 Ollama/OpenAI）、`submitPrompt`（URL 抓取+联网搜索+文件提取）、`generateChatTitle`、`stopResponse`、`regenerateResponse`、`copyToClipboard`。流式完成后批量保存。所有 history 变更后调用 `c().notifyUpdate()` 触发 Svelte 响应式更新。 |
-| `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式）、`findProvider`、`getThirdPartyModels`、`getProviders`、`fetchModels`。处理 OpenAI/DeepSeek/通义千问等兼容 API。                                                                                                                                                       |
+| `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama，**AbortController 真正取消请求**）、`sendPrompt`（多模型并行，自动路由 Ollama/OpenAI）、`submitPrompt`（URL 抓取+联网搜索+文件提取）、`generateChatTitle`、`stopResponse`（设置 stopRef + abort AbortController）、`regenerateResponse`、`editMessage`、`deleteMessage`、`copyToClipboard`。流式完成后批量保存。**system prompt 自动追加 Markdown 格式指引**。所有 history 变更后调用 `c().notifyUpdate()` 触发 Svelte 响应式更新。 |
+| `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式，**AbortController 超时+停止**）、`findProvider`、`getThirdPartyModels`、`getProviders`、`fetchModels`。处理 OpenAI/DeepSeek/通义千问等兼容 API。**system prompt 自动追加 Markdown 格式指引**。                                                                                       |
 | `src/lib/server/auth.ts` | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                                                                                                           |
 | `src/lib/server/db.ts`   | MySQL 连接池 + 4 张表 DDL + 列迁移（avatar/system_avatar/timestamp DATETIME）                                                                                                                                                                                                                                |
 | `src/lib/client/http.ts` | `authFetch`（自动附加 JWT Bearer token，401 时清除登录态并跳转）、`getToken`、`getCurrentUser`                                                                                                                                                                                                               |
@@ -148,12 +148,12 @@ src/routes/
 
 | 组件                     | 位置           | 关键特性                                                                                                                                                                                                                                                                       |
 | ------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Messages.svelte**      | chat/          | Markdown（`marked` + HTML 净化）、代码高亮（`highlight.js` 增量高亮，`data-highlighted` 追踪）、LaTeX（`KaTeX`）、复制+MD 复制按钮（+ toast）、tippy.js tooltip（`data-tippy-added` 防重复）、分支导航函数、**用户气泡显示图片缩略图+附件文件名标签**、`break-words [&_p]:m-0` |
-| **MessageInput.svelte**  | chat/          | 固定底部、自动伸缩（max 200px）、粉色发送按钮、停止按钮、语音输入（Web Speech API）、**文件/图片上传**（粘贴/拖拽/选择，10MB 限制）、Enter 发送/Shift+Enter 换行                                                                                                               |
-| **ModelSelector.svelte** | chat/          | `<select>` 下拉、自动选中首个可用模型、"设为默认模型"持久化、**显示 Ollama + 第三方 API 合并模型列表**                                                                                                                                                                         |
-| **SettingsModal.svelte** | chat/          | **7 标签页**：常规（外观+连接）、偏好（6 项开关）、人设（system prompt）、模型（拉取/列表/删除）、**API（第三方提供商管理）**、高级（seed/temperature/num_ctx 等）、关于（版本号）                                                                                             |
+| **Messages.svelte**      | chat/          | Markdown（`marked` + HTML 净化）、代码高亮（`highlight.js` 增量高亮，`data-highlighted` 追踪）、LaTeX（`KaTeX`）、复制+MD 复制按钮（+ toast）、tippy.js tooltip（`data-tippy-added` 防重复）、分支导航函数、**用户气泡显示图片缩略图+附件文件名标签**、**消息编辑按钮（内联 textarea）**、**AI 回复朗读按钮（Web Speech Synthesis TTS）**、`break-words [&_p]:m-0` |
+| **MessageInput.svelte**  | chat/          | 固定底部、自动伸缩（max 200px）、粉色发送按钮、停止按钮、语音输入（Web Speech API）、**文件/图片上传**（粘贴/拖拽/选择，10MB 限制）、Enter 发送/Shift+Enter 换行、**Ctrl+Enter 发送**                                                                                                               |
+| **ModelSelector.svelte** | chat/          | `<select>` 下拉、自动选中首个可用模型、"设为默认模型"持久化、**显示 Ollama + 第三方 API 合并模型列表**、**来源图标（🖥️本地/🔗第三方）+ 模型数量统计**                                                                                                                                                                         |
+| **SettingsModal.svelte** | chat/          | **7 标签页**：常规（外观+连接）、偏好（6 项开关）、人设（system prompt）、模型（拉取/列表/删除）、**API（第三方提供商管理）**、高级（seed/temperature/num_ctx 等）、关于（版本号）、**Escape 键关闭**                                                                                             |
 | **Advanced.svelte**      | chat/Settings/ | 高级模型参数表单（num_ctx 默认 8192，范围 512-131072）                                                                                                                                                                                                                         |
-| **Sidebar.svelte**       | layout/        | 260px、新对话按钮、搜索、按日期分组（可折叠，"更早"默认折叠）、删除按钮、底部建议/导出/设置+用户入口+退出、移动端遮罩层                                                                                                                                                        |
+| **Sidebar.svelte**       | layout/        | 260px、新对话按钮、搜索、按日期分组（可折叠，"更早"默认折叠）、**对话置顶（图钉按钮，持久化 localStorage.pinnedChats）**、删除按钮、底部建议/导出/设置+用户入口+退出、移动端遮罩层                                                                                                                                                        |
 | **Navbar.svelte**        | layout/        | 对话标题（可重命名）、新对话按钮、删除确认（修复双重 goto）                                                                                                                                                                                                                    |
 | **Modal.svelte**         | common/        | 通用弹窗容器（点击背景关闭）                                                                                                                                                                                                                                                   |
 | **Overlay.svelte**       | common/        | 通用遮罩层（当前未被引用）                                                                                                                                                                                                                                                     |
@@ -170,6 +170,37 @@ Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 的 `<
 ## 多模型支持
 
 `selectedModels` 数组支持同时选多个模型（Ollama 本地 + 第三方 API 混合），`sendPrompt` 使用 `Promise.all` 并行向各模型发送相同 prompt，各自产生独立回复分支。第三方模型自动走 OpenAI 兼容 API。
+
+## 停止响应机制（AbortController）
+
+停止按钮通过两层机制确保真正停止：
+
+1. **`stopRef`**（`{ value: boolean }`）：共享对象引用，流式循环中每轮检查，设置后停止读取新数据
+2. **`abortRef`**（`{ value: AbortController | null }`）：在 `sendPromptOllama` / `sendPromptOpenAI` 内部创建 AbortController，存储到 `ctx.abortRef.value`，fetch 携带其 `signal`。`stopResponse()` 同时调用 `stopRef.value = true` 和 `abortRef.value?.abort()`，真正取消网络请求
+
+**静默处理**：AbortError 被 catch 后检查 `stopRef.value`——若用户主动停止则静默结束（不弹 toast、不设 error），与连接超时区分开。
+
+## Markdown 格式指引
+
+`ollama.ts` 和 `openai.ts` 在构建 system prompt 时自动追加 Markdown 格式指引：
+
+```
+回复时请使用 Markdown 格式排版：用 **粗体** 突出重点、用 - 或 1. 做列表、用 `代码` 标注术语、用 ``` 围栏代码块展示代码、适当使用表格和 > 引用。
+```
+
+用户自定义 system prompt（设置 → 人设）不会被覆盖，格式指引追加在末尾。前端 `marked` + `highlight.js` + `KaTeX` 完整渲染 Markdown 输出。
+
+## 对话置顶
+
+侧边栏每个对话项左侧有图钉按钮，点击后置顶。置顶对话在"已置顶"分组显示，同时在其日期分组中也保留。置顶 ID 持久化到 `localStorage.pinnedChats`。
+
+## 消息编辑
+
+用户消息气泡下方有铅笔编辑按钮，点击后消息内容切换为内联 textarea，可修改后保存。保存时调用 `editMessage`，自动删除该消息之后的所有 AI 回复分支，用新内容重新发送 prompt 生成回复。
+
+## AI 回复朗读（TTS）
+
+AI 消息操作栏有朗读按钮，使用 `window.speechSynthesis`（Web Speech API），中文语音合成。朗读时再次点击可取消。文本限制 2000 字符防止过长。
 
 ## 关键依赖
 

@@ -20,6 +20,7 @@ interface ChatContext {
 	messages: any[];
 	history: any;
 	stopRef: { value: boolean };
+	abortRef: { value: AbortController | null };
 	autoScroll: boolean;
 	selectedModels: string[];
 	settings: Record<string, any>;
@@ -158,6 +159,7 @@ export async function sendPromptOpenAI(
 	}
 
 	const controller = new AbortController();
+	ctx.abortRef.value = controller;
 	const timeout = setTimeout(() => controller.abort(), 120000);
 
 	try {
@@ -233,16 +235,22 @@ export async function sendPromptOpenAI(
 		}
 	} catch (error: any) {
 		clearTimeout(timeout);
-		responseMessage.error = true;
-		responseMessage.done = true;
-		if (!responseMessage.content) {
-			responseMessage.content =
-				error.name === "AbortError"
-					? "请求超时，请稍后重试"
-					: `API 调用失败：${error.message || "未知错误"}`;
+		// 用户主动停止，静默处理
+		if (error.name === "AbortError" && ctx.stopRef.value) {
+			responseMessage.done = true;
+			notifyUpdate();
+		} else {
+			responseMessage.error = true;
+			responseMessage.done = true;
+			if (!responseMessage.content) {
+				responseMessage.content =
+					error.name === "AbortError"
+						? "请求超时，请稍后重试"
+						: `API 调用失败：${error.message || "未知错误"}`;
+			}
+			toast.error("API 请求失败：" + (error.message || "未知错误"));
+			notifyUpdate();
 		}
-		toast.error("API 请求失败：" + (error.message || "未知错误"));
-		notifyUpdate();
 	}
 
 	ctx.stopRef.value = false;

@@ -18,6 +18,9 @@
 	export let history: any = {};
 	export let messages: any[] = [];
 	export let onBranchNavigate: () => Promise<void> = async () => {};
+	export let editMessage: Function = async () => {};
+	let editingMessageId: string | null = null;
+	let editContent = "";
 
 	const suggestedTopics = [
 		{ emoji: "💭", text: "今天心情不太好，想聊聊天" },
@@ -141,6 +144,21 @@
 			.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
 			.replace(/\s+href\s*=\s*["']\s*javascript:/gi, ' href="javascript:void(0)"')
 			.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|\S*)/gi, "");
+	};
+
+	const speakMessage = (text: string) => {
+		const synth = window.speechSynthesis;
+		if (synth.speaking) {
+			synth.cancel();
+			return;
+		}
+		const div = document.createElement('div');
+		div.innerHTML = text;
+		const plainText = div.textContent || '';
+		const utterance = new SpeechSynthesisUtterance(plainText.slice(0, 2000));
+		utterance.lang = 'zh-CN';
+		utterance.rate = 1.0;
+		synth.speak(utterance);
 	};
 
 	const handleCopy = (text: string) => {
@@ -312,7 +330,30 @@
 										{/each}
 									</div>
 								{/if}
-								{@html sanitizeHtml(marked(message.content))}
+								{#if editingMessageId === message.id}
+									<textarea
+										class="w-full min-w-[200px] bg-white/10 rounded-md p-2 text-sm outline-none resize-none"
+										rows="3"
+										bind:value={editContent}
+									/>
+									<div class="flex gap-2 mt-1.5 justify-end">
+										<button
+											class="text-xs px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded transition"
+											on:click={() => { editingMessageId = null; }}>取消</button
+										>
+										<button
+											class="text-xs px-2 py-0.5 bg-white/30 hover:bg-white/40 rounded transition"
+											on:click={async () => {
+												if (editContent.trim()) {
+													await editMessage(message.id, editContent.trim());
+													editingMessageId = null;
+												}
+											}}>保存</button
+										>
+									</div>
+								{:else}
+									{@html sanitizeHtml(marked(message.content))}
+								{/if}
 							</div>
 							{#if $user?.avatar}
 								<img src={$user.avatar} alt="用户" class="w-8 h-8 rounded-full object-cover" />
@@ -321,9 +362,20 @@
 							{/if}
 						</div>
 						{#if message.timestamp}
-							<span class="text-xs text-gray-400 dark:text-gray-500 mr-11 mt-0.5"
+							<span class="text-xs text-gray-400 dark:text-gray-500"
 								>{formatTime(message.timestamp)}</span
 							>
+						{/if}
+						{#if !message.error}
+							<button
+								class="text-xs text-gray-400 hover:text-pink-500 dark:hover:text-pink-400 transition ml-1"
+								on:click={() => { editingMessageId = message.id; editContent = message.content; }}
+								title="编辑消息"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+									<path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+								</svg>
+							</button>
 						{/if}
 					</div>
 				{:else}
@@ -389,6 +441,15 @@
 								>
 								复制
 							</button>
+								<button
+									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+									on:click={() => speakMessage(message.content)}
+									title="朗读"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+										<path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/>
+									</svg>
+								</button>
 							<button
 								class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
 								on:click={() => handleCopyMarkdown(message)}

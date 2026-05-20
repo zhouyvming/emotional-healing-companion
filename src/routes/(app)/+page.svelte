@@ -12,6 +12,7 @@
 	import { page } from "$app/stores";
 
 	const stopRef = { value: false };
+	const abortRef = { value: null as AbortController | null };
 	let autoScroll = true;
 
 	let selectedModels = [""];
@@ -52,6 +53,7 @@
 			title,
 			selectedModels,
 			stopRef,
+			abortRef,
 			autoScroll,
 			uploadingFiles,
 			settings: $settings,
@@ -150,6 +152,7 @@
 				bind:messages
 				bind:autoScroll
 				regenerateResponse={wrappedRegenerate}
+				editMessage={wrappedEdit}
 			onBranchNavigate={async () => {
 				if (!$settings.privacyMode && $db) {
 					await $db.updateChatById($chatId, { messages, history });
