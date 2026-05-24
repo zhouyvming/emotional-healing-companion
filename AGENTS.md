@@ -16,11 +16,13 @@ No test suite. All verification is manual.
 
 **notifyUpdate pattern** — The single most important design quirk. Chat logic runs in `src/lib/chat/ollama.ts` / `openai.ts`, outside Svelte component scope. Mutations to `history` objects are invisible to Svelte's compiler. Components use `let updateCounter = 0` + `$: updateCounter, (() => { rebuild })();` and pass `c().notifyUpdate()` into the chat modules. Whenever you mutate history/stream responses, you MUST call `c().notifyUpdate()`. Also: use `c().messages` (not a destructured snapshot) for logic that needs latest data; use `currentCtx.autoScroll` (not the captured value) inside streaming loops.
 
+**Reactive block guard**: `history.messages[history.currentId]` checked before traversal to prevent crashes when `currentId` points to a deleted message.
+
 ## Database
 
-MySQL 8 on `localhost:3307`, root/no-password, database `webui_chat`. Connection pool at `src/lib/server/db.ts:4`.
+MySQL 8 on `localhost:3307` (override via `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DATABASE` env vars), database `webui_chat`. Connection pool at `src/lib/server/db.ts`.
 
-Tables are auto-created AND auto-migrated with `ALTER TABLE ... CATCH(() => {})` — this means migration DDL silently fails on existing columns. When adding a column, add it as a new `pool.execute(ALTER TABLE ...).catch(() => {})` block. Never remove or modify existing migration blocks.
+Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})` — this means migration DDL silently fails on existing columns. When adding a column, add it as a new `pool.execute(ALTER TABLE ...).catch(() => {})` block. Never remove or modify existing migration blocks.
 
 **timestamp column**: migrated from `BIGINT` (ms) to `DATETIME` (`YYYY-MM-DD HH:MM:SS`). New code MUST use `datetimeNow()` from `src/lib/utils/index.ts`, not epoch milliseconds.
 
@@ -30,7 +32,22 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... CATCH(() => {})`
 
 - `svelte-french-toast` v1.x has NO `toast.info()` — use the generic `toast()` function instead.
 - `prettier@2` is pinned, format is tabs + no trailing commas (`.prettierrc`).
-- `bcryptjs` (pure JS), NOT `bcrypt` (native). JWT is custom HMAC-SHA256 via `js-sha256`, not jsonwebtoken.
+- `bcryptjs` (pure JS), NOT `bcrypt` (native). JWT is custom HMAC-SHA256 via Node.js `crypto.createHmac`, not jsonwebtoken.
+- `dompurify` for HTML sanitization (replaced regex-based XSS protection).
+
+## Chat engine architecture
+
+**Message routing**: Ollama models → `sendPromptOllama` (streaming SSE via `/api/chat`), third-party OpenAI-compatible → `sendPromptOpenAI` (streaming via `/chat/completions`). Models processed **sequentially** (not `Promise.all`) to avoid history corruption.
+
+**Context compression**: Before sending to any model, total character count is estimated (chars/2 ≈ tokens). If exceeding `num_ctx * 0.85` (default 200K), oldest messages are truncated. A system note `[对话上下文已压缩：早期 N 条消息已省略]` is inserted. Local history is NOT modified.
+
+**Third-party models**: receive raw user input + configured system prompt only. No web search, URL fetching, or date injection.
+
+**Ollama models**: receive user input + system prompt (persona + emotion sensing). No web search or URL fetching.
+
+**Abort mechanism**: `abortRefs` array (index-based, per-model) + `stopRef` boolean. `stopResponse()` sets `stopRef = true` and aborts all controllers in `abortRefs`.
+
+**Message tree utilities**: `removeMessageBranch()` in `src/lib/utils/index.ts` handles recursive deletion with dangling `currentId` protection.
 
 ## Third-party API models
 
@@ -38,7 +55,14 @@ Providers stored in `localStorage.apiProviders`. Models named as `提供商名/�
 
 ## Auth / Security
 
-JWT secret is hardcoded, overridable via `JWT_SECRET` env var. All 8 API routes use `requireAuth()` from `src/lib/server/auth.ts`. Client-side `authFetch` in `src/lib/client/http.ts` auto-attaches Bearer token and redirects to `/login` on 401.
+- JWT secret overridable via `JWT_SECRET` env var. All API routes use `requireAuth()`.
+- Client-side `authFetch` auto-attaches Bearer token and redirects to `/login` on 401.
+- Registration rate-limited: 5 per minute per IP (in-memory Map).
+- Password minimum 6 characters.
+- Open Redirect protection: rejects `//evil.com` protocol-relative URLs.
+- XSS: DOMPurify sanitizes all AI output before `{@html}` rendering.
+- SSRF: `fetch-url` uses `redirect: manual`, `web-search` checks custom URLs via shared `isPrivateUrl()`.
+- TOCTOU: `chats/[id]` PUT statement includes `AND username = ?`.
 
 ## References
 

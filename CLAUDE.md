@@ -22,7 +22,7 @@ SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。品牌名"情�
 
 完整部署流程见 [README.md](./README.md)。关键外部依赖：
 
-- **MySQL 8**：`localhost:3307`，root 无密码，数据库 `webui_chat`（应用自动建表）
+- **MySQL 8**：`localhost:3307`，root 无密码，数据库 `webui_chat`（可通过 `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DATABASE` 环境变量覆盖）
 - **Ollama**：`http://localhost:11434/api`（可在设置中修改）
 
 ## 路由结构
@@ -32,24 +32,25 @@ src/routes/
 ├── +layout.js                              # 路由守卫（JWT token 检查，未登录跳转 /login）
 ├── +layout.svelte                          # 根布局（全局 CSS + Toast 挂载）
 ├── +error.svelte                           # 错误页面
-├── login/+page.svelte                      # 登录页（密码可见性切换，Open Redirect 防护）
-├── register/+page.svelte                   # 注册页（密码可见性切换，Open Redirect 防护）
+├── login/+page.svelte                      # 登录页（密码可见性切换，防协议相对 URL Open Redirect）
+├── register/+page.svelte                   # 注册页（密码最短6位，Open Redirect 防护）
 ├── (app)/
-│   ├── +layout.svelte                      # 应用布局（模型加载、DB初始化、IndexedDB→MySQL迁移、Ollama版本检查，合并第三方模型）
+│   ├── +layout.svelte                      # 应用布局（模型加载、DB初始化、IndexedDB→MySQL迁移、Ollama版本检查，合并第三方模型，Ctrl+N 全局快捷键）
 │   ├── +page.svelte                        # 新对话页（首页）
-│   ├── c/[id]/+page.svelte                # 对话详情页（重命名、删除）
-│   └── profile/+page.svelte               # 个人资料页（头像/用户名/邮箱/密码修改、退出确认）
+│   ├── c/[id]/+page.svelte                # 对话详情页（重命名、删除、流式中断恢复提示）
+│   └── profile/+page.svelte               # 个人资料页（头像/用户名/邮箱/密码修改、退出确认、建议反馈按钮跳转）
 ├── advice_table/+page.svelte               # 建议与反馈提交页
+├── favicon.ico/+server.ts                  # favicon 静默返回 204
 ├── .well-known/[...path]/+server.ts        # Chrome DevTools 探测请求静默处理（返回 204）
 └── api/
-    ├── auth/+server.ts                     # POST 登录/注册（bcryptjs + JWT）
+    ├── auth/+server.ts                     # POST 登录/注册（bcryptjs + JWT，注册速率限制 5次/分钟/IP）
     ├── user/profile/+server.ts             # PUT 用户资料（用户名改时同步chats+签发新token）
     ├── chats/+server.ts                    # GET(分页)/POST(创建/更新)/DELETE(全部) 聊天
-    ├── chats/[id]/+server.ts              # GET/PUT/DELETE 单条聊天
+    ├── chats/[id]/+server.ts              # GET/PUT/DELETE 单条聊天（PUT 含 AND username = ? 防 TOCTOU）
     ├── advice_table/+server.ts             # POST 提交建议
     ├── feedback_table/+server.ts           # POST 提交反馈
-    ├── fetch-url/+server.ts               # POST 抓取网页文本（10s超时，SSRF 私有IP防护，提取8000字符）
-	    └── web-search/+server.ts              # POST 联网搜索（Bing/百度/DDG 多引擎，GBK/UTF-8 自适应解码，回退机制）
+    ├── fetch-url/+server.ts               # POST 抓取网页文本（redirect: manual 防 SSRF 重定向，1MB 上限）
+    └── web-search/+server.ts              # POST 联网搜索（Bing/百度/DDG 多引擎，isPrivateUrl 防 SSRF）
 ```
 
 所有 9 个 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
@@ -58,8 +59,8 @@ src/routes/
 
 ## 认证体系 (`src/lib/server/auth.ts`)
 
-- `hashPassword(p)` / `verifyPassword(p, hash)` — bcryptjs（纯 JS，盐轮 10），2026-05 从 `bcrypt` 迁移以消除原生编译依赖和 `url.parse()` 弃用警告
-- `signToken({userId, username})` / `verifyToken(token)` — 自定义 HMAC-SHA256 JWT（基于 `js-sha256`），7 天有效期
+- `hashPassword(p)` / `verifyPassword(p, hash)` — bcryptjs（纯 JS，盐轮 10）
+- `signToken({userId, username})` / `verifyToken(token)` — 自定义 HMAC-SHA256 JWT（基于 Node.js `crypto.createHmac`），7 天有效期
 - `requireAuth(request)` — 从 Authorization header 提取 Bearer token 并验证，失败抛出 `AuthError`
 - Secret 默认硬编码，可通过 `JWT_SECRET` 环境变量覆盖
 
@@ -79,9 +80,9 @@ src/routes/
 
 **迁移模式**：DDL 迁移使用 `pool.execute(ALTER TABLE ...).catch(() => {})` 模式——已有列会静默失败。添加新列时追加一个新的 `.catch(() => {})` 块，**绝不修改或删除已有迁移块**。
 
-**IndexedDB→MySQL 迁移**：`+layout.svelte` 中 `migrateFromIndexedDB()`，完成后设 localStorage 标记不重复执行。
+**IndexedDB→MySQL 迁移**：`+layout.svelte` 中 `migrateFromIndexedDB()`，成功后设 localStorage 标记。若整体迁移异常则**不标记完成**，允许下次重试。
 
-**密码迁移脚本**：`scripts/migrate-passwords.ts` 用于将旧 bcrypt 哈希迁移为 bcryptjs 格式。注意：未迁移的旧密码可能是明文。
+**密码迁移脚本**：`scripts/migrate-passwords.ts` 用于将旧密码迁移为 bcryptjs 格式。注意：未迁移的旧密码可能是明文。
 
 **API 提供商配置**：第三方 API 提供商（名称/URL/Key/模型列表）存储在 `localStorage.apiProviders`，设置面板「API」标签管理。
 
@@ -90,36 +91,46 @@ src/routes/
 | Store          | 类型                                                     | 用途                                                                                                                    |
 | -------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `info`         | `{}`                                                     | Ollama 服务信息（版本号）                                                                                               |
-| `db`           | `undefined \| object`                                    | MySQL API 包装实例，提供 getChats/createNewChat/updateChatById/deleteChatById/deleteAllChat/exportChats/addChats 等方法 |
+| `db`           | `undefined \| object`                                    | MySQL API 包装实例                                                                                                      |
 | `chatId`       | `string`                                                 | 当前对话 UUID                                                                                                           |
 | `chats`        | `[]`                                                     | `{id, title, timestamp}` 列表，侧边栏数据源                                                                             |
 | `models`       | `[]`                                                     | 合并后的所有可用模型（Ollama 本地 + 第三方 API），ModelSelector 数据源                                                  |
 | `user`         | `{id, username, email, avatar?, system_avatar?} \| null` | 当前登录用户                                                                                                            |
-| `settings`     | `Settings`                                               | 应用设置（`API_BASE_URL`、`theme`、`fontSize`、`proactiveGreeting`、`privacyMode`等），持久化到 localStorage            |
+| `settings`     | `Settings`                                               | 应用设置（含 API_BASE_URL、theme、fontSize、proactiveGreeting、privacyMode 等），类型已完善，持久化到 localStorage      |
 | `showSettings` | `boolean`                                                | 设置弹窗开关                                                                                                            |
 | `moodHistory`  | `{date, mood, score}[]`                                  | 情绪追踪数据                                                                                                            |
 
 ## 共享模块
 
-| 文件                     | 内容                                                                                                                                                                                                                                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama，**AbortController 真正取消请求**）、`sendPrompt`（多模型并行，自动路由 Ollama/OpenAI）、`submitPrompt`（URL 抓取+联网搜索+文件提取）、`generateChatTitle`、`stopResponse`（设置 stopRef + abort AbortController）、`regenerateResponse`、`editMessage`、`deleteMessage`、`copyToClipboard`。流式完成后批量保存。**system prompt 自动追加 Markdown 格式指引**。所有 history 变更后调用 `c().notifyUpdate()` 触发 Svelte 响应式更新。 |
-| `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式，**AbortController 超时+停止**）、`findProvider`、`getThirdPartyModels`、`getProviders`、`fetchModels`。处理 OpenAI/DeepSeek/通义千问等兼容 API。**system prompt 自动追加 Markdown 格式指引**。                                                                                       |
-| `src/lib/server/auth.ts` | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                                                                                                           |
-| `src/lib/server/db.ts`   | MySQL 连接池 + 4 张表 DDL + 列迁移（avatar/system_avatar/timestamp DATETIME）                                                                                                                                                                                                                                |
-| `src/lib/client/http.ts` | `authFetch`（自动附加 JWT Bearer token，401 时清除登录态并跳转）、`getToken`、`getCurrentUser`                                                                                                                                                                                                               |
-| `src/lib/utils/index.ts` | `splitStream`（SSE 流式解析 TransformStream）、`convertMessagesToHistory`（消息数组 → 树形结构）、`datetimeNow()`（返回 `YYYY-MM-DD HH:MM:SS` 格式）                                                                                                                                                         |
+| 文件                     | 内容                                                                                                                                                                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama，AbortController 真正取消）、`sendPrompt`（顺序路由 Ollama/OpenAI，非并发）、`submitPrompt`（文件提取）、`generateChatTitle`、`stopResponse`（abortRefs 数组 + stopRef）、`regenerateResponse`、`editMessage`、`deleteMessage`。system prompt 含情绪感知指引。 |
+| `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式，120s 超时 + 60s stream 读取超时）、`findProvider`、`getThirdPartyModels`、`fetchModels`。system prompt 含情绪感知指引。第三方模型仅发送原始用户输入 + system prompt。                          |
+| `src/lib/server/auth.ts` | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                            |
+| `src/lib/server/db.ts`   | MySQL 连接池 + 4 张表 DDL + 列迁移（avatar/system_avatar/timestamp DATETIME）。支持环境变量配置                                                                                                                               |
+| `src/lib/client/http.ts` | `authFetch`（自动附加 JWT Bearer，401 清除登录态并跳转，Content-Type 仅未设置时覆盖）、`getToken`、`getCurrentUser`                                                                                                            |
+| `src/lib/utils/index.ts` | `splitStream`（SSE 流式解析，\r\n 归一化）、`convertMessagesToHistory`（消息数组 → 树形结构）、`datetimeNow()`、`isPrivateUrl()`（共享 SSRF 检查）、`removeMessageBranch()`（消息树递归删除 + currentId 防悬挂）                   |
 
 ## 响应式核心机制：notifyUpdate
 
-由于聊天核心逻辑在 `ollama.ts` / `openai.ts` 外部模块中，对 `history` 对象的属性变更（mutation）发生在组件作用域之外，Svelte 编译器无法追踪这些变更来触发 `$:` 响应式语句。为解决此问题，引入了 `notifyUpdate` 回调：
+由于聊天核心逻辑在 `ollama.ts` / `openai.ts` 外部模块中，对 `history` 对象的属性变更（mutation）发生在组件作用域之外。通知机制：
 
-1. 组件内定义 `let updateCounter = 0;` 和一个将其引用到 `$:` 语句的响应式块：`$: updateCounter, (() => { ... rebuild messages from history ... })();`
-2. `getCtx()` 返回 `notifyUpdate: () => { updateCounter++; }` 闭包
-3. `ollama.ts` / `openai.ts` 的 `ChatContext` 接口包含 `notifyUpdate: () => void`
-4. 每次修改 `history`（用户消息、AI 响应、流式内容追加、完成/错误状态）后立即调用 `c().notifyUpdate()`
-5. 对于需要最新数据的逻辑（如 `createNewChat` 检查 `messages.length`），直接使用 `c().messages` 而非开头解构的局部快照，因为 `notifyUpdate` 后组件 `messages` 已被响应式语句重建而局部变量仍为旧引用
-6. **注意**：`autoScroll` 在流式循环中应使用 `currentCtx.autoScroll`（实时值），而非函数开头解构的捕获值
+1. 组件内 `let updateCounter = 0` + `$: updateCounter, (() => { rebuild from history.currentId })()`
+2. `getCtx()` 返回 `notifyUpdate: () => { updateCounter++ }` 闭包
+3. 每次修改 history 后调用 `c().notifyUpdate()`
+4. reactive block **守卫** `history.messages[history.currentId]` 防止悬挂引用崩溃
+5. 需要最新数据时用 `c().messages` 而非局部快照
+6. 流式循环中用 `currentCtx.autoScroll` 实时值
+
+## 聊天引擎核心设计
+
+**消息路由**：`sendPrompt` 识别模型类型（含 `/` 为第三方），路由到 `sendPromptOpenAI` 或 `sendPromptOllama`。模型调用已改为**顺序执行**（for...of），避免并发 history 写入竞态。
+
+**上下文自动压缩**：发送前估算 tokens（字符数/2），超出 `num_ctx × 0.85`（默认 200K）时截断最早消息，注入 `[对话上下文已压缩：早期 N 条消息已省略]`。本地 history 不受影响。
+
+**停止响应**：`stopRef`（共享 boolean）+ `abortRefs`（数组，每个模型独立 index）。`stopResponse()` 同时设 stopRef 和 abort 所有活跃控制器。完成后按 index splice 清理自身。
+
+**消息树操作**：`removeMessageBranch()` 在 `utils/index.ts` 中统一实现递归删除 + 悬挂 currentId 保护。`deleteMessage` 和 `editMessage` 共用此函数。
 
 ## 第三方 API 提供商架构
 
@@ -137,93 +148,61 @@ src/routes/
 ]
 ```
 
-- `+layout.svelte` 的 `getThirdPartyModels()` 将提供商模型转为 Ollama 模型格式（名称 `提供商名/模型ID`）
-- `sendPrompt` 通过 `findProvider()` 检测模型所属提供商，自动路由到 `sendPromptOpenAI`
-- 提供商变更后通过 `refreshAllModels()` 即时刷新模型列表
+- `findProvider()` 通过模型名前缀匹配（`提供商名/模型ID` 格式）自动路由
+- 第三方模型仅发送**原始用户输入** + 用户设定的 system prompt，不做额外处理
 
 ## 聊天消息数据模型
 
-树形结构：每条消息 `{id, parentId, childrenIds[], role, content, images?, files?}`。`history = {messages: {messageId → message}, currentId}` 为全局映射。`messages` 响应式从 `currentId` 上溯到根构建线性数组。支持分支对话（`showPreviousMessage`/`showNextMessage` 已实现）。
+树形结构：每条消息 `{id, parentId, childrenIds[], role, content, images?, files?, model?, timestamp?, done?, error?, info?}`。`history = {messages: {messageId → message}, currentId}`。`messages` 从 `currentId` 上溯到根构建线性数组。
 
 ## 核心组件
 
-| 组件                     | 位置           | 关键特性                                                                                                                                                                                                                                                                       |
-| ------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Messages.svelte**      | chat/          | Markdown（`marked` + HTML 净化）、代码高亮（`highlight.js` 增量高亮，`data-highlighted` 追踪）、LaTeX（`KaTeX`）、复制+MD 复制按钮（+ toast）、tippy.js tooltip（`data-tippy-added` 防重复）、分支导航函数、**用户气泡显示图片缩略图+附件文件名标签**、**消息编辑按钮（内联 textarea）**、**AI 回复朗读按钮（Web Speech Synthesis TTS）**、`break-words [&_p]:m-0` |
-| **MessageInput.svelte**  | chat/          | 固定底部、自动伸缩（max 200px）、粉色发送按钮、停止按钮、语音输入（Web Speech API）、**文件/图片上传**（粘贴/拖拽/选择，10MB 限制）、Enter 发送/Shift+Enter 换行、**Ctrl+Enter 发送**                                                                                                               |
-| **ModelSelector.svelte** | chat/          | `<select>` 下拉、自动选中首个可用模型、"设为默认模型"持久化、**显示 Ollama + 第三方 API 合并模型列表**、**来源图标（🖥️本地/🔗第三方）+ 模型数量统计**                                                                                                                                                                         |
-| **SettingsModal.svelte** | chat/          | **7 标签页**：常规（外观+连接）、偏好（6 项开关）、人设（system prompt）、模型（拉取/列表/删除）、**API（第三方提供商管理）**、高级（seed/temperature/num_ctx 等）、关于（版本号）、**Escape 键关闭**                                                                                             |
-| **Advanced.svelte**      | chat/Settings/ | 高级模型参数表单（num_ctx 默认 8192，范围 512-131072）                                                                                                                                                                                                                         |
-| **Sidebar.svelte**       | layout/        | 260px、新对话按钮、搜索、按日期分组（可折叠，"更早"默认折叠）、**对话置顶（图钉按钮，持久化 localStorage.pinnedChats）**、删除按钮、底部建议/导出/设置+用户入口+退出、移动端遮罩层                                                                                                                                                        |
-| **Navbar.svelte**        | layout/        | 对话标题（可重命名）、新对话按钮、删除确认（修复双重 goto）                                                                                                                                                                                                                    |
-| **Modal.svelte**         | common/        | 通用弹窗容器（点击背景关闭）                                                                                                                                                                                                                                                   |
-| **Overlay.svelte**       | common/        | 通用遮罩层（当前未被引用）                                                                                                                                                                                                                                                     |
-| **Spinner.svelte**       | common/        | 加载动画（当前未被引用）                                                                                                                                                                                                                                                       |
+| 组件                     | 位置           | 关键特性                                                                                                                                                                                    |
+| ------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Messages.svelte**      | chat/          | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮（与日期同行）**、TTS 朗读（onDestroy 取消）   |
+| **MessageInput.svelte**  | chat/          | 固定底部、自动伸缩（max 200px）、发送/停止按钮、语音输入（onDestroy 中止）、文件/图片上传（粘贴/拖拽/选择，10MB 限制）、Enter 发送/Shift+Enter 换行、**visualViewport 移动端键盘适配**                    |
+| **ModelSelector.svelte** | chat/          | `<select>` 下拉、自动选中首个可用模型、设为默认模型持久化                                                                                                                                   |
+| **SettingsModal.svelte** | chat/          | 7 标签页：常规（外观+连接）、偏好（6 项开关含情绪感知）、人设（system prompt）、模型（拉取/列表/删除）、API（第三方提供商管理）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K**）、关于 |
+| **Sidebar.svelte**       | layout/        | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、导出 JSON/导出 Markdown、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏       |
+| **Navbar.svelte**        | layout/        | 对话标题（可重命名）、新对话按钮、删除确认                                                                                                                                                  |
+| **Modal.svelte**         | common/        | 通用弹窗容器（点击背景关闭）                                                                                                                                                                |
 
 ## 样式与主题
 
-Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 的 `<script>` 中同步执行以防止闪烁：
-
-- 从 `localStorage.theme` 读取（`'dark'` / `'light'` / `'system'`），system 模式下跟随 `prefers-color-scheme`
-- 字体大小通过 `--font-size-scale` CSS 变量控制（small: 0.875, normal: 1, large: 1.15）
-- `localStorage.theme` 持久化，主色系：`pink-500`（操作按钮）、`pink-50/100/200`（浅色侧边栏/状态）、`pink-700/800/900`（深色侧边栏/状态）
+Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 中同步执行防止闪烁。字体大小通过 `--font-size-scale` CSS 变量控制。主色系：`pink-500`。
 
 ## 多模型支持
 
-`selectedModels` 数组支持同时选多个模型（Ollama 本地 + 第三方 API 混合），`sendPrompt` 使用 `Promise.all` 并行向各模型发送相同 prompt，各自产生独立回复分支。第三方模型自动走 OpenAI 兼容 API。
+`selectedModels` 数组支持同时选多个模型（Ollama 本地 + 第三方 API 混合），`sendPrompt` 使用 **for...of 顺序**向各模型发送 prompt，各自产生独立回复分支。
 
 ## 停止响应机制（AbortController）
 
-停止按钮通过两层机制确保真正停止：
-
-1. **`stopRef`**（`{ value: boolean }`）：共享对象引用，流式循环中每轮检查，设置后停止读取新数据
-2. **`abortRef`**（`{ value: AbortController | null }`）：在 `sendPromptOllama` / `sendPromptOpenAI` 内部创建 AbortController，存储到 `ctx.abortRef.value`，fetch 携带其 `signal`。`stopResponse()` 同时调用 `stopRef.value = true` 和 `abortRef.value?.abort()`，真正取消网络请求
-
-**静默处理**：AbortError 被 catch 后检查 `stopRef.value`——若用户主动停止则静默结束（不弹 toast、不设 error），与连接超时区分开。
-
-## Markdown 格式指引
-
-`ollama.ts` 和 `openai.ts` 在构建 system prompt 时自动追加 Markdown 格式指引：
-
-```
-回复时请使用 Markdown 格式排版：用 **粗体** 突出重点、用 - 或 1. 做列表、用 `代码` 标注术语、用 ``` 围栏代码块展示代码、适当使用表格和 > 引用。
-```
-
-用户自定义 system prompt（设置 → 人设）不会被覆盖，格式指引追加在末尾。前端 `marked` + `highlight.js` + `KaTeX` 完整渲染 Markdown 输出。
-
-## 对话置顶
-
-侧边栏每个对话项左侧有图钉按钮，点击后置顶。置顶对话在"已置顶"分组显示，同时在其日期分组中也保留。置顶 ID 持久化到 `localStorage.pinnedChats`。
-
-## 消息编辑
-
-用户消息气泡下方有铅笔编辑按钮，点击后消息内容切换为内联 textarea，可修改后保存。保存时调用 `editMessage`，自动删除该消息之后的所有 AI 回复分支，用新内容重新发送 prompt 生成回复。
-
-## AI 回复朗读（TTS）
-
-AI 消息操作栏有朗读按钮，使用 `window.speechSynthesis`（Web Speech API），中文语音合成。朗读时再次点击可取消。文本限制 2000 字符防止过长。
-
-## 关键依赖
-
-| 包                                  | 用途                                                   |
-| ----------------------------------- | ------------------------------------------------------ |
-| `bcryptjs`                          | 密码哈希（纯 JS，零原生依赖）                          |
-| `mysql2/promise`                    | MySQL 连接池 + 参数化查询                              |
-| `js-sha256`                         | JWT 签名 HMAC-SHA256                                   |
-| `marked` + `highlight.js` + `kaTeX` | Markdown 渲染 + 代码高亮 + 数学公式                    |
-| `svelte-french-toast`               | Toast 通知（v1.x，无 `toast.info`，用 `toast()` 替代） |
-| `tippy.js`                          | 消息 info tooltip（token/s 等流式指标）                |
-| `uuid`                              | 消息 ID / 会话 ID 生成                                 |
-| `idb`                               | IndexedDB 操作（仅用于旧数据迁移）                     |
-| `cross-env`                         | Windows/macOS/Linux 跨平台环境变量                     |
-| `file-saver`                        | 对话 JSON 导出下载                                     |
+两层机制：
+1. `stopRef`：流式循环每轮检查
+2. `abortRefs`：每个模型独立 index，`stopResponse()` 遍历全部 abort。完成后 splice 自身索引，不影响其他模型。
 
 ## 安全加固
 
-- **Open Redirect**：login/register 的 `redirect` 参数仅允许站内相对路径
-- **SSRF**：`/api/fetch-url` 阻止内网/私有 IP 地址
-- **XSS**：Messages.svelte 中 `sanitizeHtml()` 移除 `<script>` 和 `on*` 事件属性
-- **CSP Ready**：所有 API 调用使用参数化查询，LIMIT/OFFSET 经 `parseInt` 防护
+- **Open Redirect**：login/register 拒绝 `//evil.com` 协议相对 URL
+- **SSRF**：`fetch-url` 用 `redirect: manual` 防重定向绕过；`isPrivateUrl()` 共享于 `fetch-url` 和 `web-search`
+- **XSS**：DOMPurify 净化所有 `{@html}` 渲染的 AI 输出
+- **TOCTOU**：`chats/[id]` PUT 语句含 `AND username = ?`
+- **速率限制**：注册 5次/分钟/IP（内存 Map）
+- **密码**：最短 6 位
+- **参数化查询**：所有 SQL 用 `?` 占位符
+
+## 关键依赖
+
+| 包                                  | 用途                                           |
+| ----------------------------------- | ---------------------------------------------- |
+| `bcryptjs`                          | 密码哈希（纯 JS）                              |
+| `mysql2/promise`                    | MySQL 连接池 + 参数化查询                      |
+| `marked` + `highlight.js` + `kaTeX` | Markdown 渲染 + 代码高亮 + 数学公式            |
+| `dompurify`                         | HTML 净化（替代正则 XSS 防护）                 |
+| `svelte-french-toast`               | Toast 通知（v1.x，无 `toast.info`）            |
+| `tippy.js`                          | 消息 info tooltip（token/s 等流式指标）        |
+| `uuid`                              | 消息 ID / 会话 ID 生成                         |
+| `idb`                               | IndexedDB 操作（仅用于旧数据迁移）             |
 
 ## 当前已安装模型
 

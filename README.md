@@ -11,7 +11,7 @@
 | 数据库   | MySQL 8（`mysql2/promise`），`localhost:3307`              |
 | AI 服务  | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等） |
 | 认证     | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7 天有效期）   |
-| Markdown | `marked` + 代码高亮（`highlight.js`）+ 数学公式（`KaTeX`） |
+| 安全     | DOMPurify HTML 净化、注册速率限制、SSRF/Open Redirect 防护 |
 
 ## 功能
 
@@ -19,28 +19,28 @@
 
 - 流式响应（SSE 解析，完成后批量保存）
 - 支持 **Ollama 本地模型** + **OpenAI 兼容 API**（DeepSeek / 通义千问 / OpenAI 等）
-- 多模型并行对话（`Promise.all` 同时向多个模型提问）
+- 多模型顺序对话（多个模型各自产生独立回复分支）
 - 树形消息结构，支持对话分支
 - 自动生成对话标题（语言自适应）
-- Markdown 渲染 + HTML 净化 + 代码语义高亮 + LaTeX
-- Markdown 格式指引：自动引导模型使用 Markdown 排版输出（粗体/列表/代码块/表格）
-- 复制消息 / Markdown 复制 / 重新生成 / 停止响应（AbortController 真正取消请求）
-- 消息编辑：点击用户消息旁的铅笔图标，内联编辑后重新生成回复
+- Markdown 渲染 + DOMPurify HTML 净化 + 代码高亮（highlight.js）+ 数学公式（KaTeX）
+- 上下文自动压缩（默认 200K tokens，超出自动截断早期消息）
+- 复制消息 / Markdown 复制 / 重新生成 / 停止响应（AbortController）
+- 消息编辑 + 删除（与日期同行显示）
 - AI 回复朗读（Web Speech TTS，中文语音合成）
-- 对话置顶：侧边栏图钉按钮，置顶对话始终显示在列表顶部
-- 键盘快捷键：Enter 发送 / Ctrl+Enter 发送 / Escape 关闭设置弹窗
-- 联网搜索（Bing 中国 / 百度 / Bing 国际 / DuckDuckGo / 自定义，多引擎自动回退）+ URL 链接内容抓取
+- 对话置顶：侧边栏图钉按钮，持久化置顶状态
+- 键盘快捷键：Enter 发送 / Ctrl+Enter 发送 / Ctrl+N 新建对话 / Escape 关闭设置弹窗
 - 情绪感知（AI 自动感知并回应用户情绪状态）
-- 文件/图片上传（粘贴/拖拽/选择，图片预览，txt 文本提取）
+- 文件/图片上传（粘贴/拖拽/选择，10MB 限制，txt 文本提取）
+- 移动端键盘适配（visualViewport API）
 
 **用户系统**
 
-- 注册/登录（密码 bcrypt 加密，JWT 认证）
-- 8 个 API 路由全部受认证中间件保护
+- 注册/登录（bcryptjs 加密，密码最短 6 位，注册速率限制 5次/分钟）
+- 全部 API 路由受 JWT 认证中间件保护
 - 个人资料管理（头像上传、用户名、邮箱、密码修改）
 - 用户名变更时自动同步聊天记录 + 签发新 token
-- 自定义系统头像（每个用户独立，AI 助手头像个性化）
-- 退出登录（含确认步骤）
+- 自定义系统头像
+- 退出登录（侧边栏直接退出 + 个人资料页确认退出）
 
 **模型管理**
 
@@ -51,20 +51,19 @@
 **设置面板**
 
 - 常规：主题（深色/浅色/跟随系统）+ 字体大小（三档）+ 系统头像 + API 地址
-- 偏好：主动问候 / 隐私模式 / 自动标题 / 自动复制 / 联网搜索（含搜索引擎选择）+ 情绪感知
+- 偏好：主动问候 / 隐私模式 / 自动标题 / 自动复制 / 情绪感知
 - 人设：自定义 AI 身份性格（system prompt）
 - API：第三方 OpenAI 兼容提供商管理
-- 搜索引擎：Bing 中国（默认）/ 百度 / Bing 国际 / DuckDuckGo / 自定义 URL，所选引擎不可用时自动回退
-- 高级：上下文长度（默认 8K，最大 128K）+ 温度/种子/Top P 等参数
+- 高级：上下文长度（默认 200K，最大 200K）+ 温度/种子/Top P 等参数
 - 关于：版本信息
 
 **其他**
 
-- 对话导出（JSON 下载）
+- 对话导出：JSON（数据结构完整）+ Markdown（用户可读）
 - 建议与反馈提交
 - 侧边栏聊天列表按日期分组（今天/昨天/本周/更早），可搜索、折叠
 - 响应式布局（移动端侧边栏自动隐藏 + 遮罩层）
-- 深色/浅色主题切换 + 系统主题自动跟随
+- 流式中断恢复提示（刷新后未完成消息标注）
 
 ## 接入第三方 API 模型
 
@@ -76,45 +75,24 @@
 3. 点击 **添加**，再点击 **获取模型** 拉取可用模型列表
 4. 在聊天页模型选择器中即可选择第三方模型（显示为 `提供商名/模型ID`）
 
-支持的 API 格式：OpenAI Chat Completions 兼容接口。
+第三方模型仅发送原始用户输入 + 用户设定的 system prompt，不做额外处理。
 
 ## 新机子上手全流程
-
-以下从零开始，逐项配置依赖、数据库、AI 服务和应用。
 
 ### 1. 安装 Node.js
 
 需要 **Node.js >= 18**。
 
-前往 https://nodejs.org 下载 LTS 版本（Windows 选 `.msi`，macOS 选 `.pkg`）。安装完成后验证：
+前往 https://nodejs.org 下载 LTS 版本。安装完成后验证：
 
 ```bash
-node -v   # 应显示 v18 或更高
+node -v
 npm -v
 ```
 
 ### 2. 安装并配置 MySQL
 
-端口固定为 **3307**，root 用户无密码（项目已硬编码这些值，可在设置面板修改）。
-
-**Windows**
-从 https://dev.mysql.com/downloads/installer/ 下载 MySQL Installer，安装时选择 MySQL Server 8.x，端口设为 `3307`，root 密码留空。
-
-**macOS**
-
-```bash
-brew install mysql@8.0
-brew services start mysql@8.0
-# 如果端口不是 3307，编辑 my.cnf 把 port 改为 3307
-```
-
-**Linux (Debian/Ubuntu)**
-
-```bash
-sudo apt install mysql-server-8.0
-sudo systemctl start mysql
-# 修改端口：编辑 /etc/mysql/mysql.conf.d/mysqld.cnf，port = 3307，重启
-```
+端口固定为 **3307**（可通过 `MYSQL_PORT` 环境变量覆盖）。
 
 **创建数据库**
 
@@ -138,12 +116,6 @@ CREATE DATABASE IF NOT EXISTS webui_chat CHARACTER SET utf8mb4;
 ollama pull qwen3:0.6b
 ```
 
-Ollama 默认监听 `http://localhost:11434`，确保服务在运行：
-
-```bash
-curl http://localhost:11434/api/tags
-```
-
 ### 4. 克隆并启动项目
 
 ```bash
@@ -155,9 +127,16 @@ npm run dev
 
 浏览器打开 **http://localhost:8080**，注册账号即可开始使用。
 
-### 5. 修改默认端口/密码（可选）
+### 5. 环境变量配置（可选）
 
-如果 MySQL 或 Ollama 端口与默认值不同，启动后在 **设置** → **常规** 中修改 API 地址。数据库连接可编辑 `src/lib/server/db.ts` 中的 `pool` 配置。
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `MYSQL_HOST` | `localhost` | MySQL 主机 |
+| `MYSQL_PORT` | `3307` | MySQL 端口 |
+| `MYSQL_USER` | `root` | MySQL 用户名 |
+| `MYSQL_PASSWORD` | (空) | MySQL 密码 |
+| `MYSQL_DATABASE` | `webui_chat` | 数据库名 |
+| `JWT_SECRET` | (内置默认值) | JWT 签名密钥 |
 
 ### 生产构建
 
@@ -174,52 +153,37 @@ src/
 ├── app.html / app.css / tailwind.css     # HTML 模板 + 全局样式
 ├── lib/
 │   ├── chat/
-│   │   ├── ollama.ts                     # 核心聊天逻辑 + 消息路由（Ollama/OpenAI）
-│   │   └── openai.ts                     # OpenAI 兼容 API（流式聊天、模型获取）
-│   ├── client/http.ts                    # 客户端 HTTP 工具（authFetch 自动附加 JWT）
+│   │   ├── ollama.ts                     # 核心聊天逻辑（Ollama 流式、消息路由、文件处理、标题生成）
+│   │   └── openai.ts                     # OpenAI 兼容 API（流式聊天、模型获取、标题生成）
+│   ├── client/http.ts                    # 客户端 HTTP（authFetch 自动附加 JWT）
 │   ├── server/
-│   │   ├── auth.ts                       # 服务端认证（bcrypt + JWT）
-│   │   └── db.ts                         # MySQL 连接池 + 表初始化
-│   ├── stores/index.ts                   # 8 个 Svelte writable stores
+│   │   ├── auth.ts                       # 服务端认证（bcryptjs + JWT）
+│   │   └── db.ts                         # MySQL 连接池 + 表初始化（环境变量配置）
+│   ├── stores/index.ts                   # 9 个 Svelte writable stores（类型完善）
 │   ├── components/
 │   │   ├── chat/
-│   │   │   ├── Messages.svelte           # 消息渲染（图片/附件/markdown/代码/LaTeX/复制/tooltip）
-│   │   │   ├── MessageInput.svelte       # 输入框（语音/上传/粘贴/拖拽/自动伸缩）
-│   │   │   ├── ModelSelector.svelte      # 模型选择器（Ollama+第三方合并列表）
+│   │   │   ├── Messages.svelte           # 消息渲染（DOMPurify/marked/highlight.js/KaTeX/TTS/编辑删除）
+│   │   │   ├── MessageInput.svelte       # 输入框（语音/上传/移动端键盘适配）
+│   │   │   ├── ModelSelector.svelte      # 模型选择器
 │   │   │   ├── SettingsModal.svelte      # 设置弹窗（7标签页）
-│   │   │   └── Settings/Advanced.svelte  # 高级参数（num_ctx 默认8K）
+│   │   │   └── Settings/Advanced.svelte  # 高级参数（num_ctx 默认 200K）
 │   │   ├── layout/
-│   │   │   ├── Sidebar.svelte            # 侧边栏（聊天列表/搜索/分组/导出/用户入口）
+│   │   │   ├── Sidebar.svelte            # 侧边栏（列表/搜索/分组/置顶/导出JSON+MD/退出）
 │   │   │   └── Navbar.svelte             # 顶部导航栏（标题/重命名/删除）
-│   │   └── common/                       # Modal、Overlay、Spinner
-│   └── utils/index.ts                    # splitStream、convertMessagesToHistory、datetimeNow
+│   │   └── common/Modal.svelte           # 通用弹窗
+│   └── utils/index.ts                    # splitStream/convertMessagesToHistory/datetimeNow/isPrivateUrl/removeMessageBranch
 ├── routes/
-│   ├── +layout.js                        # 路由守卫（JWT 检查）
+│   ├── +layout.js                        # 路由守卫（JWT + 访客白名单）
 │   ├── +layout.svelte                    # 根布局（全局 CSS + Toast）
 │   ├── +error.svelte                     # 错误页面
-│   ├── login/register/                   # 登录/注册页（Open Redirect 防护）
+│   ├── login/register/                   # 登录/注册（Open Redirect 防护）
 │   ├── (app)/
-│   │   ├── +layout.svelte                # 应用布局（模型/DB/迁移/版本/合并第三方模型）
-│   │   ├── +page.svelte                  # 新对话页
+│   │   ├── +layout.svelte                # 应用布局（Ctrl+N 快捷键）
+│   │   ├── +page.svelte                  # 新对话页（流式恢复提示）
 │   │   ├── c/[id]/+page.svelte          # 对话详情页
 │   │   └── profile/+page.svelte          # 个人资料页
 │   ├── advice_table/+page.svelte         # 建议反馈页
-│   ├── api/                              # 8 个认证 API 路由
+│   ├── api/                              # 9 个认证 API 路由
 │   └── .well-known/[...path]/            # Chrome DevTools 静默路由
-└── static/                               # favicon、默认头像、字体、manifest.json
+└── static/                               # 默认头像、字体、manifest.json
 ```
-
-## 当前已安装模型
-
-| 模型                        | 大小  | 系列  | 参数量 | 量化   |
-| --------------------------- | ----- | ----- | ------ | ------ |
-| `qwen3:0.6b`                | 0.5GB | qwen3 | 752M   | Q4_K_M |
-| `qwen_data2_3000:latest`    | 3.7GB | qwen  | 1.8B   | F16    |
-| `qwen_data2_3000_q4:latest` | 1.1GB | qwen  | 1.8B   | Q4_0   |
-| `qwen_3100_q4:latest`       | 1.1GB | qwen  | 1.8B   | Q4_0   |
-
-## 优化文档
-
-- [系统后期优化改进（第一轮）](./系统后期优化改进.md) — 基于 Open WebUI/Lobe Chat/ChatGPT/Claude/Gemini 对标分析
-- [系统后期优化改进 2（第二轮）](./系统后期优化改进2.md) — 基于 Kimi/豆包/通义千问/文心一言等行业产品对标分析
-- [系统后期优化改进 3（第三轮）](./系统后期优化改进3.md) — 基于前两轮 + 最新代码审查，聚焦情感陪伴核心能力
