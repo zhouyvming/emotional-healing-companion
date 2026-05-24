@@ -1,40 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { requireAuth, AuthError } from "$lib/server/auth";
-
-function isPrivateUrl(urlString: string): boolean {
-	try {
-		const u = new URL(urlString);
-		// 阻止内网/本地地址（防 SSRF）
-		const BLOCKED = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "169.254.169.254"];
-		if (BLOCKED.includes(u.hostname)) return true;
-		const blocks = [
-			"10.",
-			"172.16.",
-			"172.17.",
-			"172.18.",
-			"172.19.",
-			"172.20.",
-			"172.21.",
-			"172.22.",
-			"172.23.",
-			"172.24.",
-			"172.25.",
-			"172.26.",
-			"172.27.",
-			"172.28.",
-			"172.29.",
-			"172.30.",
-			"172.31.",
-			"192.168."
-		];
-		for (const b of blocks) {
-			if (u.hostname.startsWith(b)) return true;
-		}
-		return false;
-	} catch {
-		return true;
-	}
-}
+import { isPrivateUrl } from "$lib/utils";
 
 export async function POST({ request }) {
 	try {
@@ -52,6 +18,7 @@ export async function POST({ request }) {
 
 		const res = await fetch(url, {
 			signal: controller.signal,
+			redirect: "manual",
 			headers: { "User-Agent": "Mozilla/5.0 (compatible; OllamaWebUI/1.0)" }
 		});
 		clearTimeout(timeout);
@@ -65,9 +32,15 @@ export async function POST({ request }) {
 			return json({ error: "不支持的链接类型" }, { status: 415 });
 		}
 
-		const html = await res.text();
+		const contentLength = parseInt(res.headers.get("content-length") || "0");
+		if (contentLength > 1_000_000) {
+			return json({ error: "链接内容过大" }, { status: 413 });
+		}
+
+		const text = await res.text();
+		const html = text.slice(0, 1_000_000);
 		// 简单提取文本
-		const text = html
+		const trimmedText = html
 			.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
 			.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
 			.replace(/<[^>]+>/g, " ")
@@ -75,7 +48,7 @@ export async function POST({ request }) {
 			.trim()
 			.slice(0, 8000);
 
-		return json({ content: text });
+		return json({ content: trimmedText });
 	} catch (error) {
 		if (error instanceof AuthError) {
 			return json({ error: error.message }, { status: 401 });

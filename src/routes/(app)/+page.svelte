@@ -13,6 +13,7 @@
 
 	const stopRef = { value: false };
 	const abortRef = { value: null as AbortController | null };
+	let abortRefs: AbortController[] = [];
 	let autoScroll = true;
 
 	let selectedModels = [""];
@@ -29,7 +30,7 @@
 
 	$: updateCounter,
 		(() => {
-			if (history.currentId !== null) {
+			if (history.currentId !== null && history.messages[history.currentId]) {
 				let _messages: any[] = [];
 				let currentMessage = history.messages[history.currentId];
 				while (currentMessage !== null) {
@@ -54,6 +55,7 @@
 			selectedModels,
 			stopRef,
 			abortRef,
+			abortRefs,
 			autoScroll,
 			uploadingFiles,
 			settings: $settings,
@@ -91,8 +93,12 @@
 	const wrappedEdit = async (messageId: string, newContent: string) => {
 		await editMessage(messageId, newContent, onTitleSet);
 	};
+	const wrappedDelete = async (messageId: string) => {
+		await deleteMessage(messageId);
+	};
 
 	let unsubChatId: () => void;
+	let cleanupMediaQuery: () => void;
 
 	onMount(async () => {
 		await chatId.set(uuidv4());
@@ -107,6 +113,7 @@
 			}
 		};
 		mediaQuery.addEventListener("change", handleThemeChange);
+		cleanupMediaQuery = () => mediaQuery.removeEventListener("change", handleThemeChange);
 
 		unsubChatId = chatId.subscribe(async () => {
 			await initNewChat();
@@ -115,6 +122,7 @@
 
 	onDestroy(() => {
 		if (unsubChatId) unsubChatId();
+		if (cleanupMediaQuery) cleanupMediaQuery();
 	});
 
 	const initNewChat = async () => {
@@ -153,6 +161,7 @@
 				bind:autoScroll
 				regenerateResponse={wrappedRegenerate}
 				editMessage={wrappedEdit}
+				deleteMessage={wrappedDelete}
 			onBranchNavigate={async () => {
 				if (!$settings.privacyMode && $db) {
 					await $db.updateChatById($chatId, { messages, history });

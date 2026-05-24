@@ -69,9 +69,9 @@
 			}
 		} catch (e) {
 			console.warn("IndexedDB 迁移跳过:", e);
-		} finally {
-			localStorage.setItem(MIGRATION_KEY, "true");
+			return;
 		}
+		localStorage.setItem(MIGRATION_KEY, "true");
 	};
 
 	const getModels = async () => {
@@ -247,6 +247,16 @@
 		await db.set(_db);
 
 		await setOllamaVersion(await getOllamaVersion());
+
+		// 全局快捷键
+		const handleKeydown = (e: KeyboardEvent) => {
+			if (e.key === "n" && (e.ctrlKey || e.metaKey)) {
+				e.preventDefault();
+				goto("/");
+				chatId.set(uuidv4());
+			}
+		};
+		window.addEventListener("keydown", handleKeydown);
 
 		await tick();
 		loaded = true;

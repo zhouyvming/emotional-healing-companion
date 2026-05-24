@@ -24,8 +24,22 @@ interface Settings {
 	privacyMode?: boolean;
 	systemPrompt?: string;
 	system?: string;
+	models?: string[];
 	options?: Record<string, any>;
-	[key: string]: any;
+	webSearch?: boolean;
+	searchEngine?: string;
+	customSearchUrl?: string;
+	emotionSensing?: boolean;
+	titleAutoGenerate?: boolean;
+	responseAutoCopy?: boolean;
+	requestFormat?: string;
+	seed?: number;
+	temperature?: number;
+	repeat_penalty?: number;
+	top_k?: number;
+	top_p?: number;
+	num_ctx?: number;
+	stop?: string;
 }
 
 export const settings = writable<Settings>({});

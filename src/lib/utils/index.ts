@@ -1,5 +1,26 @@
 import { v4 as uuidv4 } from "uuid";
 
+export const isPrivateUrl = (urlString: string): boolean => {
+	try {
+		const u = new URL(urlString);
+		const BLOCKED = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "169.254.169.254"];
+		if (BLOCKED.includes(u.hostname)) return true;
+		const blocks = [
+			"10.",
+			"172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
+			"172.21.", "172.22.", "172.23.", "172.24.", "172.25.",
+			"172.26.", "172.27.", "172.28.", "172.29.", "172.30.",
+			"172.31.", "192.168."
+		];
+		for (const b of blocks) {
+			if (u.hostname.startsWith(b)) return true;
+		}
+		return false;
+	} catch {
+		return true;
+	}
+};
+
 export const datetimeNow = () => {
 	const d = new Date();
 	const pad = (n: number) => String(n).padStart(2, "0");
@@ -13,6 +34,8 @@ export const splitStream = (splitOn: string) => {
 	return new TransformStream({
 		transform(chunk, controller) {
 			buffer += chunk;
+			// 统一处理 \r\n 和 \n 行尾
+			buffer = buffer.replace(/\r\n/g, "\n");
 			const parts = buffer.split(splitOn);
 			parts.slice(0, -1).forEach((part) => controller.enqueue(part));
 			buffer = parts[parts.length - 1];
@@ -54,4 +77,34 @@ export const convertMessagesToHistory = (messages: any[]) => {
 
 	history.currentId = messageId;
 	return history;
+};
+
+export const removeMessageBranch = (
+	history: { messages: Record<string, any>; currentId: string | null },
+	messageId: string
+) => {
+	const removeChildren = (id: string) => {
+		for (const childId of history.messages[id]?.childrenIds ?? []) {
+			removeChildren(childId);
+			delete history.messages[childId];
+		}
+	};
+	removeChildren(messageId);
+
+	const message = history.messages[messageId];
+	if (!message) return;
+
+	if (message.parentId && history.messages[message.parentId]) {
+		history.messages[message.parentId].childrenIds = history.messages[
+			message.parentId
+		].childrenIds.filter((cid: string) => cid !== messageId);
+	}
+
+	const currentIdWasDeleted =
+		history.currentId === messageId || !history.messages[history.currentId!];
+	delete history.messages[messageId];
+
+	if (currentIdWasDeleted) {
+		history.currentId = message.parentId;
+	}
 };

@@ -60,7 +60,7 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 
 		const chat = rows[0];
 		await pool.execute(
-			"UPDATE chats SET title = ?, models = ?, options = ?, messages = ?, history = ?, `system` = ?, timestamp = ? WHERE id = ?",
+			"UPDATE chats SET title = ?, models = ?, options = ?, messages = ?, history = ?, `system` = ?, timestamp = ? WHERE id = ? AND username = ?",
 			[
 				updated.title ?? chat.title,
 				JSON.stringify(updated.models !== undefined ? updated.models : safeJsonParse(chat.models)),
@@ -75,7 +75,8 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 				),
 				updated.system !== undefined ? updated.system : chat.system,
 				updated.timestamp ?? datetimeNow(),
-				params.id
+				params.id,
+				auth.username
 			]
 		);
 		return json({ success: true });
@@ -107,12 +108,10 @@ export const DELETE: RequestHandler = async ({ params, request }) => {
 };
 
 function safeJsonParse(val: string | object) {
-	if (typeof val === "string") {
-		try {
-			return JSON.parse(val);
-		} catch {
-			return val;
-		}
+	if (typeof val === "object") return val;
+	try {
+		return JSON.parse(val);
+	} catch {
+		return null;
 	}
-	return val;
 }

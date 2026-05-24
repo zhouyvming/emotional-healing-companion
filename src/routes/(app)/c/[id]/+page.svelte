@@ -15,6 +15,7 @@
 	let loaded = false;
 	const stopRef = { value: false };
 	const abortRef = { value: null as AbortController | null };
+	let abortRefs: AbortController[] = [];
 	let autoScroll = true;
 
 	let selectedModels = [""];
@@ -31,7 +32,7 @@
 
 	$: updateCounter,
 		(() => {
-			if (history.currentId !== null) {
+			if (history.currentId !== null && history.messages[history.currentId]) {
 				let _messages: any[] = [];
 				let currentMessage = history.messages[history.currentId];
 				while (currentMessage !== null) {
@@ -55,6 +56,7 @@
 			selectedModels,
 			stopRef,
 			abortRef,
+			abortRefs,
 			autoScroll,
 			uploadingFiles,
 			settings: $settings,
@@ -92,9 +94,13 @@
 	const wrappedEdit = async (messageId: string, newContent: string) => {
 		await editMessage(messageId, newContent, onTitleSet);
 	};
+	const wrappedDelete = async (messageId: string) => {
+		await deleteMessage(messageId);
+	};
 
-	$: if ($page.params.id) {
+	$: if ($page.params.id && $db) {
 		(async () => {
+			if (loaded && $chatId === $page.params.id) return;
 			let chat = await loadChat();
 			await tick();
 			if (chat) {
@@ -127,7 +133,12 @@
 
 			await tick();
 			if (messages.length > 0) {
-				history.messages[messages.at(-1).id].done = true;
+				const lastMsg = messages.at(-1);
+				if (lastMsg.role === "assistant" && lastMsg.done !== true && !lastMsg.error) {
+					lastMsg.done = true;
+					lastMsg.error = true;
+					lastMsg.content = (lastMsg.content || "") + "\n\n*[此回复在上次对话中断，内容可能不完整]*";
+				}
 			}
 			await tick();
 
@@ -157,8 +168,9 @@
 					bind:history
 					bind:messages
 					bind:autoScroll
-					regenerateResponse={wrappedRegenerate}
-					editMessage={wrappedEdit}
+				regenerateResponse={wrappedRegenerate}
+				editMessage={wrappedEdit}
+				deleteMessage={wrappedDelete}
 				onBranchNavigate={async () => {
 					if (!$settings.privacyMode && $db) {
 						await $db.updateChatById($chatId, { messages, history });

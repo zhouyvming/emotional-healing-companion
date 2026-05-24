@@ -256,16 +256,10 @@
 				const maxSize = 200;
 				let w = img.width;
 				let h = img.height;
-				if (w > h) {
-					if (w > maxSize) {
-						h = (h * maxSize) / w;
-						w = maxSize;
-					}
-				} else {
-					if (h > maxSize) {
-						w = (w * maxSize) / h;
-						h = maxSize;
-					}
+				if (w > maxSize || h > maxSize) {
+					const ratio = Math.min(maxSize / w, maxSize / h);
+					w = Math.round(w * ratio);
+					h = Math.round(h * ratio);
 				}
 				canvas.width = w;
 				canvas.height = h;
@@ -387,9 +381,9 @@
 				options[key] = stored[key];
 			}
 		}
-			return () => {
-				window.removeEventListener('keydown', handleKeydown);
-			};
+		return () => {
+			window.removeEventListener('keydown', handleKeydown);
+		};
 	});
 </script>
 
@@ -837,7 +831,7 @@
 										<div class="mt-1">
 											<input
 												class="w-full rounded-md py-1.5 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
-												placeholder="输入搜索引擎 URL，用 {query} 代表搜索词"
+												placeholder={"输入搜索引擎 URL，用 {query} 代表搜索词"}
 												bind:value={customSearchUrl}
 											/>
 										</div>

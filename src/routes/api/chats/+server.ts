@@ -91,12 +91,10 @@ export async function DELETE({ request }) {
 }
 
 function safeJsonParse(val: string | object) {
-	if (typeof val === "string") {
-		try {
-			return JSON.parse(val);
-		} catch {
-			return val;
-		}
+	if (typeof val === "object") return val;
+	try {
+		return JSON.parse(val);
+	} catch {
+		return null;
 	}
-	return val;
 }

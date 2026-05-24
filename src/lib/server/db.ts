@@ -2,11 +2,11 @@ import mysql from "mysql2/promise";
 
 // 创建MySQL连接
 export const pool = mysql.createPool({
-	host: "localhost",
-	user: "root",
-	password: "",
-	port: 3307,
-	database: "webui_chat",
+	host: process.env.MYSQL_HOST || "localhost",
+	user: process.env.MYSQL_USER || "root",
+	password: process.env.MYSQL_PASSWORD || "",
+	port: parseInt(process.env.MYSQL_PORT || "3307"),
+	database: process.env.MYSQL_DATABASE || "webui_chat",
 	charset: "utf8mb4",
 	waitForConnections: true,
 	connectionLimit: 10,

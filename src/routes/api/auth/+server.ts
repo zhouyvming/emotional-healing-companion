@@ -3,6 +3,10 @@ import { pool } from "$lib/server/db";
 import { hashPassword, verifyPassword, signToken } from "$lib/server/auth";
 import type { RowDataPacket } from "mysql2/promise";
 
+const registerAttempts = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const RATE_LIMIT_MAX = 5;
+
 interface User extends RowDataPacket {
 	id: number;
 	username: string;
@@ -16,6 +20,19 @@ export async function POST({ request }) {
 	const { action, username, password, email } = await request.json();
 
 	if (action === "register") {
+		// 速率限制
+		const ip = request.headers.get("x-forwarded-for") || "unknown";
+		const now = Date.now();
+		const attempt = registerAttempts.get(ip);
+		if (attempt && now < attempt.resetAt && attempt.count >= RATE_LIMIT_MAX) {
+			return json({ error: "操作过于频繁，请稍后重试" }, { status: 429 });
+		}
+		if (!attempt || now >= attempt.resetAt) {
+			registerAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+		} else {
+			attempt.count++;
+		}
+
 		try {
 			const [existingUsers] = await pool.execute<User[]>(
 				"SELECT username FROM users WHERE username = ?",
@@ -76,4 +93,6 @@ export async function POST({ request }) {
 			return json({ error: "登录失败，请稍后重试" }, { status: 500 });
 		}
 	}
+
+	return json({ error: "无效的操作" }, { status: 400 });
 }

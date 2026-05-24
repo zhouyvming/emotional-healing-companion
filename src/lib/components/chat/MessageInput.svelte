@@ -1,5 +1,6 @@
 <script lang="ts">
 	import toast from "svelte-french-toast";
+	import { onDestroy, onMount } from "svelte";
 
 	export let submitPrompt: Function;
 	export let stopResponse: Function;
@@ -116,11 +117,38 @@
 		if (prompt.trim() === "" && uploadingFiles.length === 0) return;
 		submitPrompt(prompt.trim());
 	}
+
+	onDestroy(() => {
+		if (recognition) {
+			recognition.abort();
+			recognition = null;
+			recording = false;
+		}
+	});
+
+	// 移动端键盘适配
+	let inputWrapper: HTMLDivElement;
+	onMount(() => {
+		if (window.visualViewport) {
+			const handler = () => {
+				const vv = window.visualViewport!;
+				if (inputWrapper) {
+					inputWrapper.style.paddingBottom = (window.innerHeight - vv.height) + "px";
+				}
+			};
+			window.visualViewport.addEventListener("resize", handler);
+			window.visualViewport.addEventListener("scroll", handler);
+			return () => {
+				window.visualViewport?.removeEventListener("resize", handler);
+				window.visualViewport?.removeEventListener("scroll", handler);
+			};
+		}
+	});
 </script>
 
 <svelte:window on:paste={handlePaste} />
 
-<div class="fixed bottom-0 w-full">
+<div class="fixed bottom-0 w-full" bind:this={inputWrapper}>
 	<div class="px-2.5 pt-2.5 -mb-0.5 mx-auto inset-x-0 bg-transparent flex justify-center">
 		{#if autoScroll === false && messages.length > 0}
 			<div class=" flex justify-center mb-4">
@@ -273,7 +301,7 @@
 										? 'bg-pink-500 text-white hover:bg-pink-600 dark:hover:bg-pink-400 '
 										: 'text-gray-400 bg-gray-100 dark:text-gray-600 dark:bg-gray-700'} transition rounded-lg p-1 mr-0.5 w-7 h-7 self-center"
 									type="submit"
-									disabled={prompt === "" && uploadingFiles.length === 0}
+									disabled={prompt.trim() === "" && uploadingFiles.length === 0}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"

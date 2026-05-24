@@ -1,5 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { requireAuth, AuthError } from "$lib/server/auth";
+import { isPrivateUrl } from "$lib/utils";
 
 // 解码 HTML 响应，自动处理 GBK/UTF-8 编码
 async function fetchHtml(url: string, headers: Record<string, string>, timeoutMs = 8000): Promise<string | null> {
@@ -147,7 +148,10 @@ export async function POST({ request }) {
 
 		// 自定义搜索引擎
 		if (selectedEngine === "custom" && customUrl && customUrl.includes("{query}")) {
-			const url = customUrl.replace("{query}", encodeURIComponent(q));
+			const url = customUrl.replace(/\{query\}/g, encodeURIComponent(q));
+			if (isPrivateUrl(url)) {
+				return json({ error: "不允许使用内网地址作为搜索引擎" }, { status: 403 });
+			}
 			const html = await fetchHtml(url, {
 				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 				"Accept-Language": "zh-CN,zh;q=0.9"

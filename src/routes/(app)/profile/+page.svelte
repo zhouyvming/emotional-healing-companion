@@ -8,12 +8,6 @@
 	let avatarInput: HTMLInputElement;
 	let currentUser: { username: string; token: string } | null = null;
 
-	// 建议与反馈
-	let adviceContent = "";
-	let feedbackContent = "";
-	let submittingAdvice = false;
-	let submittingFeedback = false;
-
 	let editingProfile = false;
 	let editUsername = "";
 	let editEmail = "";
@@ -131,16 +125,10 @@
 				const maxSize = 200;
 				let w = img.width;
 				let h = img.height;
-				if (w > h) {
-					if (w > maxSize) {
-						h = (h * maxSize) / w;
-						w = maxSize;
-					}
-				} else {
-					if (h > maxSize) {
-						w = (w * maxSize) / h;
-						h = maxSize;
-					}
+				if (w > maxSize || h > maxSize) {
+					const ratio = Math.min(maxSize / w, maxSize / h);
+					w = Math.round(w * ratio);
+					h = Math.round(h * ratio);
 				}
 				canvas.width = w;
 				canvas.height = h;
@@ -154,10 +142,12 @@
 						body: JSON.stringify({ avatar: base64 })
 					});
 					if (!res.ok) throw new Error();
+					const data = await res.json();
 					const stored = JSON.parse(localStorage.getItem("user") ?? "{}");
-					stored.avatar = base64;
-					localStorage.setItem("user", JSON.stringify(stored));
-					user.set(stored);
+					const updatedUser = { ...stored, ...data.user };
+					if (data.token) updatedUser.token = data.token;
+					localStorage.setItem("user", JSON.stringify(updatedUser));
+					user.set(updatedUser);
 					toast.success("头像已更新");
 				} catch {
 					toast.error("头像更新失败");
@@ -189,54 +179,6 @@
 	const handleLogout = () => {
 		localStorage.removeItem("user");
 		goto("/login");
-	};
-
-	const handleAdviceSubmit = async () => {
-		if (!adviceContent.trim()) {
-			toast.error("请输入建议内容");
-			return;
-		}
-		submittingAdvice = true;
-		try {
-			const res = await authFetch("/api/advice_table", {
-				method: "POST",
-				body: JSON.stringify({ content: adviceContent.trim() })
-			});
-			if (!res.ok) {
-				const err = await res.json();
-				throw new Error(err.error || "提交失败");
-			}
-			toast.success("感谢您的建议！");
-			adviceContent = "";
-		} catch (error: any) {
-			toast.error(error.message || "提交失败");
-		} finally {
-			submittingAdvice = false;
-		}
-	};
-
-	const handleFeedbackSubmit = async () => {
-		if (!feedbackContent.trim()) {
-			toast.error("请输入反馈内容");
-			return;
-		}
-		submittingFeedback = true;
-		try {
-			const res = await authFetch("/api/feedback_table", {
-				method: "POST",
-				body: JSON.stringify({ content: feedbackContent.trim() })
-			});
-			if (!res.ok) {
-				const err = await res.json();
-				throw new Error(err.error || "提交失败");
-			}
-			toast.success("感谢您的反馈！");
-			feedbackContent = "";
-		} catch (error: any) {
-			toast.error(error.message || "提交失败");
-		} finally {
-			submittingFeedback = false;
-		}
 	};
 </script>
 
@@ -271,17 +213,19 @@
 					{#if editingProfile}
 						<div class="space-y-2">
 							<div>
-								<label class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">用户名</label>
-								<input
-									type="text"
+							<label class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5" for="profile-username">用户名</label>
+							<input
+								id="profile-username"
+								type="text"
 									class="w-full rounded-md py-1.5 px-2.5 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
 									bind:value={editUsername}
 								/>
 							</div>
 							<div>
-								<label class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">邮箱</label>
-								<input
-									type="email"
+							<label class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5" for="profile-email">邮箱</label>
+							<input
+								id="profile-email"
+								type="email"
 									class="w-full rounded-md py-1.5 px-2.5 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
 									bind:value={editEmail}
 								/>
@@ -349,8 +293,9 @@
 				<h3 class="text-lg font-semibold dark:text-gray-200 mb-4">修改密码</h3>
 				<div class="space-y-3">
 					<div>
-						<label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">当前密码</label>
+						<label class="block text-sm text-gray-500 dark:text-gray-400 mb-1" for="profile-old-password">当前密码</label>
 						<input
+							id="profile-old-password"
 							type="password"
 							class="w-full rounded-lg py-2.5 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
 							placeholder="请输入当前密码"
@@ -358,8 +303,9 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">新密码</label>
+						<label class="block text-sm text-gray-500 dark:text-gray-400 mb-1" for="profile-new-password">新密码</label>
 						<input
+							id="profile-new-password"
 							type="password"
 							class="w-full rounded-lg py-2.5 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
 							placeholder="请输入新密码"
@@ -367,8 +313,9 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm text-gray-500 dark:text-gray-400 mb-1">确认新密码</label>
+						<label class="block text-sm text-gray-500 dark:text-gray-400 mb-1" for="profile-confirm-password">确认新密码</label>
 						<input
+							id="profile-confirm-password"
 							type="password"
 							class="w-full rounded-lg py-2.5 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
 							placeholder="请再次输入新密码"
@@ -407,42 +354,22 @@
 
 		<!-- 建议卡片 -->
 		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
-			<h3 class="text-lg font-semibold dark:text-gray-200 mb-1">您的建议是我们前进的动力</h3>
-			<p class="text-sm text-gray-400 dark:text-gray-500 mb-4">告诉我们您的想法，帮助我们做得更好</p>
-			<textarea
-				class="w-full h-24 rounded-lg py-3 px-4 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
-				placeholder="请输入您的建议..."
-				bind:value={adviceContent}
-			></textarea>
-			<div class="flex justify-end mt-3">
-				<button
-					class="px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-					on:click={handleAdviceSubmit}
-					disabled={submittingAdvice}
-				>
-					{submittingAdvice ? '提交中...' : '提交建议'}
-				</button>
-			</div>
+			<button
+				class="w-full py-3 rounded-lg bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+				on:click={() => goto("/advice_table")}
+			>
+				提交建议
+			</button>
 		</div>
 
 		<!-- 反馈卡片 -->
 		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
-			<h3 class="text-lg font-semibold dark:text-gray-200 mb-1">您的反馈是我们改进的决心</h3>
-			<p class="text-sm text-gray-400 dark:text-gray-500 mb-4">遇到问题或有改进意见？请随时告诉我们</p>
-			<textarea
-				class="w-full h-24 rounded-lg py-3 px-4 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
-				placeholder="请输入您的反馈..."
-				bind:value={feedbackContent}
-			></textarea>
-			<div class="flex justify-end mt-3">
-				<button
-					class="px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-					on:click={handleFeedbackSubmit}
-					disabled={submittingFeedback}
-				>
-					{submittingFeedback ? '提交中...' : '提交反馈'}
-				</button>
-			</div>
+			<button
+				class="w-full py-3 rounded-lg bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+				on:click={() => goto("/advice_table")}
+			>
+				提交反馈
+			</button>
 		</div>
 
 		<!-- 账户操作卡片 -->

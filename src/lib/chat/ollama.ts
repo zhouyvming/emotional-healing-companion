@@ -3,7 +3,7 @@ import { tick } from "svelte";
 import { goto } from "$app/navigation";
 import toast from "svelte-french-toast";
 import { OLLAMA_API_BASE_URL } from "$lib/constants";
-import { splitStream, convertMessagesToHistory, datetimeNow } from "$lib/utils";
+import { splitStream, convertMessagesToHistory, datetimeNow, removeMessageBranch } from "$lib/utils";
 import type { Writable } from "svelte/store";
 import { findProvider, sendPromptOpenAI } from "$lib/chat/openai";
 
@@ -47,47 +47,8 @@ export function copyToClipboard(text: string) {
 	navigator.clipboard.writeText(text).catch(() => {});
 }
 
-// URL 检测与抓取
-async function fetchUrlContent(url: string): Promise<string | null> {
-	try {
-		const res = await fetch(`/api/fetch-url`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ url })
-		});
-		if (!res.ok) return null;
-		const data = await res.json();
-		return data.content?.slice(0, 4000) ?? null;
-	} catch {
-		return null;
-	}
-}
-
-	// 网页搜索（通过服务端代理，避免 CORS 和反爬拦截）
-	async function webSearch(query: string): Promise<string | null> {
-		try {
-			const settings = JSON.parse(localStorage.getItem("settings") ?? "{}");
-			const engine = settings.searchEngine || "cn.bing.com";
-			const customUrl = settings.customSearchUrl || "";
-			const token = JSON.parse(localStorage.getItem("user") ?? "{}").token;
-			const res = await fetch("/api/web-search", {
-				method: "POST",
-				headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-				body: JSON.stringify({ query, engine, customUrl })
-			});
-			if (!res.ok) return null;
-			const data = await res.json();
-			if (!data.results?.length) return null;
-			return data.results.map((r: any, i: number) => `${i + 1}. **${r.title}**\n   ${r.snippet}\n   ${r.url}`).join("\n\n");
-		} catch {
-			return null;
-		}
-	}
-
-
-
 // 情绪分析 prompt
-function getEmotionPrompt(recentMessages: string): string {
+function getEmotionPrompt(latestUserMessage: string): string {
 	return `[内部情绪分析指引]
 请根据用户的最新消息感知其情绪状态（如开心、焦虑、悲伤、愤怒、平静等），并在回复中以温暖共情的方式适当回应。
 不要直白地说"我感知到你很XX"，而是自然地用匹配用户情绪的语调来回应。
@@ -101,6 +62,7 @@ interface ChatContext {
 	selectedModels: string[];
 	stopRef: { value: boolean };
 	abortRef: { value: AbortController | null };
+	abortRefs?: AbortController[];
 	autoScroll: boolean;
 	settings: Record<string, any>;
 	db: any;
@@ -133,11 +95,19 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				return;
 			}
 			if (settings.titleAutoGenerate ?? true) {
+				const modelForTitle = selectedModels[0].includes("/")
+					? null
+					: selectedModels[0];
+				if (!modelForTitle) {
+					await c().db.updateChatById(_chatId, { title: userPrompt.slice(0, 50) });
+					onTitleSet(userPrompt.slice(0, 50));
+					return;
+				}
 				const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/generate`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
-						model: selectedModels[0].split("/").pop() || selectedModels[0],
+						model: modelForTitle,
 						prompt: `请根据以下对话内容生成一个简洁的标题（5个词以内）。
 
 语言规则（非常重要，必须严格遵守）：
@@ -213,7 +183,9 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		} = ctx;
 
 		const abortController = new AbortController();
-		ctx.abortRef.value = abortController;
+		if (!ctx.abortRefs) ctx.abortRefs = [];
+		const abortIndex = ctx.abortRefs.length;
+		ctx.abortRefs.push(abortController);
 		let responseMessageId = uuidv4();
 		let responseMessage: Message = {
 			parentId,
@@ -236,10 +208,12 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		c().notifyUpdate();
 
 		await tick();
-		window.scrollTo({ top: document.body.scrollHeight });
+		if (c().autoScroll) {
+			window.scrollTo({ top: document.body.scrollHeight });
+		}
 
 		// 构建消息列表（含图片，剥离 data:...;base64, 前缀）
-		const apiMessages = messages.map((message) => ({
+		let apiMessages = messages.map((message) => ({
 			role: message.role,
 			content: message.content,
 			...(message.images?.length
@@ -250,6 +224,34 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				  }
 				: {})
 		}));
+
+		// 上下文自动压缩：超出 num_ctx 时截断最早的消息
+		const contextLimit = settings.num_ctx ?? 200000;
+		let totalChars = apiMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+		if (systemPrompt) totalChars += systemPrompt.length;
+		const estimatedTokens = Math.ceil(totalChars / 2);
+		if (estimatedTokens > contextLimit) {
+			let keepFrom = 0;
+			let runningChars = 0;
+			for (let i = apiMessages.length - 1; i >= 0; i--) {
+				runningChars += (apiMessages[i].content?.length || 0);
+				if (Math.ceil(runningChars / 2) > contextLimit * 0.85) {
+					keepFrom = i + 1;
+					break;
+				}
+			}
+			const truncated = apiMessages.length - keepFrom;
+			if (truncated > 0 && keepFrom < apiMessages.length) {
+				const systemMsgIndex = apiMessages.findIndex(m => m.role === "system");
+				apiMessages = apiMessages.slice(keepFrom);
+				const summaryNote = { role: "system" as const, content: `[对话上下文已压缩：早期 ${truncated} 条消息已省略，以下是最近的对话内容]` };
+				if (systemMsgIndex >= 0) {
+					apiMessages[0].content = summaryNote.content + "\n\n" + apiMessages[0].content;
+				} else {
+					apiMessages.unshift(summaryNote);
+				}
+			}
+		}
 
 		// 注入情绪感知 system prompt
 		let systemPrompt = settings.systemPrompt ?? "";
@@ -278,7 +280,11 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				},
 				format: settings.requestFormat ?? undefined
 			})
-		}).catch((err) => (err.name === "AbortError" ? null : null));
+		}).catch((err) => {
+			if (err.name === "AbortError") return null;
+			console.error("[Ollama] fetch 失败:", err.message || err);
+			return null;
+		});
 
 		if (res && res.ok) {
 			const reader = res.body
@@ -338,6 +344,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					}
 					if ("detail" in error) toast.error(error.detail);
 					c().notifyUpdate();
+					reader.cancel();
 					break;
 				}
 
@@ -358,22 +365,25 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		}
 	} else {
 			responseMessage.error = true;
-			responseMessage.content = "连接 Ollama 失败，请检查服务是否启动或 API 地址是否正确";
 			responseMessage.done = true;
 			if (res !== null) {
 				try {
 					const error = await res.json();
 					if ("detail" in error) toast.error(error.detail);
-					else toast.error(error.error);
-					responseMessage.content = error.detail ?? error.error ?? responseMessage.content;
-				} catch {}
+					else if (error.error) toast.error(error.error);
+					responseMessage.content = error.detail ?? error.error ?? "连接 Ollama 失败";
+				} catch {
+					responseMessage.content = "连接 Ollama 失败，请检查服务是否启动或 API 地址是否正确";
+				}
 			} else {
+				responseMessage.content = "连接 Ollama 失败，请检查服务是否启动或 API 地址是否正确";
 				toast.error("连接 Ollama 失败，请检查服务是否启动");
 			}
 			c().notifyUpdate();
 		}
 
 		c().stopRef.value = false;
+		c().abortRefs.splice(abortIndex, 1);
 		await tick();
 		if (c().autoScroll) {
 			window.scrollTo({ top: document.body.scrollHeight });
@@ -410,9 +420,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			window.history.replaceState(window.history.state, "", `/c/${_chatId}`);
 			if (!curSettings.privacyMode) {
 				await generateChatTitle(_chatId, userPrompt, onTitleSet);
-			} else {
 			}
-		} else {
 		}
 	};
 
@@ -425,30 +433,27 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		const ctx = c();
 		const { selectedModels, chats, db } = ctx;
 		const titleGuard = { generated: false };
-		await Promise.all(
-			selectedModels.map(async (model) => {
-				// 检测第三方 API 模型（格式：提供商名/模型ID）
-				const provider = findProvider(model);
-				if (provider) {
-					const actualModel = model.split("/").slice(1).join("/") || model;
-					await sendPromptOpenAI(
-						provider,
-						actualModel,
-						userPrompt,
-						parentId,
-						_chatId,
-						ctx as any,
-						onTitleSet,
-						titleGuard,
-						() => c().messages,
-						() => c().autoScroll,
-						() => c().title
-					);
-				} else {
-					await sendPromptOllama(model, userPrompt, parentId, _chatId, onTitleSet, titleGuard);
-				}
-			})
-		);
+		for (const model of selectedModels) {
+			const provider = findProvider(model);
+			if (provider) {
+				const actualModel = model.split("/").slice(1).join("/") || model;
+				await sendPromptOpenAI(
+					provider,
+					actualModel,
+					userPrompt,
+					parentId,
+					_chatId,
+					ctx as any,
+					onTitleSet,
+					titleGuard,
+					() => c().messages,
+					() => c().autoScroll,
+					() => c().title
+				);
+			} else {
+				await sendPromptOllama(model, userPrompt, parentId, _chatId, onTitleSet, titleGuard);
+			}
+		}
 		if (!c().settings.privacyMode) {
 			await chats.set(await db.getChats());
 		}
@@ -463,47 +468,15 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		const { selectedModels, messages, history, chatId, settings, db, uploadingFiles } = ctx;
 
 
-		if (selectedModels.includes("")) {
+		if (selectedModels.length === 0 || selectedModels.includes("")) {
 			toast.error("未选择模型");
 			return;
 		}
-		if (messages.length != 0 && !messages.at(-1)?.done) {
+		if (messages.length !== 0 && !messages.at(-1)?.done) {
 			return;
 		}
 
 		document.getElementById("chat-textarea")?.style.setProperty("height", "");
-
-		let finalPrompt = userPrompt;
-
-		// URL 检测与抓取
-		const urlRegex = /https?:\/\/[^\s]+/g;
-		const urls = userPrompt.match(urlRegex);
-		if (urls && urls.length > 0) {
-			toast("正在读取链接内容...");
-			for (const url of urls) {
-				const content = await fetchUrlContent(url);
-				if (content) {
-					finalPrompt = finalPrompt.replace(url, "") + `\n\n[链接内容：${url}]\n${content}`;
-				}
-			}
-		}
-
-		// 网页搜索
-		if (settings.webSearch) {
-			const searchQuery = userPrompt.replace(urlRegex, "").trim();
-			if (searchQuery.length > 5) {
-				toast("正在联网搜索...");
-				const searchResults = await webSearch(searchQuery);
-				if (searchResults) {
-				finalPrompt = `[以下是根据「${searchQuery}」搜索到的网络信息，请参考这些信息回答用户问题]
-
-${searchResults}
-
-[用户输入]
-${finalPrompt}`;
-				}
-			}
-		}
 
 		let userMessageId = uuidv4();
 		let userMessage: Message = {
@@ -511,7 +484,7 @@ ${finalPrompt}`;
 			parentId: messages.length !== 0 ? messages.at(-1)!.id : null,
 			childrenIds: [],
 			role: "user",
-			content: finalPrompt,
+			content: userPrompt,
 			timestamp: datetimeNow()
 		};
 
@@ -576,13 +549,17 @@ ${finalPrompt}`;
 			window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 		}, 50);
 
-		await sendPrompt(finalPrompt, userMessageId, chatId, onTitleSet);
+		await sendPrompt(userPrompt, userMessageId, chatId, onTitleSet);
 	};
 
 	const stopResponse = () => {
 		const ctx = c();
 		ctx.stopRef.value = true;
-		ctx.abortRef.value?.abort();
+		if (ctx.abortRefs && ctx.abortRefs.length > 0) {
+			for (const ctrl of ctx.abortRefs) ctrl.abort();
+		} else {
+			ctx.abortRef.value?.abort();
+		}
 	};
 
 	const regenerateResponse = async (onTitleSet: (t: string) => void) => {
@@ -609,30 +586,10 @@ ${finalPrompt}`;
 
 	const deleteMessage = async (messageId: string) => {
 		const ctx = c();
-		const { history, messages } = ctx;
+		const { history } = ctx;
 
-		const message = history.messages[messageId];
-		if (!message) return;
+		removeMessageBranch(history, messageId);
 
-		const removeChildren = (id: string) => {
-			for (const childId of history.messages[id]?.childrenIds ?? []) {
-				removeChildren(childId);
-				delete history.messages[childId];
-			}
-		};
-		removeChildren(messageId);
-
-		if (message.parentId && history.messages[message.parentId]) {
-			history.messages[message.parentId].childrenIds = history.messages[
-				message.parentId
-			].childrenIds.filter((cid) => cid !== messageId);
-		}
-
-		if (history.currentId === messageId) {
-			history.currentId = message.parentId;
-		}
-
-		delete history.messages[messageId];
 		ctx.notifyUpdate();
 		await tick();
 		if (!c().settings.privacyMode) {

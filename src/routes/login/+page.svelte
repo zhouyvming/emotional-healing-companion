@@ -13,7 +13,8 @@
 	function sanitizeRedirect(path: string | null): string {
 		if (!path) return "/";
 		// 仅允许站内相对路径，阻止 Open Redirect 攻击
-		return path.startsWith("/") ? path : "/";
+		if (!path.startsWith("/") || path.startsWith("//")) return "/";
+		return path;
 	}
 
 	async function handleLogin() {

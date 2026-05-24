@@ -6,7 +6,7 @@
 	import { onMount } from "svelte";
 	import toast from "svelte-french-toast";
 
-	let show = false;
+	let show = window.innerWidth > 1280;
 	let chatListExpanded = true;
 	let collapsedGroups: Set<string> = new Set(["更早"]);
 	let navElement;
@@ -28,10 +28,6 @@
 
 
 	onMount(async () => {
-		if (window.innerWidth > 1280) {
-			show = true;
-		}
-
 		await chats.set(await $db.getChats());
 	});
 
@@ -41,6 +37,8 @@
 
 	const deleteChatHistory = async () => {
 		await $db.deleteAllChat();
+		goto("/");
+		await chatId.set(uuidv4());
 	};
 
 	// 日期分组
@@ -69,6 +67,15 @@
 		return chat.title.toLowerCase().includes(search.toLowerCase());
 	});
 
+	$: {
+		// 清理已删除聊天的置顶引用
+		const existingIds = new Set($chats.map((c: any) => c.id));
+		const cleaned = pinnedIds.filter((id: string) => existingIds.has(id));
+		if (cleaned.length !== pinnedIds.length) {
+			pinnedIds = cleaned;
+			localStorage.setItem("pinnedChats", JSON.stringify(pinnedIds));
+		}
+	}
 	$: pinnedChats = $chats.filter((c) => pinnedIds.includes(c.id));
 	$: unpinnedFiltered = filteredChats.filter((c) => !pinnedIds.includes(c.id));
 	$: groupedChats = (() => {
@@ -94,6 +101,27 @@
 		a.click();
 		URL.revokeObjectURL(url);
 		toast.success("对话已导出");
+	};
+
+	const handleExportMarkdown = async () => {
+		const data = await $db.exportChats();
+		let md = "# 情感疗愈伴侣 - 对话记录\n\n";
+		for (const chat of data) {
+			md += `## ${chat.title || "未命名对话"}\n`;
+			const messages = Array.isArray(chat.messages) ? chat.messages : [];
+			for (const msg of messages) {
+				const role = msg.role === "user" ? "用户" : msg.model || "AI";
+				md += `**${role}** (${chat.timestamp || ""})\n\n${msg.content || ""}\n\n---\n\n`;
+			}
+		}
+		const blob = new Blob([md], { type: "text/markdown" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = "chats-export.md";
+		a.click();
+		URL.revokeObjectURL(url);
+		toast.success("Markdown 已导出");
 	};
 </script>
 
@@ -395,7 +423,7 @@
 					</button>
 				{/if}
 
-				<!-- 导出对话 -->
+				<!-- 导出对话 (JSON) -->
 				<button
 					class="flex rounded-md py-3 px-3.5 w-full hover:bg-pink-50 dark:hover:bg-pink-900 transition"
 					on:click={handleExport}
@@ -416,7 +444,31 @@
 							/>
 						</svg>
 					</div>
-					<div class="self-center font-medium">导出对话</div>
+					<div class="self-center font-medium">导出 JSON</div>
+				</button>
+
+				<!-- 导出对话 (Markdown) -->
+				<button
+					class="flex rounded-md py-3 px-3.5 w-full hover:bg-pink-50 dark:hover:bg-pink-900 transition"
+					on:click={handleExportMarkdown}
+				>
+					<div class="self-center mr-3">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke-width="1.5"
+							stroke="currentColor"
+							class="w-5 h-5"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+							/>
+						</svg>
+					</div>
+					<div class="self-center font-medium">导出 Markdown</div>
 				</button>
 
 				<!-- 设置 -->
@@ -476,9 +528,10 @@
 					<button
 						class="flex-shrink-0 p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition"
 						on:click={() => {
-							goto("/profile");
+							localStorage.removeItem("user");
+							goto("/login");
 						}}
-						title="个人资料"
+						title="退出登录"
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"

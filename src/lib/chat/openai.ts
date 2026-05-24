@@ -136,7 +136,7 @@ export async function sendPromptOpenAI(
 	window.scrollTo({ top: document.body.scrollHeight });
 
 	// 构建 OpenAI 格式消息
-	const apiMessages: OpenAIMessage[] = messages.map((msg: any) => ({
+	let apiMessages: OpenAIMessage[] = messages.map((msg: any) => ({
 		role: msg.role,
 		content: msg.content,
 		...(msg.images?.length
@@ -152,14 +152,46 @@ export async function sendPromptOpenAI(
 			: {})
 	}));
 
-	// 注入 system prompt
+	// 注入 system prompt（含情绪感知）
 	let systemPrompt = settings.systemPrompt ?? "";
 	if (settings.emotionSensing !== false) {
-		systemPrompt = systemPrompt || "你是一个温暖共情的AI助手。";
+		const emotionGuidance = `[内部情绪分析指引]
+请根据用户的最新消息感知其情绪状态（如开心、焦虑、悲伤、愤怒、平静等），并在回复中以温暖共情的方式适当回应。
+不要直白地说"我感知到你很XX"，而是自然地用匹配用户情绪的语调来回应。
+如果用户情绪低落，优先倾听和共情，不要急于给建议。`;
+		systemPrompt = systemPrompt
+			? `${systemPrompt}\n\n${emotionGuidance}`
+			: `你是一个温暖共情的AI助手。\n\n${emotionGuidance}`;
+	}
+
+	// 上下文自动压缩
+	const contextLimit = settings.num_ctx ?? 200000;
+	let totalChars = apiMessages.reduce((sum, m) => sum + (typeof m.content === "string" ? m.content.length : 0), 0);
+	if (systemPrompt) totalChars += systemPrompt.length;
+	const estimatedTokens = Math.ceil(totalChars / 2);
+	if (estimatedTokens > contextLimit) {
+		let keepFrom = 0;
+		let runningChars = 0;
+		for (let i = apiMessages.length - 1; i >= 0; i--) {
+			const c = apiMessages[i].content;
+			runningChars += typeof c === "string" ? c.length : 0;
+			if (Math.ceil(runningChars / 2) > contextLimit * 0.85) {
+				keepFrom = i + 1;
+				break;
+			}
+		}
+		const truncated = apiMessages.length - keepFrom;
+		if (truncated > 0 && keepFrom < apiMessages.length) {
+			apiMessages = apiMessages.slice(keepFrom);
+			const summaryNote: OpenAIMessage = { role: "system", content: `[对话上下文已压缩：早期 ${truncated} 条消息已省略，以下是最近的对话内容]` };
+			apiMessages.unshift(summaryNote);
+		}
 	}
 
 	const controller = new AbortController();
-	ctx.abortRef.value = controller;
+	if (!ctx.abortRefs) ctx.abortRefs = [];
+	const abortIndex = ctx.abortRefs.length;
+	ctx.abortRefs.push(controller);
 	const timeout = setTimeout(() => controller.abort(), 120000);
 
 	try {
@@ -197,7 +229,11 @@ export async function sendPromptOpenAI(
 
 		let buffer = "";
 		while (true) {
+			const streamTimeout = setTimeout(() => {
+				reader.cancel().catch(() => {});
+			}, 60000);
 			const { value, done } = await reader.read();
+			clearTimeout(streamTimeout);
 			if (done || ctx.stopRef.value || _chatId !== ctx.chatId) {
 				responseMessage.done = true;
 				notifyUpdate();
@@ -254,6 +290,7 @@ export async function sendPromptOpenAI(
 	}
 
 	ctx.stopRef.value = false;
+	ctx.abortRefs.splice(abortIndex, 1);
 	await tick();
 	if (getAutoScroll()) {
 		window.scrollTo({ top: document.body.scrollHeight });

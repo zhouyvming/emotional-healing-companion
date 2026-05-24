@@ -2,7 +2,9 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
 const SALT_ROUNDS = 10;
-const SECRET = process.env.JWT_SECRET ?? (console.warn("⚠ 使用默认 JWT secret，生产环境请设置 JWT_SECRET 环境变量"), "emotional-healing-companion-secret-key-change-in-production");
+const SECRET = process.env.JWT_SECRET ?? (
+	// console.warn("⚠ 使用默认 JWT secret，生产环境请设置 JWT_SECRET 环境变量"), 
+	"emotional-healing-companion-secret-key-change-in-production");
 
 export async function hashPassword(password: string): Promise<string> {
 	return bcrypt.hash(password, SALT_ROUNDS);

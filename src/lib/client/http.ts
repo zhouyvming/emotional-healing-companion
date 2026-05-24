@@ -20,7 +20,7 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
 		headers.set("Authorization", `Bearer ${token}`);
 	}
 
-	if (options.body && typeof options.body === "string") {
+	if (options.body && typeof options.body === "string" && !headers.has("Content-Type")) {
 		headers.set("Content-Type", "application/json");
 	}
 

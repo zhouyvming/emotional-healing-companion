@@ -15,12 +15,18 @@
 	function sanitizeRedirect(path: string | null): string | null {
 		if (!path) return null;
 		// 仅允许站内相对路径
-		return path.startsWith("/") ? path : null;
+		if (!path.startsWith("/") || path.startsWith("//")) return null;
+		return path;
 	}
 
 	async function handleRegister() {
 		if (!username || !email || !password || !confirmPassword) {
 			toast.error("请填写所有字段");
+			return;
+		}
+
+		if (password.length < 6) {
+			toast.error("密码至少需要6个字符");
 			return;
 		}
 

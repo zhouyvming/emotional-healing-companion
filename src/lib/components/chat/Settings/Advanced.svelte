@@ -71,9 +71,9 @@
 			label: "上下文长度",
 			type: "range",
 			min: 512,
-			max: 131072,
+			max: 200000,
 			step: 512,
-			default: 8192
+			default: 200000
 		},
 		{ key: "stop", label: "停止序列", type: "text", placeholder: "输入停止序列" }
 	];
