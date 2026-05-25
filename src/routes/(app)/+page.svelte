@@ -146,7 +146,7 @@
 	}}
 />
 
-<Navbar {title} />
+<Navbar {title} sidebarOpen={$sidebarOpen} />
 <div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''} pt-12">
 	<div class="py-2.5 flex flex-col justify-between w-full max-w-3xl">
 		<div class="flex-1 overflow-y-auto">

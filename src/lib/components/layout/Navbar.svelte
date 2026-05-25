@@ -5,6 +5,7 @@
 	import { chatId, db } from "$lib/stores";
 
 	export let title: string = "情感疗愈伴侣";
+	export let sidebarOpen = true;
 
 	let editTitle = "";
 	let showDeleteConfirm = false;
@@ -42,7 +43,8 @@
 
 <nav
 	id="nav"
-	class=" fixed py-2.5 top-0 flex flex-row justify-center bg-white/95 dark:bg-gray-800/90 dark:text-gray-200 backdrop-blur-xl w-full z-30"
+	class=" fixed py-2.5 top-0 flex flex-row justify-center bg-white/95 dark:bg-gray-800/90 dark:text-gray-200 backdrop-blur-xl z-30 transition-all"
+	style="left: {sidebarOpen ? '260px' : '0'}; right: 0; width: {sidebarOpen ? 'calc(100% - 260px)' : '100%'};"
 >
 	<div class=" flex max-w-3xl w-full mx-auto px-3">
 		<div class="flex w-full max-w-full items-center">
