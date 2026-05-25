@@ -156,7 +156,7 @@
 
 {#if loaded}
 <Navbar {title} />
-<div class="min-h-screen w-full flex justify-center">
+<div class="min-h-screen w-full flex justify-center md:ml-[260px]">
 	<div class="py-2.5 flex flex-col justify-between w-full max-w-3xl">
 		<div class="px-3 md:px-0 mt-10">
 			<ModelSelector bind:selectedModels disabled={messages.length > 0} />

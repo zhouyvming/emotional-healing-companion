@@ -182,7 +182,7 @@
 	};
 </script>
 
-<div class="min-h-screen w-full flex justify-center">
+<div class="min-h-screen w-full flex justify-center md:ml-[260px]">
 	<div class="max-w-2xl mx-auto w-full px-4 py-8 space-y-6">
 		<!-- 个人信息卡片 -->
 		<div
