@@ -37,7 +37,7 @@ src/routes/
 ├── (app)/
 │   ├── +layout.svelte                      # 应用布局（模型加载、DB初始化、IndexedDB→MySQL迁移、Ollama版本检查，合并第三方模型，Ctrl+N 全局快捷键）
 │   ├── +page.svelte                        # 新对话页（首页）
-│   ├── c/[id]/+page.svelte                # 对话详情页（重命名、删除、流式中断恢复提示）
+│   ├── chat/[id]/+page.svelte               # 对话详情页（重命名、删除、流式中断恢复提示）
 │   └── profile/+page.svelte               # 个人资料页（头像/用户名/邮箱/密码修改、退出确认、建议反馈按钮跳转）
 ├── advice_table/+page.svelte               # 建议与反馈提交页
 ├── favicon.ico/+server.ts                  # favicon 静默返回 204

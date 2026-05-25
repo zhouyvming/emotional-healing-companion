@@ -180,7 +180,7 @@ src/
 │   ├── (app)/
 │   │   ├── +layout.svelte                # 应用布局（Ctrl+N 快捷键）
 │   │   ├── +page.svelte                  # 新对话页（流式恢复提示）
-│   │   ├── c/[id]/+page.svelte          # 对话详情页
+│   │   ├── chat/[id]/+page.svelte        # 对话详情页
 │   │   └── profile/+page.svelte          # 个人资料页
 │   ├── advice_table/+page.svelte         # 建议反馈页
 │   ├── api/                              # 9 个认证 API 路由
