@@ -33,6 +33,7 @@ interface Settings {
 	emotionSensing?: boolean;
 	titleAutoGenerate?: boolean;
 	responseAutoCopy?: boolean;
+	topicDirectSend?: boolean;
 	requestFormat?: string;
 	seed?: number;
 	temperature?: number;

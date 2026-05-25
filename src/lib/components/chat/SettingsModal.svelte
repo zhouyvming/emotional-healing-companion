@@ -38,6 +38,7 @@
 	let emotionSensing = true;
 	let titleAutoGenerate = true;
 	let responseAutoCopy = false;
+	let topicDirectSend = false;
 	let systemPrompt = "";
 	let systemName = "";
 	let systemAvatarInput: HTMLInputElement;
@@ -311,6 +312,7 @@
 			emotionSensing,
 			titleAutoGenerate,
 			responseAutoCopy,
+			topicDirectSend,
 			systemPrompt,
 			systemName,
 			requestFormat: requestFormat !== "" ? requestFormat : undefined
@@ -388,6 +390,7 @@
 		privacyMode = stored.privacyMode ?? false;
 		titleAutoGenerate = stored.titleAutoGenerate ?? true;
 		responseAutoCopy = stored.responseAutoCopy ?? false;
+		topicDirectSend = stored.topicDirectSend ?? false;
 		systemPrompt = stored.systemPrompt ?? "";
 		systemName = stored.systemName ?? "";
 		webSearch = stored.webSearch ?? true;
@@ -827,6 +830,19 @@
 										type="checkbox"
 										class="w-4 h-4 rounded accent-pink-500"
 										bind:checked={emotionSensing}
+									/>
+								</label>
+								<label
+									class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+								>
+									<div>
+										<span class="text-sm">点击话题直接发送</span>
+										<div class="text-xs text-gray-400">点击推荐话题后自动发送，无需手动确认</div>
+									</div>
+									<input
+										type="checkbox"
+										class="w-4 h-4 rounded accent-pink-500"
+										bind:checked={topicDirectSend}
 									/>
 								</label>
 							</div>
