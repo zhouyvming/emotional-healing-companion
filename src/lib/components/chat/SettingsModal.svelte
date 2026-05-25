@@ -57,6 +57,7 @@
 	let newProviderName = "";
 	let newProviderUrl = "";
 	let newProviderKey = "";
+	let editingProviderIndex: number | null = null;
 
 	function loadProviders() {
 		try {
@@ -381,6 +382,7 @@
 				options[key] = stored[key];
 			}
 		}
+		editingProviderIndex = null;
 		return () => {
 			window.removeEventListener('keydown', handleKeydown);
 		};
@@ -941,8 +943,18 @@
 									class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 mb-2"
 								>
 									<div class="flex items-center justify-between mb-2">
-										<span class="text-sm font-medium">{provider.name}</span>
+										{#if editingProviderIndex === i}
+											<input class="flex-1 rounded-md py-1 px-2 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600" bind:value={provider.name} placeholder="名称" />
+										{:else}
+											<span class="text-sm font-medium">{provider.name}</span>
+										{/if}
 										<div class="flex gap-1">
+											<button
+												class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded transition"
+												on:click={() => editingProviderIndex === i ? (editingProviderIndex = null, saveProviders()) : (editingProviderIndex = i)}
+											>
+												{editingProviderIndex === i ? '保存' : '编辑'}
+											</button>
 											<button
 												class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded transition"
 												on:click={() => fetchProviderModels(i)}>获取模型</button
@@ -953,9 +965,16 @@
 											>
 										</div>
 									</div>
-									<div class="text-xs text-gray-400 truncate mb-1">{provider.baseUrl}</div>
+									{#if editingProviderIndex === i}
+										<div class="space-y-2 mb-2">
+											<input class="w-full rounded-md py-1 px-2 text-xs dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600" bind:value={provider.baseUrl} placeholder="API 地址" />
+											<input class="w-full rounded-md py-1 px-2 text-xs dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600" bind:value={provider.apiKey} placeholder="API Key" />
+										</div>
+									{:else}
+										<div class="text-xs text-gray-400 truncate mb-1">{provider.baseUrl}</div>
+									{/if}
 									{#if provider.models.length > 0}
-										<div class="space-y-0.5 mt-2">
+										<div class="space-y-0.5 mt-2 max-h-40 overflow-y-auto">
 											{#each provider.models as m}
 												<div class="flex items-center justify-between py-1.5 px-2 bg-gray-50 dark:bg-gray-900 rounded">
 													<span class="text-xs font-medium">{m.name}</span>
