@@ -297,7 +297,7 @@
 		</div>
 
 		<!-- 输入框（DeepSeek 风格，居中） -->
-		<div class="w-full max-w-[760px] mb-6">
+		<div class="w-full max-w-[960px] mb-6">
 			<div class="bg-white dark:bg-[#1e1e1e] rounded-2xl border border-gray-200 dark:border-gray-700 focus-within:border-pink-400 transition-colors shadow-sm">
 				<!-- 上传文件预览 -->
 				{#if uploadingFiles.length > 0}
@@ -387,7 +387,7 @@
 		</div>
 	</div>
 {:else}
-	<div class="flex flex-col gap-6 px-4 md:px-6 lg:px-8 max-w-4xl mx-auto w-full">
+	<div class="flex flex-col gap-6 px-4 md:px-6 lg:px-8 max-w-6xl mx-auto w-full">
 		{#each messages as message}
 			<div class="flex flex-col">
 				{#if message.role === "user"}
