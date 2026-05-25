@@ -20,10 +20,16 @@
 
 {#if compact}
 	<select
-		class="outline-none bg-transparent text-xs rounded-md max-w-[140px] truncate pr-5 cursor-pointer appearance-none"
+		class="outline-none bg-transparent text-xs rounded-md max-w-[130px] truncate pr-4 cursor-pointer appearance-none"
 		bind:value={selectedModels[0]}
 		style="background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 20 20%27%3E%3Cpath stroke=%27%238e8ea0%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%271.5%27 d=%27m6 8 4 4 4-4%27/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right center;background-size:1.2em"
 		{disabled}
+		title="选择模型 · 选中即设为默认"
+		on:change={() => {
+			const updated = { ...$settings, models: [...selectedModels] };
+			settings.set(updated);
+			localStorage.setItem("settings", JSON.stringify(updated));
+		}}
 	>
 		<option value="" selected>选择模型</option>
 		{#each $models.filter((m) => m.name !== "hr") as model}
