@@ -465,7 +465,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		isNewChat: boolean
 	) => {
 		const ctx = c();
-		const { selectedModels, messages, history, chatId, settings, db, uploadingFiles } = ctx;
+		const { selectedModels, messages, history, chatId, settings, db, chats, uploadingFiles } = ctx;
 
 
 		if (selectedModels.length === 0 || selectedModels.includes("")) {
