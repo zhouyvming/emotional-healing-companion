@@ -11,6 +11,7 @@
 	import { copyToClipboard } from "$lib/chat/ollama";
 	import toast from "svelte-french-toast";
 	import DOMPurify from "dompurify";
+	import ModelSelector from "./ModelSelector.svelte";
 
 	const purifyConfig = {
 		ALLOWED_TAGS: ["a", "b", "br", "code", "div", "em", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -330,6 +331,7 @@
 				/>
 				<div class="flex items-center justify-between px-3 pb-2">
 					<div class="flex items-center gap-1">
+						<ModelSelector bind:selectedModels compact={true} />
 						<button class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition" title="上传文件"
 							on:click={() => document.getElementById("msg-upload")?.click()}
 						>
