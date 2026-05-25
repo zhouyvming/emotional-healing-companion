@@ -3,7 +3,7 @@
 	import { goto } from "$app/navigation";
 
 	import { convertMessagesToHistory } from "$lib/utils";
-	import { settings, db, chats, chatId } from "$lib/stores";
+	import { settings, db, chats, chatId, sidebarOpen } from "$lib/stores";
 	import { createChatHandlers } from "$lib/chat/ollama";
 
 	import MessageInput from "$lib/components/chat/MessageInput.svelte";
@@ -156,7 +156,7 @@
 
 {#if loaded}
 <Navbar {title} />
-<div class="min-h-screen w-full flex justify-center md:ml-[260px]">
+<div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''}">
 	<div class="py-2.5 flex flex-col justify-between w-full max-w-3xl">
 		<div class="px-3 md:px-0 mt-10">
 			<ModelSelector bind:selectedModels disabled={messages.length > 0} />

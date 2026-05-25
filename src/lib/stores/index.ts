@@ -45,5 +45,7 @@ interface Settings {
 export const settings = writable<Settings>({});
 export const showSettings = writable(false);
 
+export const sidebarOpen = writable(true);
+
 // 情绪追踪数据
 export const moodHistory = writable<{ date: string; mood: string; score: number }[]>([]);

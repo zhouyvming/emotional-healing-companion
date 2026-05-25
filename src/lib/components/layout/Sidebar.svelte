@@ -2,11 +2,12 @@
 	import { v4 as uuidv4 } from "uuid";
 
 	import { goto } from "$app/navigation";
-	import { db, chats, showSettings, chatId, user } from "$lib/stores";
+	import { db, chats, showSettings, chatId, user, sidebarOpen } from "$lib/stores";
 	import { onMount } from "svelte";
 	import toast from "svelte-french-toast";
 
 	let show = window.innerWidth > 1280;
+	sidebarOpen.set(show);
 	let chatListExpanded = true;
 	let collapsedGroups: Set<string> = new Set(["更早"]);
 	let navElement;
@@ -559,6 +560,7 @@
 			class="fixed inset-0 z-30 bg-black/30 md:hidden border-0 cursor-default"
 			on:click={() => {
 				show = false;
+				sidebarOpen.set(false);
 			}}
 		/>
 	{/if}
@@ -569,6 +571,7 @@
 			class=" group"
 			on:click={() => {
 				show = !show;
+				sidebarOpen.set(show);
 			}}
 			><span class="" data-state="closed"
 				><div

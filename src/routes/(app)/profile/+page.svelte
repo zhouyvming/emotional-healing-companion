@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { user } from "$lib/stores";
+	import { user, sidebarOpen } from "$lib/stores";
 	import { authFetch } from "$lib/client/http";
 	import toast from "svelte-french-toast";
 
@@ -182,7 +182,7 @@
 	};
 </script>
 
-<div class="min-h-screen w-full flex justify-center md:ml-[260px]">
+<div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''}">
 	<div class="max-w-2xl mx-auto w-full px-4 py-8 space-y-6">
 		<!-- 个人信息卡片 -->
 		<div
