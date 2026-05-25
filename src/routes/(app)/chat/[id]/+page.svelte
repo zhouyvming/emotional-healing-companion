@@ -155,36 +155,36 @@
 />
 
 {#if loaded}
-	<Navbar {title} />
-	<div class="min-h-screen w-full flex justify-center">
-		<div class=" py-2.5 flex flex-col justify-between w-full">
-			<div class="max-w-3xl mx-auto w-full px-3 md:px-0 mt-10">
-				<ModelSelector bind:selectedModels disabled={messages.length > 0} />
-			</div>
+<Navbar {title} />
+<div class="min-h-screen w-full flex justify-center">
+	<div class="py-2.5 flex flex-col justify-between w-full max-w-3xl">
+		<div class="px-3 md:px-0 mt-10">
+			<ModelSelector bind:selectedModels disabled={messages.length > 0} />
+		</div>
 
-			<div class=" h-full mt-10 w-full flex flex-col">
-				<Messages
-					{selectedModels}
-					bind:history
-					bind:messages
-					bind:autoScroll
-					bind:prompt
-					bind:uploadingFiles
-					{submitPrompt}
-					{stopResponse}
+		<div class="flex-1 mt-10 overflow-y-auto">
+			<Messages
+				{selectedModels}
+				bind:history
+				bind:messages
+				bind:autoScroll
+				bind:prompt
+				bind:uploadingFiles
+				{submitPrompt}
+				{stopResponse}
 				regenerateResponse={wrappedRegenerate}
 				editMessage={wrappedEdit}
 				deleteMessage={wrappedDelete}
-				onBranchNavigate={async () => {
-					if (!$settings.privacyMode && $db) {
-						await $db.updateChatById($chatId, { messages, history });
-					}
-				}}
-				/>
-			</div>
+			onBranchNavigate={async () => {
+				if (!$settings.privacyMode && $db) {
+					await $db.updateChatById($chatId, { messages, history });
+				}
+			}}
+			/>
 		</div>
 
 		{#if messages.length > 0}
+		<div class="px-3 md:px-0 pb-2">
 		<MessageInput
 			bind:prompt
 			bind:autoScroll
@@ -193,6 +193,8 @@
 			submitPrompt={wrappedSubmit}
 			{stopResponse}
 		/>
+		</div>
 		{/if}
 	</div>
+</div>
 {/if}

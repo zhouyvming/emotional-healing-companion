@@ -283,14 +283,14 @@
 {#if messages.length === 0}
 	<div class="h-full flex flex-col items-center justify-center px-4">
 		<!-- 话题列表 -->
-		<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full mb-6">
+		<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl w-full mb-6">
 			{#each suggestedTopics as topic}
 				<button
-					class="text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-pink-400 dark:hover:border-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition group flex items-center gap-2"
+					class="text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-pink-400 dark:hover:border-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition group flex items-center gap-2 min-w-0"
 					on:click={() => fillPrompt(topic.text)}
 				>
 					<span class="text-base flex-shrink-0">{topic.emoji}</span>
-					<span class="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 leading-relaxed">{topic.text}</span>
+					<span class="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 truncate">{topic.text}</span>
 				</button>
 			{/each}
 		</div>

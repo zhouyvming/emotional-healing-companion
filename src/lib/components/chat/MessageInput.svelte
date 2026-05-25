@@ -148,7 +148,7 @@
 
 <svelte:window on:paste={handlePaste} />
 
-<div class="fixed bottom-0 w-full" bind:this={inputWrapper}>
+<div class="w-full" bind:this={inputWrapper}>
 	<div class="px-2.5 pt-2.5 -mb-0.5 mx-auto inset-x-0 bg-transparent flex justify-center">
 		{#if autoScroll === false && messages.length > 0}
 			<div class=" flex justify-center mb-4">
