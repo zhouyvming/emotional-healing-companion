@@ -32,7 +32,7 @@
 	});
 
 	const loadChat = async (id) => {
-		goto(`/c/${id}`);
+		goto(`/chat/${id}`);
 	};
 
 	const deleteChatHistory = async () => {

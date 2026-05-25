@@ -318,7 +318,7 @@ export async function sendPromptOpenAI(
 	const needTitle = latestMessages.length === 2 || !getTitle() || getTitle() === "New Chat";
 	if (needTitle && latestMessages.at(1)?.content !== '' && !titleGuard.generated) {
 		titleGuard.generated = true;
-		window.history.replaceState(window.history.state, '', `/c/${_chatId}`);
+		window.history.replaceState(window.history.state, '', `/chat/${_chatId}`);
 		if (!curSettings.privacyMode) {
 			await generateOpenAITitle(provider, model, userPrompt, _chatId, onTitleSet, settings, ctx);
 		}

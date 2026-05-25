@@ -417,7 +417,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			!titleGuard.generated
 		) {
 			titleGuard.generated = true;
-			window.history.replaceState(window.history.state, "", `/c/${_chatId}`);
+			window.history.replaceState(window.history.state, "", `/chat/${_chatId}`);
 			if (!curSettings.privacyMode) {
 				await generateChatTitle(_chatId, userPrompt, onTitleSet);
 			}
