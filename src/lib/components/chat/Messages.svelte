@@ -283,21 +283,27 @@
 
 {#if messages.length === 0}
 	<div class="h-full flex flex-col items-center justify-center px-4">
-		<!-- 话题列表 -->
-		<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl w-full mb-6">
-			{#each suggestedTopics as topic}
+		<!-- 今日心情 -->
+		<div class="flex items-center gap-2 mb-6">
+			<span class="text-xs text-gray-400">今日心情：</span>
+			{#each moodOptions as mood}
 				<button
-					class="text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-pink-400 dark:hover:border-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition group flex items-center gap-2 min-w-0"
-					on:click={() => fillPrompt(topic.text)}
+					class="text-xl hover:scale-125 transition-transform p-1"
+					title={mood.label}
+					on:click={() => {
+						toast.success(`已记录心情：${mood.emoji} ${mood.label}`);
+						const stored = JSON.parse(localStorage.getItem("moodHistory") ?? "[]");
+						stored.push({ date: new Date().toISOString().slice(0, 10), mood: mood.label, score: mood.score });
+						localStorage.setItem("moodHistory", JSON.stringify(stored));
+					}}
 				>
-					<span class="text-base flex-shrink-0">{topic.emoji}</span>
-					<span class="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 truncate">{topic.text}</span>
+					{mood.emoji}
 				</button>
 			{/each}
 		</div>
 
 		<!-- 输入框（DeepSeek 风格，居中） -->
-		<div class="w-full max-w-[960px] mb-6">
+		<div class="w-full max-w-2xl mb-6">
 			<div class="bg-white dark:bg-[#1e1e1e] rounded-2xl border border-gray-200 dark:border-gray-700 focus-within:border-pink-400 transition-colors shadow-sm">
 				<!-- 上传文件预览 -->
 				{#if uploadingFiles.length > 0}
@@ -367,21 +373,15 @@
 			</div>
 		</div>
 
-		<!-- 今日心情 -->
-		<div class="flex items-center gap-2 mb-2">
-			<span class="text-xs text-gray-400">今日心情：</span>
-			{#each moodOptions as mood}
+		<!-- 话题列表 -->
+		<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl w-full mb-6">
+			{#each suggestedTopics as topic}
 				<button
-					class="text-xl hover:scale-125 transition-transform p-1"
-					title={mood.label}
-					on:click={() => {
-						toast.success(`已记录心情：${mood.emoji} ${mood.label}`);
-						const stored = JSON.parse(localStorage.getItem("moodHistory") ?? "[]");
-						stored.push({ date: new Date().toISOString().slice(0, 10), mood: mood.label, score: mood.score });
-						localStorage.setItem("moodHistory", JSON.stringify(stored));
-					}}
+					class="text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-pink-400 dark:hover:border-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition group flex items-center gap-2 min-w-0"
+					on:click={() => fillPrompt(topic.text)}
 				>
-					{mood.emoji}
+					<span class="text-base flex-shrink-0">{topic.emoji}</span>
+					<span class="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 truncate">{topic.text}</span>
 				</button>
 			{/each}
 		</div>

@@ -543,6 +543,10 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					history
 				});
 			}
+			window.history.replaceState(window.history.state, "", `/chat/${_chatId}`);
+			if (!settings.privacyMode) {
+				await chats.set(await db.getChats());
+			}
 		}
 
 		setTimeout(() => {

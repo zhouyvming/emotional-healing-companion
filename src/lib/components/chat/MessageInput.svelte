@@ -178,7 +178,7 @@
 		{/if}
 	</div>
 	<div class="bg-white dark:bg-gray-800">
-		<div class="max-w-3xl px-2.5 -mb-0.5 mx-auto inset-x-0">
+		<div class="max-w-4xl px-2.5 -mb-0.5 mx-auto inset-x-0">
 			<div class="bg-gradient-to-t from-white dark:from-gray-800 from-40% pb-2">
 				<!-- 上传文件预览 -->
 				{#if uploadingFiles.length > 0}

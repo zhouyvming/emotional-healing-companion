@@ -6,6 +6,7 @@
 
 	export let title: string = "情感疗愈伴侣";
 	export let sidebarOpen = true;
+	export let showActions = false;
 
 	let editTitle = "";
 	let showDeleteConfirm = false;
@@ -74,6 +75,7 @@
 				</button>
 			</div>
 
+			{#if showActions}
 			<!-- 重命名 / 删除按钮 -->
 			<div class="flex items-center space-x-1 pr-2">
 				{#if showDeleteConfirm}
@@ -101,6 +103,7 @@
 					</button>
 				{/if}
 			</div>
+			{/if}
 
 			<div class="flex-1 self-center flex items-center min-w-0">
 				{#if showRenameInput}
