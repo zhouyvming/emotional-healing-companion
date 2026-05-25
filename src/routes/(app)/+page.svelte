@@ -149,11 +149,7 @@
 <Navbar {title} />
 <div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''}">
 	<div class="py-2.5 flex flex-col justify-between w-full max-w-3xl">
-		<div class="px-3 md:px-0 mt-10">
-			<ModelSelector bind:selectedModels disabled={messages.length > 0} />
-		</div>
-
-		<div class="flex-1 mt-10 overflow-y-auto">
+		<div class="flex-1 overflow-y-auto">
 			<Messages
 				{selectedModels}
 				bind:history
@@ -180,6 +176,7 @@
 			bind:prompt
 			bind:autoScroll
 			{messages}
+			bind:selectedModels
 			bind:uploadingFiles
 			submitPrompt={wrappedSubmit}
 			{stopResponse}

@@ -1,9 +1,11 @@
 <script lang="ts">
 	import toast from "svelte-french-toast";
 	import { onDestroy, onMount } from "svelte";
+	import ModelSelector from "./ModelSelector.svelte";
 
 	export let submitPrompt: Function;
 	export let stopResponse: Function;
+	export let selectedModels = [""];
 
 	export let autoScroll = true;
 	export let prompt = "";
@@ -214,8 +216,13 @@
 					on:drop={handleDrop}
 				>
 					<div class=" flex">
-						<!-- 文件上传按钮 -->
+						<!-- 模型选择 -->
 						<div class="flex items-center pl-3">
+							<ModelSelector bind:selectedModels compact={true} />
+						</div>
+
+						<!-- 文件上传按钮 -->
+						<div class="flex items-center pl-2">
 							<input
 								type="file"
 								accept="image/*,.txt,.pdf,.doc,.docx"
