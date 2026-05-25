@@ -273,6 +273,7 @@
 						/>
 
 						<div class="self-end mb-2 flex space-x-0.5 mr-2 items-center">
+							<ModelSelector bind:selectedModels compact={true} />
 							<!-- 语音输入按钮 -->
 							<button
 								type="button"
@@ -296,8 +297,6 @@
 									/>
 								</svg>
 							</button>
-
-							<ModelSelector bind:selectedModels compact={true} />
 
 							{#if messages.length == 0 || messages.at(-1)?.done == true}
 								<button
