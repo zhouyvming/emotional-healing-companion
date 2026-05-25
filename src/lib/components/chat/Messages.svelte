@@ -331,7 +331,6 @@
 				/>
 				<div class="flex items-center justify-between px-3 pb-2">
 					<div class="flex items-center gap-1">
-						<ModelSelector bind:selectedModels compact={true} />
 						<button class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition" title="上传文件"
 							on:click={() => document.getElementById("msg-upload")?.click()}
 						>
@@ -350,17 +349,20 @@
 								<path fill-rule="evenodd" d="M5.5 9.643a.75.75 0 00-1.5 0c0 3.147 2.626 5.75 5.925 5.986a.375.375 0 01.15.728A6.252 6.252 0 004.75 10a.75.75 0 00-1.5 0 7.75 7.75 0 005.5 7.448V18.5h-2a.75.75 0 000 1.5h5a.75.75 0 000-1.5h-2v-1.052a7.749 7.749 0 005.5-7.448.75.75 0 00-1.5 0A6.25 6.25 0 017.5 15.75a.375.375 0 01-.15-.728c3.299-.236 5.925-2.84 5.925-5.986a.75.75 0 00-1.5 0C11.775 12.687 9.197 15 10 15A4.75 4.75 0 015.5 9.643z" clip-rule="evenodd"/></svg>
 						</button>
 					</div>
-					<button
-						class={sendBtnClass}
-						type="button"
-						disabled={!canSend}
-						on:click={handleWelcomeSend}
-					>
+					<div class="flex items-center gap-1">
+						<ModelSelector bind:selectedModels compact={true} />
+						<button
+							class={sendBtnClass}
+							type="button"
+							disabled={!canSend}
+							on:click={handleWelcomeSend}
+						>
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
 							<path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd"/>
 						</svg>
 						发送
 					</button>
+					</div>
 				</div>
 			</div>
 		</div>
