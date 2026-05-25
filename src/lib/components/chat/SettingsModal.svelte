@@ -3,7 +3,7 @@
 	import { WEB_UI_VERSION, OLLAMA_API_BASE_URL } from "$lib/constants";
 	import toast from "svelte-french-toast";
 	import { onMount } from "svelte";
-	import { info, settings, models } from "$lib/stores";
+	import { info, settings, models, user } from "$lib/stores";
 	import Advanced from "./Settings/Advanced.svelte";
 	import { getThirdPartyModels, fetchModels } from "$lib/chat/openai";
 	import { authFetch } from "$lib/client/http";
@@ -42,6 +42,7 @@
 	let systemName = "";
 	let systemAvatarInput: HTMLInputElement;
 	let systemAvatarPreview = "";
+	let systemAvatarChanged = false;
 
 	// Model management
 	let pullModelName = "";
@@ -284,6 +285,7 @@
 				ctx?.drawImage(img, 0, 0, w, h);
 				const base64 = canvas.toDataURL("image/jpeg", 0.85);
 				systemAvatarPreview = base64;
+				systemAvatarChanged = true;
 			};
 			img.src = ev.target?.result as string;
 		};
@@ -293,6 +295,7 @@
 
 	const removeSystemAvatar = () => {
 		systemAvatarPreview = "";
+		systemAvatarChanged = true;
 	};
 
 	const saveAllSettings = async () => {
@@ -322,7 +325,7 @@
 		saveSettings(updated);
 
 		// 保存系统头像到用户资料
-		if (systemAvatarPreview !== "") {
+		if (systemAvatarChanged) {
 			const stored = JSON.parse(localStorage.getItem("user") ?? "{}");
 			const token = stored.token;
 			const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -331,14 +334,16 @@
 				const res = await fetch("/api/user/profile", {
 					method: "PUT",
 					headers,
-					body: JSON.stringify({ systemAvatar: systemAvatarPreview })
+					body: JSON.stringify({ systemAvatar: systemAvatarPreview || null })
 				});
 				if (res.ok) {
 					const data = await res.json();
 					const updatedUser = { ...stored, ...data.user };
 					localStorage.setItem("user", JSON.stringify(updatedUser));
+					user.set(updatedUser);
 				}
 			} catch {}
+			systemAvatarChanged = false;
 		}
 
 		toast.success("设置已保存");
