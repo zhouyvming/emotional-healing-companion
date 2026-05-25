@@ -23,8 +23,12 @@
 	};
 
 	export let regenerateResponse: Function;
+	export let submitPrompt: Function = () => {};
+	export let stopResponse: Function = () => {};
 	export let autoScroll;
 	export let selectedModels;
+	export let prompt = "";
+	export let uploadingFiles: { name: string; data: string; type: string }[] = [];
 	export let history: any = {};
 	export let messages: any[] = [];
 	export let onBranchNavigate: () => Promise<void> = async () => {};
@@ -254,12 +258,32 @@
 	});
 
 	$: streamingMessage = messages.find((m: any) => m.role === "assistant" && !m.done && !m.error);
+	$: canSend = prompt.trim() !== "" || uploadingFiles.length > 0;
+	$: sendBtnClass = `px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1 ${canSend ? 'bg-pink-500 text-white hover:bg-pink-600' : 'text-gray-400 bg-gray-100 dark:bg-gray-800 dark:text-gray-500'}`;
+
+	function handleWelcomeSend() {
+		if (canSend) { submitPrompt(prompt.trim()); }
+	}
+	function handleWelcomeFile(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const files = target.files;
+		if (!files) return;
+		for (const file of files) {
+			if (file.size > 10 * 1024 * 1024) { toast.error("文件过大（最大 10MB）"); continue; }
+			const reader = new FileReader();
+			reader.onload = () => uploadingFiles = [...uploadingFiles, {
+				name: file.name, data: reader.result as string, type: file.type
+			}];
+			reader.readAsDataURL(file);
+		}
+		target.value = "";
+	}
 </script>
 
 {#if messages.length === 0}
 	<div class="h-full flex flex-col items-center justify-center px-4">
-		<div class="text-sm text-gray-400 dark:text-gray-500 mb-8">选择一个话题开始吧~</div>
-		<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-lg w-full mb-8">
+		<!-- 话题列表 -->
+		<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-lg w-full mb-6">
 			{#each suggestedTopics as topic}
 				<button
 					class="text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-pink-400 dark:hover:border-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition group"
@@ -274,6 +298,76 @@
 				</button>
 			{/each}
 		</div>
+
+		<!-- 输入框（DeepSeek 风格，居中） -->
+		<div class="w-full max-w-[760px] mb-6">
+			<div class="bg-white dark:bg-[#1e1e1e] rounded-2xl border border-gray-200 dark:border-gray-700 focus-within:border-pink-400 transition-colors shadow-sm">
+				<!-- 上传文件预览 -->
+				{#if uploadingFiles.length > 0}
+					<div class="flex flex-wrap gap-2 px-4 pt-3">
+						{#each uploadingFiles as file, i}
+							<div class="relative group">
+								{#if file.type.startsWith("image/")}
+									<img src={file.data} alt={file.name} class="h-14 w-14 object-cover rounded-lg border" />
+								{:else}
+									<div class="h-14 flex items-center px-3 bg-gray-100 dark:bg-gray-800 rounded-lg border text-xs text-gray-500 truncate max-w-[100px]">{file.name}</div>
+								{/if}
+								<button
+									class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+									on:click={() => (uploadingFiles = uploadingFiles.filter((_, j) => j !== i))}
+								>×</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+				<textarea
+					class="w-full bg-transparent outline-none px-4 pt-3 pb-3 resize-none text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400"
+					placeholder="给 情感疗愈伴侣 发送消息"
+					rows="2"
+					bind:value={prompt}
+					on:keydown={(e) => {
+						if (e.key === "Enter" && !e.shiftKey) {
+							e.preventDefault();
+							if (prompt.trim()) { submitPrompt(prompt.trim()); }
+						}
+					}}
+				/>
+				<div class="flex items-center justify-between px-3 pb-2">
+					<div class="flex items-center gap-1">
+						<button class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition" title="上传文件"
+							on:click={() => document.getElementById("msg-upload")?.click()}
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+								stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+						</button>
+						<input type="file" id="msg-upload" accept="image/*,.txt,.pdf,.doc,.docx" multiple class="hidden"
+							on:change={handleWelcomeFile}
+						/>
+						<button class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition" title="语音输入"
+							on:click={() => toast("语音输入请使用底部输入框")}
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+								<path d="M7 4a3 3 0 016 0v4a3 3 0 01-6 0V4z" />
+								<path fill-rule="evenodd" d="M5.5 9.643a.75.75 0 00-1.5 0c0 3.147 2.626 5.75 5.925 5.986a.375.375 0 01.15.728A6.252 6.252 0 004.75 10a.75.75 0 00-1.5 0 7.75 7.75 0 005.5 7.448V18.5h-2a.75.75 0 000 1.5h5a.75.75 0 000-1.5h-2v-1.052a7.749 7.749 0 005.5-7.448.75.75 0 00-1.5 0A6.25 6.25 0 017.5 15.75a.375.375 0 01-.15-.728c3.299-.236 5.925-2.84 5.925-5.986a.75.75 0 00-1.5 0C11.775 12.687 9.197 15 10 15A4.75 4.75 0 015.5 9.643z" clip-rule="evenodd"/></svg>
+						</button>
+					</div>
+					<button
+						class={sendBtnClass}
+						type="button"
+						disabled={!canSend}
+						on:click={handleWelcomeSend}
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+							<path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd"/>
+						</svg>
+						发送
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- 今日心情 -->
 		<div class="flex items-center gap-2 mb-2">
 			<span class="text-xs text-gray-400">今日心情：</span>
 			{#each moodOptions as mood}
@@ -283,11 +377,7 @@
 					on:click={() => {
 						toast.success(`已记录心情：${mood.emoji} ${mood.label}`);
 						const stored = JSON.parse(localStorage.getItem("moodHistory") ?? "[]");
-						stored.push({
-							date: new Date().toISOString().slice(0, 10),
-							mood: mood.label,
-							score: mood.score
-						});
+						stored.push({ date: new Date().toISOString().slice(0, 10), mood: mood.label, score: mood.score });
 						localStorage.setItem("moodHistory", JSON.stringify(stored));
 					}}
 				>

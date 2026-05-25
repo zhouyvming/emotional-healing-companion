@@ -162,12 +162,16 @@
 				<ModelSelector bind:selectedModels disabled={messages.length > 0} />
 			</div>
 
-			<div class=" h-full mt-10 mb-32 w-full flex flex-col">
+			<div class=" h-full mt-10 w-full flex flex-col">
 				<Messages
 					{selectedModels}
 					bind:history
 					bind:messages
 					bind:autoScroll
+					bind:prompt
+					bind:uploadingFiles
+					{submitPrompt}
+					{stopResponse}
 				regenerateResponse={wrappedRegenerate}
 				editMessage={wrappedEdit}
 				deleteMessage={wrappedDelete}
@@ -180,6 +184,7 @@
 			</div>
 		</div>
 
+		{#if messages.length > 0}
 		<MessageInput
 			bind:prompt
 			bind:autoScroll
@@ -188,5 +193,6 @@
 			submitPrompt={wrappedSubmit}
 			{stopResponse}
 		/>
+		{/if}
 	</div>
 {/if}
