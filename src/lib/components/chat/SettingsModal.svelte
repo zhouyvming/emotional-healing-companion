@@ -6,8 +6,11 @@
 	import { info, settings, models } from "$lib/stores";
 	import Advanced from "./Settings/Advanced.svelte";
 	import { getThirdPartyModels, fetchModels } from "$lib/chat/openai";
+	import { authFetch } from "$lib/client/http";
 
 	export let show = false;
+
+	$: if (!show) showAddProvider = false;
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && show) {
@@ -36,6 +39,7 @@
 	let titleAutoGenerate = true;
 	let responseAutoCopy = false;
 	let systemPrompt = "";
+	let systemName = "";
 	let systemAvatarInput: HTMLInputElement;
 	let systemAvatarPreview = "";
 
@@ -57,6 +61,7 @@
 	let newProviderName = "";
 	let newProviderUrl = "";
 	let newProviderKey = "";
+	let showAddProvider = false;
 	let editingProviderIndex: number | null = null;
 
 	function loadProviders() {
@@ -73,6 +78,10 @@
 
 	function saveProviders() {
 		localStorage.setItem("apiProviders", JSON.stringify(providers));
+		authFetch("/api/providers", {
+			method: "POST",
+			body: JSON.stringify({ providers })
+		}).catch(() => {});
 		refreshAllModels();
 	}
 	function addProvider() {
@@ -179,6 +188,13 @@
 		}
 	};
 
+	const setDefaultModel = (modelName: string) => {
+		const updated = { ...$settings, models: [modelName] };
+		settings.set(updated);
+		localStorage.setItem("settings", JSON.stringify(updated));
+		toast.success(`已设为默认模型：${modelName}`);
+	};
+
 	const formatSize = (bytes: number) => {
 		if (!bytes) return "N/A";
 		if (bytes > 1e9) return (bytes / 1e9).toFixed(1) + " GB";
@@ -191,17 +207,17 @@
 	let requestFormat = "";
 	let options: Record<string, any> = {
 		seed: 0,
-		temperature: "",
-		repeat_penalty: "",
-		repeat_last_n: "",
-		mirostat: "",
-		mirostat_eta: "",
-		mirostat_tau: "",
-		top_k: "",
-		top_p: "",
+		temperature: 0.8,
+		repeat_penalty: 1.1,
+		repeat_last_n: 64,
+		mirostat: 0,
+		mirostat_eta: 0.1,
+		mirostat_tau: 5,
+		top_k: 40,
+		top_p: 0.9,
 		stop: "",
-		tfs_z: "",
-		num_ctx: ""
+		tfs_z: 1,
+		num_ctx: 200000
 	};
 
 	const checkOllamaConnection = async () => {
@@ -293,6 +309,7 @@
 			titleAutoGenerate,
 			responseAutoCopy,
 			systemPrompt,
+			systemName,
 			requestFormat: requestFormat !== "" ? requestFormat : undefined
 		};
 
@@ -367,6 +384,7 @@
 		titleAutoGenerate = stored.titleAutoGenerate ?? true;
 		responseAutoCopy = stored.responseAutoCopy ?? false;
 		systemPrompt = stored.systemPrompt ?? "";
+		systemName = stored.systemName ?? "";
 		webSearch = stored.webSearch ?? true;
 		searchEngine = stored.searchEngine ?? 'cn.bing.com';
 		customSearchUrl = stored.customSearchUrl ?? '';
@@ -817,6 +835,15 @@
 							<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
 								自定义 AI 的身份、性格和说话风格
 							</div>
+							<div class="mb-3">
+								<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">AI 名称</div>
+								<input
+									type="text"
+									bind:value={systemName}
+									class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+									placeholder="小愈"
+								/>
+							</div>
 							<textarea
 								bind:value={systemPrompt}
 								class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
@@ -860,7 +887,7 @@
 
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">
-								已安装模型（Ollama 本地）
+								已安装模型（Ollama 本地） · <span class="font-normal text-gray-400">v{$info?.ollama?.version ?? "未知"}</span>
 							</div>
 							<div
 								class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden"
@@ -898,7 +925,16 @@
 													</div>
 												{:else}
 													<button
-														class="flex-shrink-0 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition ml-2"
+														class="flex-shrink-0 p-1 hover:bg-pink-100 dark:hover:bg-pink-900/30 rounded transition ml-1"
+														on:click={() => setDefaultModel(model.name)}
+														title="设为默认模型"
+													>
+														<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-pink-400">
+															<path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd"/>
+														</svg>
+													</button>
+													<button
+														class="flex-shrink-0 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition ml-1"
 														on:click={() => {
 															showDeleteModelConfirm = model.name;
 														}}
@@ -929,7 +965,7 @@
 					</div>
 
 					<!-- API 提供商 -->
-					<div class="flex flex-col space-y-4">
+					<div class="flex flex-col space-y-4 mt-6">
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">
 								第三方 API 提供商
@@ -937,6 +973,43 @@
 							<div class="text-xs text-gray-400 dark:text-gray-500 mb-3">
 								支持 OpenAI、DeepSeek、通义千问等兼容 OpenAI API 格式的模型服务
 							</div>
+
+							<!-- 添加提供商 -->
+							{#if showAddProvider}
+								<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-2 mb-3">
+									<input
+										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+										placeholder="提供商名称（如 DeepSeek）"
+										bind:value={newProviderName}
+									/>
+									<input
+										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+										placeholder="API 地址（如 https://api.deepseek.com/v1）"
+										bind:value={newProviderUrl}
+									/>
+									<div class="flex gap-2">
+										<input
+											class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+											placeholder="API Key"
+											bind:value={newProviderKey}
+										/>
+										<button
+											class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+											on:click={() => { addProvider(); showAddProvider = false; }}
+											disabled={!newProviderName || !newProviderUrl || !newProviderKey}
+										>
+											添加
+										</button>
+									</div>
+								</div>
+							{:else}
+								<button
+									class="w-full py-2.5 mb-3 rounded-lg bg-pink-50 dark:bg-pink-900/30 border border-dashed border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+									on:click={() => { showAddProvider = true; }}
+								>
+									+ 添加提供商
+								</button>
+							{/if}
 
 							{#each providers as provider, i}
 								<div
@@ -978,7 +1051,16 @@
 											{#each provider.models as m}
 												<div class="flex items-center justify-between py-1.5 px-2 bg-gray-50 dark:bg-gray-900 rounded">
 													<span class="text-xs font-medium">{m.name}</span>
-													<span class="text-xs text-gray-400">{provider.name} API</span>
+													<div class="flex items-center gap-2">
+														<button
+															class="text-xs text-pink-400 hover:text-pink-500 transition"
+															on:click={() => setDefaultModel(`${provider.name}/${m.id}`)}
+															title="设为默认模型"
+														>
+															设为默认
+														</button>
+														<span class="text-xs text-gray-400">{provider.name} API</span>
+													</div>
 												</div>
 											{/each}
 										</div>
@@ -991,41 +1073,6 @@
 							{#if providers.length === 0}
 								<div class="text-xs text-gray-400 text-center py-4">暂无配置的 API 提供商</div>
 							{/if}
-						</div>
-
-						<!-- 添加提供商 -->
-						<div>
-							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">
-								添加提供商
-							</div>
-							<div
-								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-2"
-							>
-								<input
-									class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-									placeholder="提供商名称（如 DeepSeek）"
-									bind:value={newProviderName}
-								/>
-								<input
-									class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-									placeholder="API 地址（如 https://api.deepseek.com/v1）"
-									bind:value={newProviderUrl}
-								/>
-								<div class="flex gap-2">
-									<input
-										class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-										placeholder="API Key"
-										bind:value={newProviderKey}
-									/>
-									<button
-										class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-										on:click={addProvider}
-										disabled={!newProviderName || !newProviderUrl || !newProviderKey}
-									>
-										添加
-									</button>
-								</div>
-							</div>
 						</div>
 					</div>
 				{/if}
@@ -1061,9 +1108,6 @@
 								class="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline"
 								>GitHub</a
 							>
-						</div>
-						<div class="text-xs text-gray-400 dark:text-gray-500 pt-4">
-							Ollama 版本: {$info?.ollama?.version ?? "未知"}
 						</div>
 					</div>
 				{/if}

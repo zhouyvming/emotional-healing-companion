@@ -119,6 +119,25 @@
 		});
 	};
 
+	const syncProviders = async () => {
+		try {
+			const providers = await api("/api/providers");
+			if (providers.length > 0) {
+				localStorage.setItem("apiProviders", JSON.stringify(providers));
+			} else {
+				const local = JSON.parse(localStorage.getItem("apiProviders") ?? "[]");
+				if (local.length > 0) {
+					await api("/api/providers", {
+						method: "POST",
+						body: JSON.stringify({ providers: local })
+					});
+				}
+			}
+		} catch {
+			/* network error, keep localStorage copy */
+		}
+	};
+
 	const getDB = () => {
 		const refreshChats = async () => {
 			const data = await api(`/api/chats`);
@@ -240,6 +259,7 @@
 		await user.set(savedUser);
 
 		const ollamaModels = await getModels();
+		await syncProviders();
 		const thirdPartyModels = getThirdPartyModels();
 		await models.set([...ollamaModels, ...thirdPartyModels]);
 
@@ -260,6 +280,10 @@
 
 		await tick();
 		loaded = true;
+
+		return () => {
+			window.removeEventListener("keydown", handleKeydown);
+		};
 	});
 
 	const recheckConnection = async () => {

@@ -131,11 +131,11 @@
 		messages = [];
 		history = { messages: {}, currentId: null };
 		uploadingFiles = [];
-		selectedModels = $page.url.searchParams.get("models")
-			? $page.url.searchParams.get("models")?.split(",")
-			: $settings.models ?? [""];
 
 		let _settings = JSON.parse(localStorage.getItem("settings") ?? "{}");
+		selectedModels = $page.url.searchParams.get("models")
+			? $page.url.searchParams.get("models")?.split(",")
+			: _settings.models ?? [""];
 		settings.set({ ..._settings });
 	};
 </script>
@@ -157,8 +157,7 @@
 				bind:autoScroll
 				bind:prompt
 				bind:uploadingFiles
-				{submitPrompt}
-				{stopResponse}
+				submitPrompt={wrappedSubmit}
 				regenerateResponse={wrappedRegenerate}
 				editMessage={wrappedEdit}
 				deleteMessage={wrappedDelete}

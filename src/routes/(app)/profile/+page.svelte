@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { user, sidebarOpen } from "$lib/stores";
+	import { user, sidebarOpen, db } from "$lib/stores";
 	import { authFetch } from "$lib/client/http";
 	import toast from "svelte-french-toast";
 
@@ -179,6 +179,41 @@
 	const handleLogout = () => {
 		localStorage.removeItem("user");
 		goto("/login");
+	};
+
+	const handleExportJSON = async () => {
+		if (!$db) { toast.error("暂无数据"); return; }
+		const data = await $db.exportChats();
+		const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = "chats-backup.json";
+		a.click();
+		URL.revokeObjectURL(url);
+		toast.success("JSON 已导出");
+	};
+
+	const handleExportMarkdown = async () => {
+		if (!$db) { toast.error("暂无数据"); return; }
+		const data = await $db.exportChats();
+		let md = "# 情感疗愈伴侣 - 对话记录\n\n";
+		for (const chat of data) {
+			md += `## ${chat.title || "未命名对话"}\n`;
+			const messages = Array.isArray(chat.messages) ? chat.messages : [];
+			for (const msg of messages) {
+				const role = msg.role === "user" ? "用户" : msg.model || "AI";
+				md += `**${role}** (${chat.timestamp || ""})\n\n${msg.content || ""}\n\n---\n\n`;
+			}
+		}
+		const blob = new Blob([md], { type: "text/markdown" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = "chats-export.md";
+		a.click();
+		URL.revokeObjectURL(url);
+		toast.success("Markdown 已导出");
 	};
 </script>
 
@@ -370,6 +405,28 @@
 			>
 				提交反馈
 			</button>
+		</div>
+
+		<!-- 导出所有会话 -->
+		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
+			<h3 class="text-lg font-semibold dark:text-gray-200 mb-1">导出所有会话</h3>
+			<p class="text-sm text-gray-400 dark:text-gray-500 mb-4">
+				将全部对话记录导出到本地文件
+			</p>
+			<div class="flex gap-3">
+				<button
+					class="flex-1 py-2.5 bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+					on:click={handleExportJSON}
+				>
+					JSON
+				</button>
+				<button
+					class="flex-1 py-2.5 bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+					on:click={handleExportMarkdown}
+				>
+					Markdown
+				</button>
+			</div>
 		</div>
 
 		<!-- 账户操作卡片 -->

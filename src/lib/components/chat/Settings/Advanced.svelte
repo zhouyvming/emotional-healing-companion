@@ -1,17 +1,17 @@
 <script lang="ts">
 	export let options: Record<string, any> = {
 		seed: 0,
-		temperature: "",
-		repeat_penalty: "",
-		repeat_last_n: "",
-		mirostat: "",
-		mirostat_eta: "",
-		mirostat_tau: "",
-		top_k: "",
-		top_p: "",
+		temperature: 0.8,
+		repeat_penalty: 1.1,
+		repeat_last_n: 64,
+		mirostat: 0,
+		mirostat_eta: 0.1,
+		mirostat_tau: 5,
+		top_k: 40,
+		top_p: 0.9,
 		stop: "",
-		tfs_z: "",
-		num_ctx: 8192
+		tfs_z: 1,
+		num_ctx: 200000
 	};
 
 	const paramDefs = [

@@ -35,10 +35,10 @@ src/routes/
 ├── login/+page.svelte                      # 登录页（密码可见性切换，防协议相对 URL Open Redirect）
 ├── register/+page.svelte                   # 注册页（密码最短6位，Open Redirect 防护）
 ├── (app)/
-│   ├── +layout.svelte                      # 应用布局（模型加载、DB初始化、IndexedDB→MySQL迁移、Ollama版本检查，合并第三方模型，Ctrl+N 全局快捷键）
+│   ├── +layout.svelte                      # 应用布局（模型加载、DB初始化、IndexedDB→MySQL迁移、Ollama版本检查，第三方模型合并与双向同步，Ctrl+N 全局快捷键）
 │   ├── +page.svelte                        # 新对话页（首页）
 │   ├── chat/[id]/+page.svelte               # 对话详情页（重命名、删除、流式中断恢复提示）
-│   └── profile/+page.svelte               # 个人资料页（头像/用户名/邮箱/密码修改、退出确认、建议反馈按钮跳转）
+│   └── profile/+page.svelte               # 个人资料页（头像/用户名/邮箱/密码修改、导出所有会话JSON/MD、退出确认、建议反馈按钮跳转）
 ├── advice_table/+page.svelte               # 建议与反馈提交页
 ├── favicon.ico/+server.ts                  # favicon 静默返回 204
 ├── .well-known/[...path]/+server.ts        # Chrome DevTools 探测请求静默处理（返回 204）
@@ -50,10 +50,11 @@ src/routes/
     ├── advice_table/+server.ts             # POST 提交建议
     ├── feedback_table/+server.ts           # POST 提交反馈
     ├── fetch-url/+server.ts               # POST 抓取网页文本（redirect: manual 防 SSRF 重定向，1MB 上限）
+    ├── providers/+server.ts               # GET(按用户列表)/POST(全量保存) API 提供商配置（跨浏览器同步）
     └── web-search/+server.ts              # POST 联网搜索（Bing/百度/DDG 多引擎，isPrivateUrl 防 SSRF）
 ```
 
-所有 9 个 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
+所有 10 个 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
 
 **SPA 模式**：`ssr: false`（`src/routes/+layout.js`），认证完全在客户端进行——JWT 存储在 `localStorage.user`，路由守卫在 `+layout.js` 的 load 函数中检查，无服务端 session。
 
@@ -75,6 +76,7 @@ src/routes/
 | `chats` | `id`(UUID PK), `username`, `title`, `models`(JSON), `options`(JSON), `messages`(JSON), `history`(JSON), `system`(TEXT), `timestamp`(DATETIME, `YYYY-MM-DD HH:MM:SS`) |
 | `feedback_table` | `id`, `username`, `content`, `created_at`(TIMESTAMP) |
 | `advice_table` | `id`, `username`, `content`, `created_at`(TIMESTAMP) |
+| `api_providers` | `id`(VARCHAR 36 PK), `username`, `name`, `base_url`(TEXT), `api_key`(TEXT), `models`(JSON), `created_at`(TIMESTAMP) |
 
 **timestamp 迁移**：2026-05 从 `BIGINT` 毫秒时间戳迁移为 `DATETIME`。`db.ts` 中 `UPDATE FROM_UNIXTIME` 自动转换已有数据。**新代码必须使用 `datetimeNow()`（`YYYY-MM-DD HH:MM:SS` 格式），禁止使用 epoch 毫秒。**
 
@@ -84,7 +86,7 @@ src/routes/
 
 **密码迁移脚本**：`scripts/migrate-passwords.ts` 用于将旧密码迁移为 bcryptjs 格式。注意：未迁移的旧密码可能是明文。
 
-**API 提供商配置**：第三方 API 提供商（名称/URL/Key/模型列表）存储在 `localStorage.apiProviders`，设置面板「API」标签管理。
+**API 提供商配置**：第三方 API 提供商（名称/URL/Key/模型列表）存储在 `localStorage.apiProviders`，设置面板「API」标签管理。**已实现 MySQL `api_providers` 表跨浏览器同步**：`+layout.svelte` 启动时调用 `syncProviders()` 双向同步（API→localStorage 或 localStorage→API），`SettingsModal.svelte` 保存时同时写 localStorage 和 POST `/api/providers`。
 
 ## 状态管理 (`src/lib/stores/index.ts`)
 
@@ -96,7 +98,7 @@ src/routes/
 | `chats`        | `[]`                                                     | `{id, title, timestamp}` 列表，侧边栏数据源                                                                             |
 | `models`       | `[]`                                                     | 合并后的所有可用模型（Ollama 本地 + 第三方 API），ModelSelector 数据源                                                  |
 | `user`         | `{id, username, email, avatar?, system_avatar?} \| null` | 当前登录用户                                                                                                            |
-| `settings`     | `Settings`                                               | 应用设置（含 API_BASE_URL、theme、fontSize、proactiveGreeting、privacyMode 等），类型已完善，持久化到 localStorage      |
+| `settings`     | `Settings`                                               | 应用设置（含 API_BASE_URL、theme、fontSize、systemName、systemPrompt、proactiveGreeting、privacyMode 等），类型已完善，持久化到 localStorage      |
 | `showSettings` | `boolean`                                                | 设置弹窗开关                                                                                                            |
 | `moodHistory`  | `{date, mood, score}[]`                                  | 情绪追踪数据                                                                                                            |
 
@@ -161,9 +163,9 @@ src/routes/
 | ------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Messages.svelte**      | chat/          | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮（与日期同行）**、TTS 朗读（onDestroy 取消）   |
 | **MessageInput.svelte**  | chat/          | 固定底部、自动伸缩（max 200px）、发送/停止按钮、语音输入（onDestroy 中止）、文件/图片上传（粘贴/拖拽/选择，10MB 限制）、Enter 发送/Shift+Enter 换行、**visualViewport 移动端键盘适配**                    |
-| **ModelSelector.svelte** | chat/          | `<select>` 下拉、自动选中首个可用模型、设为默认模型持久化                                                                                                                                   |
-| **SettingsModal.svelte** | chat/          | 7 标签页：常规（外观+连接）、偏好（6 项开关含情绪感知）、人设（system prompt）、模型（拉取/列表/删除）、API（第三方提供商管理）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K**）、关于 |
-| **Sidebar.svelte**       | layout/        | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、导出 JSON/导出 Markdown、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏       |
+| **ModelSelector.svelte** | chat/          | `<select>` 下拉、自动选中首个可用模型（第三方优先）、设为默认模型持久化（设置面板）。紧凑模式不再自动保存选中变更。                                                                                                     |
+| **SettingsModal.svelte** | chat/          | 7 标签页：常规（外观+连接+系统头像）、偏好与人设（7 项开关含情绪感知+AI名称+system prompt）、模型与API（拉取/列表/删除/设为默认+第三方提供商管理+添加表单折叠）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K** 全部参数显示滑块默认值）、关于 |
+| **Sidebar.svelte**       | layout/        | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏。导出功能已移至个人主页。              |
 | **Navbar.svelte**        | layout/        | 对话标题（可重命名）、新对话按钮、删除确认                                                                                                                                                  |
 | **Modal.svelte**         | common/        | 通用弹窗容器（点击背景关闭）                                                                                                                                                                |
 

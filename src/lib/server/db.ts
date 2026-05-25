@@ -83,3 +83,18 @@ pool
 )`
 	)
 	.catch((err) => console.error("advice_table init error:", err));
+
+pool
+	.execute(
+		`CREATE TABLE IF NOT EXISTS api_providers (
+  id VARCHAR(36) PRIMARY KEY,
+  username VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  base_url TEXT NOT NULL,
+  api_key TEXT NOT NULL,
+  models JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_providers_username (username)
+)`
+	)
+	.catch((err) => console.error("api_providers table init error:", err));

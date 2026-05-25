@@ -225,6 +225,14 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				: {})
 		}));
 
+		// 注入情绪感知 system prompt（提前构建，用于上下文压缩计算）
+		let systemPrompt = settings.systemPrompt ?? "";
+		if (settings.emotionSensing !== false) {
+			systemPrompt = systemPrompt
+				? `${systemPrompt}\n\n${getEmotionPrompt(userPrompt)}`
+				: getEmotionPrompt(userPrompt);
+		}
+
 		// 上下文自动压缩：超出 num_ctx 时截断最早的消息
 		const contextLimit = settings.num_ctx ?? 200000;
 		let totalChars = apiMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
@@ -251,14 +259,6 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					apiMessages.unshift(summaryNote);
 				}
 			}
-		}
-
-		// 注入情绪感知 system prompt
-		let systemPrompt = settings.systemPrompt ?? "";
-		if (settings.emotionSensing !== false) {
-			systemPrompt = systemPrompt
-				? `${systemPrompt}\n\n${getEmotionPrompt(userPrompt)}`
-				: getEmotionPrompt(userPrompt);
 		}
 
 		const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/chat`, {
@@ -488,6 +488,8 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			timestamp: datetimeNow()
 		};
 
+		let finalPrompt = userPrompt;
+
 		// 附加上传的图片和文件
 		if (uploadingFiles && uploadingFiles.length > 0) {
 			userMessage.images = uploadingFiles
@@ -553,7 +555,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 		}, 50);
 
-		await sendPrompt(userPrompt, userMessageId, chatId, onTitleSet);
+		await sendPrompt(finalPrompt, userMessageId, chatId, onTitleSet);
 	};
 
 	const stopResponse = () => {

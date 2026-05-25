@@ -25,7 +25,6 @@
 
 	export let regenerateResponse: Function;
 	export let submitPrompt: Function = () => {};
-	export let stopResponse: Function = () => {};
 	export let autoScroll;
 	export let selectedModels;
 	export let prompt = "";
@@ -324,8 +323,9 @@
 					</div>
 				{/if}
 				<textarea
+					id="chat-textarea"
 					class="w-full bg-transparent outline-none px-4 pt-3 pb-3 resize-none text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400"
-					placeholder="给 情感疗愈伴侣 发送消息"
+					placeholder="给 {$settings.systemName || '情感疗愈伴侣'} 发送消息"
 					rows="2"
 					bind:value={prompt}
 					on:keydown={(e) => {

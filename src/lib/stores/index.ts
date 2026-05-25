@@ -23,6 +23,7 @@ interface Settings {
 	proactiveGreeting?: boolean;
 	privacyMode?: boolean;
 	systemPrompt?: string;
+	systemName?: string;
 	system?: string;
 	models?: string[];
 	options?: Record<string, any>;

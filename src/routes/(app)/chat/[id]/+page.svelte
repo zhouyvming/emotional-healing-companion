@@ -166,8 +166,7 @@
 				bind:autoScroll
 				bind:prompt
 				bind:uploadingFiles
-				{submitPrompt}
-				{stopResponse}
+				submitPrompt={wrappedSubmit}
 				regenerateResponse={wrappedRegenerate}
 				editMessage={wrappedEdit}
 				deleteMessage={wrappedDelete}
