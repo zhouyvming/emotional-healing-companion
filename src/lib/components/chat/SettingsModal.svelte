@@ -858,15 +858,15 @@
 
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">
-								已安装模型
+								已安装模型（Ollama 本地）
 							</div>
 							<div
 								class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden"
 							>
-								{#if $models.length === 0}
-									<div class="py-4 text-center text-xs text-gray-400">暂无模型</div>
+								{#if $models.filter(m => m.source !== "third-party").length === 0}
+									<div class="py-4 text-center text-xs text-gray-400">暂无本地模型</div>
 								{:else}
-									{#each $models as model}
+									{#each $models.filter(m => m.source !== "third-party") as model}
 										{#if model.name !== "hr"}
 											<div
 												class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -955,12 +955,12 @@
 									</div>
 									<div class="text-xs text-gray-400 truncate mb-1">{provider.baseUrl}</div>
 									{#if provider.models.length > 0}
-										<div class="flex flex-wrap gap-1 mt-2">
+										<div class="space-y-0.5 mt-2">
 											{#each provider.models as m}
-												<span
-													class="text-xs bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 px-2 py-0.5 rounded-full"
-													>{m.name}</span
-												>
+												<div class="flex items-center justify-between py-1.5 px-2 bg-gray-50 dark:bg-gray-900 rounded">
+													<span class="text-xs font-medium">{m.name}</span>
+													<span class="text-xs text-gray-400">{provider.name} API</span>
+												</div>
 											{/each}
 										</div>
 									{:else}
