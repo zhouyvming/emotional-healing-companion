@@ -216,13 +216,8 @@
 					on:drop={handleDrop}
 				>
 					<div class=" flex">
-						<!-- 模型选择 -->
-						<div class="flex items-center pl-3">
-							<ModelSelector bind:selectedModels compact={true} />
-						</div>
-
 						<!-- 文件上传按钮 -->
-						<div class="flex items-center pl-2">
+						<div class="flex items-center pl-3">
 							<input
 								type="file"
 								accept="image/*,.txt,.pdf,.doc,.docx"
@@ -277,7 +272,8 @@
 							}}
 						/>
 
-						<div class="self-end mb-2 flex space-x-0.5 mr-2">
+						<div class="self-end mb-2 flex space-x-0.5 mr-2 items-center">
+							<ModelSelector bind:selectedModels compact={true} />
 							<!-- 语音输入按钮 -->
 							<button
 								type="button"
