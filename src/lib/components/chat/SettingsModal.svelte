@@ -462,29 +462,7 @@
 							clip-rule="evenodd"
 						/>
 					</svg>
-					偏好
-				</button>
-
-				<button
-					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab ===
-					'persona'
-						? 'bg-gray-200 dark:bg-gray-700 font-medium'
-						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
-					on:click={() => {
-						selectedTab = "persona";
-					}}
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-						class="w-4 h-4 mr-2"
-					>
-						<path
-							d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z"
-						/>
-					</svg>
-					人设
+					偏好与人设
 				</button>
 
 				<button
@@ -828,29 +806,25 @@
 								</label>
 							</div>
 						</div>
-					</div>
-				{/if}
 
-				{#if selectedTab === "persona"}
-					<div class="flex flex-col space-y-4">
-						<div>
-							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">AI 人设</div>
-							<div
-								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
-							>
-								<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-									自定义 AI 的身份、性格和说话风格
-								</div>
-								<textarea
-									bind:value={systemPrompt}
-									class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
-									rows="4"
-									placeholder="例如：你是一个温柔知心的情感陪伴AI，名叫小愈。你用温暖、共情的语气与用户交流..."
-								/>
+					<div>
+						<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">AI 人设</div>
+						<div
+							class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
+						>
+							<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+								自定义 AI 的身份、性格和说话风格
 							</div>
+							<textarea
+								bind:value={systemPrompt}
+								class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
+								rows="4"
+								placeholder="例如：你是一个温柔知心的情感陪伴AI，名叫小愈。你用温暖、共情的语气与用户交流..."
+							/>
 						</div>
 					</div>
-				{/if}
+				</div>
+			{/if}
 
 				{#if selectedTab === "models"}
 					<div class="flex flex-col space-y-4">
