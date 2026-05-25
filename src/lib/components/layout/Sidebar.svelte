@@ -15,8 +15,6 @@
 	let search = "";
 	let showDeleteHistoryConfirm = false;
 	let pinnedIds: string[] = JSON.parse(localStorage.getItem("pinnedChats") ?? "[]");
-	let renamingId: string | null = null;
-	let renameText = "";
 
 	function togglePin(cid: string) {
 		const idx = pinnedIds.indexOf(cid);
@@ -266,33 +264,8 @@
 												<div
 													class="text-left self-center overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0"
 												>
-													{#if renamingId === chat.id}
-														<input
-															class="w-full bg-transparent border-b border-pink-400 outline-none text-sm px-0.5"
-															bind:value={renameText}
-															on:keydown={(e) => {
-																if (e.key === "Enter") {
-																	$db.updateChatById(chat.id, { title: renameText.trim() || chat.title });
-																	chat.title = renameText.trim() || chat.title;
-																	renamingId = null;
-																}
-																if (e.key === "Escape") renamingId = null;
-															}}
-															on:blur={() => { renamingId = null; }}
-														/>
-													{:else}
-														{chat.title}
-													{/if}
+													{chat.title}
 												</div>
-											<button
-												class="flex-shrink-0 p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer text-gray-400"
-												on:click|stopPropagation={() => { renamingId = chat.id; renameText = chat.title; }}
-												title="重命名"
-											>
-												<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
-													<path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-												</svg>
-											</button>
 											<button
 												class="flex-shrink-0 p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition cursor-pointer {pinnedIds.includes(chat.id) ? 'text-amber-500' : 'text-gray-400'}"
 												on:click|stopPropagation={() => togglePin(chat.id)}

@@ -9,6 +9,7 @@
 	import MessageInput from "$lib/components/chat/MessageInput.svelte";
 	import Messages from "$lib/components/chat/Messages.svelte";
 	import ModelSelector from "$lib/components/chat/ModelSelector.svelte";
+	import Navbar from "$lib/components/layout/Navbar.svelte";
 	import { page } from "$app/stores";
 
 	let loaded = false;
@@ -154,7 +155,8 @@
 />
 
 {#if loaded}
-	<div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''}">
+<Navbar {title} />
+<div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''} pt-12">
 	<div class="py-2.5 flex flex-col justify-between w-full max-w-3xl">
 		<div class="flex-1 overflow-y-auto">
 			<Messages
