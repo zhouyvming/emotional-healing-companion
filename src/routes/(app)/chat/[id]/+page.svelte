@@ -160,7 +160,7 @@
 	<div class="py-2.5 flex flex-col justify-between w-full max-w-5xl">
 		<div class="flex-1 overflow-y-auto">
 			<Messages
-				{selectedModels}
+				bind:selectedModels
 				bind:history
 				bind:messages
 				bind:autoScroll
