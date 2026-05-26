@@ -72,3 +72,13 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 
 - Full architecture docs: `CLAUDE.md`
 - Product improvement docs: `系统后期优化改进.md`, `系统后期优化改进2.md`, `系统后期优化改进3.md`
+
+## Recent changes (2026-05-27)
+
+**Layout**: User messages now left-aligned (avatar on left, `items-start`/`justify-start`). Avatars enlarged to `w-10 h-10` (40px). Bubble has `w-fit` (content-width, no stretching) and NO `break-words` (was causing premature line wraps in Chinese text).
+
+**Timestamp alignment**: Instead of manual `ml-13` (52px = 40px avatar + 12px gap), timestamp rows use a flex spacer pattern — `<div class="flex justify-start items-center gap-3"><div class="w-10"></div><div class="flex items-center gap-1">...</div></div>` — identical flex structure to the avatar+bubble row, guaranteeing alignment without fragile margin calculations.
+
+**Markdown output**: Both `ollama.ts` and `openai.ts` system prompts now always include a hardcoded Markdown formatting instruction (independent of user-defined system prompt or emotion sensing toggle). The rendering pipeline (`marked` → `DOMPurify` → `{@html}`) handles both Ollama and third-party API outputs identically.
+
+**Edit safety**: When modifying HTML nesting in Svelte files, prefer self-contained edits where opening+closing tags balance within the replaced string. Avoid splitting edits across separate old/new pairs that touch overlapping regions — this pattern causes hard-to-debug nesting errors (multiple occurrences of `</div>\n</div>` in the file, etc.). Build with full output (not `tail -3`) to catch Svelte parse errors.

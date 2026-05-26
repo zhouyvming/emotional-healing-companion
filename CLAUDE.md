@@ -106,8 +106,8 @@ src/routes/
 
 | 文件                     | 内容                                                                                                                                                                                                                          |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama，AbortController 真正取消）、`sendPrompt`（顺序路由 Ollama/OpenAI，非并发）、`submitPrompt`（文件提取）、`generateChatTitle`、`stopResponse`（abortRefs 数组 + stopRef）、`regenerateResponse`、`editMessage`、`deleteMessage`。system prompt 含情绪感知指引。 |
-| `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式，120s 超时 + 60s stream 读取超时）、`findProvider`、`getThirdPartyModels`、`fetchModels`。system prompt 含情绪感知指引。第三方模型仅发送原始用户输入 + system prompt。                          |
+| `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama，AbortController 真正取消）、`sendPrompt`（顺序路由 Ollama/OpenAI，非并发）、`submitPrompt`（文件提取）、`generateChatTitle`、`stopResponse`（abortRefs 数组 + stopRef）、`regenerateResponse`、`editMessage`、`deleteMessage`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。 |
+| `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式，120s 超时 + 60s stream 读取超时）、`findProvider`、`getThirdPartyModels`、`fetchModels`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。第三方模型仅发送原始用户输入 + system prompt。                          |
 | `src/lib/server/auth.ts` | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                            |
 | `src/lib/server/db.ts`   | MySQL 连接池 + 4 张表 DDL + 列迁移（avatar/system_avatar/timestamp DATETIME）。支持环境变量配置                                                                                                                               |
 | `src/lib/client/http.ts` | `authFetch`（自动附加 JWT Bearer，401 清除登录态并跳转，Content-Type 仅未设置时覆盖）、`getToken`、`getCurrentUser`                                                                                                            |
@@ -161,7 +161,7 @@ src/routes/
 
 | 组件                     | 位置           | 关键特性                                                                                                                                                                                    |
 | ------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Messages.svelte**      | chat/          | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮（与日期同行）**、TTS 朗读（onDestroy 取消）   |
+| **Messages.svelte**      | chat/          | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮**、TTS 朗读（onDestroy 取消）。用户消息左对齐（头像在左，气泡 w-fit 无 break-words），时间戳行用 flex spacer（`<div class="w-10">`）对齐气泡左边缘。 |
 | **MessageInput.svelte**  | chat/          | 固定底部、自动伸缩（max 200px）、发送/停止按钮、语音输入（onDestroy 中止）、文件/图片上传（粘贴/拖拽/选择，10MB 限制）、Enter 发送/Shift+Enter 换行、**visualViewport 移动端键盘适配**                    |
 | **ModelSelector.svelte** | chat/          | `<select>` 下拉、自动选中首个可用模型（第三方优先）、设为默认模型持久化（设置面板）。紧凑模式不再自动保存选中变更。                                                                                                     |
 | **SettingsModal.svelte** | chat/          | 7 标签页：常规（外观+连接+系统头像）、偏好与人设（7 项开关含情绪感知+AI名称+system prompt）、模型与API（拉取/列表/删除/设为默认+第三方提供商管理+添加表单折叠）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K** 全部参数显示滑块默认值）、关于 |
