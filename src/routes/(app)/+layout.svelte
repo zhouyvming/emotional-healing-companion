@@ -132,6 +132,21 @@
 		}
 	};
 
+	const syncSettings = async () => {
+		try {
+			const remote = await api("/api/user/settings");
+			if (remote && Object.keys(remote).length > 0) {
+				localStorage.setItem("settings", JSON.stringify(remote));
+				settings.set(remote);
+			} else {
+				localStorage.removeItem("settings");
+				settings.set({});
+			}
+		} catch {
+			/* network error, keep localStorage copy */
+		}
+	};
+
 	const getDB = () => {
 		const refreshChats = async () => {
 			const data = await api(`/api/chats`);
@@ -247,7 +262,7 @@
 	onMount(async () => {
 		await migrateFromIndexedDB();
 
-		await settings.set(JSON.parse(localStorage.getItem("settings") ?? "{}"));
+		await syncSettings();
 
 		const savedUser = JSON.parse(localStorage.getItem("user") ?? "null");
 		await user.set(savedUser);

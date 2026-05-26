@@ -36,6 +36,9 @@ pool.execute(`ALTER TABLE users ADD COLUMN system_avatar LONGTEXT`).catch(() => 
 // 将 password 列从 INT 改为 VARCHAR(255) 以支持 bcrypt 哈希
 pool.execute(`ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NOT NULL`).catch(() => {});
 
+// 为已有 users 表补充 settings 列（用户设置 JSON）
+pool.execute(`ALTER TABLE users ADD COLUMN settings JSON`).catch(() => {});
+
 pool
 	.execute(
 		`CREATE TABLE IF NOT EXISTS chats (

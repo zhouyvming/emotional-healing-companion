@@ -326,6 +326,12 @@
 
 		saveSettings(updated);
 
+		// 同步设置到服务端（跨浏览器）
+		authFetch("/api/user/settings", {
+			method: "PUT",
+			body: JSON.stringify({ settings: updated })
+		}).catch(() => {});
+
 		// 保存系统头像到用户资料
 		if (systemAvatarChanged) {
 			const stored = JSON.parse(localStorage.getItem("user") ?? "{}");
