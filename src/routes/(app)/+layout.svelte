@@ -137,18 +137,12 @@
 			const remote = await api("/api/user/settings");
 			if (remote && Object.keys(remote).length > 0) {
 				localStorage.setItem("settings", JSON.stringify(remote));
+				if (remote.theme) localStorage.theme = remote.theme;
+				if (remote.fontSize) localStorage.setItem("fontSize", remote.fontSize);
 				settings.set(remote);
 			} else {
-				const local = JSON.parse(localStorage.getItem("settings") ?? "{}");
-				if (Object.keys(local).length > 0) {
-					await api("/api/user/settings", {
-						method: "PUT",
-						body: JSON.stringify({ settings: local })
-					});
-				} else {
-					localStorage.removeItem("settings");
-					settings.set({});
-				}
+				localStorage.removeItem("settings");
+				settings.set({});
 			}
 		} catch {
 			/* network error, keep localStorage copy */
