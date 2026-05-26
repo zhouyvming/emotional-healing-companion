@@ -406,7 +406,7 @@
 					<div class="flex flex-col items-end mb-4">
 						<div class="flex justify-end items-start gap-3">
 							<div
-								class="bg-blue-100 text-gray-800 rounded-lg py-2 px-4 max-w-[80%] [&_p]:m-0 w-fit"
+								class="bg-blue-100 text-gray-800 rounded-lg py-2 px-4 max-w-[80%] [&_p]:m-0"
 							>
 								{#if message.images?.length}
 									<div class="flex flex-wrap gap-1 mb-1">
@@ -457,7 +457,7 @@
 										>
 									</div>
 								{:else}
-									{@html sanitizeHtml(message.content)}
+									{@html sanitizeHtml(marked(message.content))}
 								{/if}
 							</div>
 							{#if $user?.avatar}
