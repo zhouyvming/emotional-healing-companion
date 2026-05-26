@@ -8,7 +8,15 @@
 
 	$: if (selectedModels.length === 1 && selectedModels[0] === "" && $models.length > 0) {
 		const thirdParty = $models.find((m: any) => m.source === "third-party");
-		selectedModels = [thirdParty ? thirdParty.name : $models[0].name];
+		if (thirdParty) {
+			selectedModels = [thirdParty.name];
+		} else {
+			const ollamaModels = $models.filter((m: any) => m.source !== "third-party");
+			const smallest = ollamaModels.reduce((min: any, m: any) =>
+				(m.size || 0) < (min.size || 0) ? m : min, ollamaModels[0]
+			);
+			selectedModels = [smallest ? smallest.name : $models[0].name];
+		}
 	}
 
 	const saveDefaultModel = () => {
@@ -26,7 +34,9 @@
 		style="background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 20 20%27%3E%3Cpath stroke=%27%238e8ea0%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%271.5%27 d=%27m6 8 4 4 4-4%27/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right center;background-size:1.2em"
 		{disabled}
 	>
-		<option value="" selected>选择模型</option>
+		{#if selectedModels[0] === ""}
+			<option value="" selected>选择模型</option>
+		{/if}
 		{#each $models.filter((m) => m.name !== "hr") as model}
 			<option value={model.name}>{model.source === "third-party" ? "🔗" : "🖥"} {model.name}</option>
 		{/each}

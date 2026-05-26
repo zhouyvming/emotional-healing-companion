@@ -2,8 +2,7 @@
 	import { v4 as uuidv4 } from "uuid";
 	import { onMount, onDestroy } from "svelte";
 
-	import { settings, db, chats, chatId, sidebarOpen, models } from "$lib/stores";
-	import { get } from "svelte/store";
+	import { settings, db, chats, chatId, sidebarOpen } from "$lib/stores";
 	import { createChatHandlers } from "$lib/chat/ollama";
 
 	import MessageInput from "$lib/components/chat/MessageInput.svelte";
@@ -138,12 +137,6 @@
 			? $page.url.searchParams.get("models")?.split(",")
 			: _settings.models ?? [""];
 		settings.set({ ..._settings });
-
-		const allModels = get(models);
-		if (selectedModels.length === 1 && selectedModels[0] === "" && allModels.length > 0) {
-			const thirdParty = allModels.find((m: any) => m.source === "third-party");
-			selectedModels = [thirdParty ? thirdParty.name : allModels[0].name];
-		}
 	};
 </script>
 
