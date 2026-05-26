@@ -411,7 +411,7 @@
 								<img src="/user.png" alt="用户" class="w-8 h-8 rounded-full" />
 							{/if}
 							<div
-								class="bg-blue-100 text-gray-800 rounded-lg py-2 px-4 max-w-[80%] [&_p]:m-0"
+								class="bg-blue-100 text-gray-800 rounded-lg py-2 px-4 max-w-[80%] w-fit [&_p]:m-0"
 							>
 								{#if message.images?.length}
 									<div class="flex flex-wrap gap-1 mb-1">
