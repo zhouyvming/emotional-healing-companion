@@ -28,15 +28,20 @@ pool
 	)
 	.catch((err) => console.error("users table init error:", err));
 
-// 为已有 users 表补充各列（MySQL 8 + mysql2 可链式执行多条 ALTER）
+// 为已有 users 表补充 avatar 列
 pool.execute(`ALTER TABLE users ADD COLUMN avatar LONGTEXT`).catch(() => {});
-pool.execute(`ALTER TABLE users ADD COLUMN system_avatar LONGTEXT`).catch(() => {});
-pool.execute(`ALTER TABLE users ADD COLUMN settings JSON`).catch(() => {});
-pool.execute(
-	`ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`
-).catch(() => {});
 
+// 为已有 users 表补充 system_avatar 列
+pool.execute(`ALTER TABLE users ADD COLUMN system_avatar LONGTEXT`).catch(() => {});
+
+// 将 password 列从 INT 改为 VARCHAR(255) 以支持 bcrypt 哈希
 pool.execute(`ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NOT NULL`).catch(() => {});
+
+// 为已有 users 表补充 settings 列（用户设置 JSON）
+pool.execute(`ALTER TABLE users ADD COLUMN settings JSON`).catch(() => {});
+
+// 为已有 users 表补充 created_at 列
+pool.execute(`ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
 
 pool
 	.execute(
