@@ -139,8 +139,16 @@
 				localStorage.setItem("settings", JSON.stringify(remote));
 				settings.set(remote);
 			} else {
-				localStorage.removeItem("settings");
-				settings.set({});
+				const local = JSON.parse(localStorage.getItem("settings") ?? "{}");
+				if (Object.keys(local).length > 0) {
+					await api("/api/user/settings", {
+						method: "PUT",
+						body: JSON.stringify({ settings: local })
+					});
+				} else {
+					localStorage.removeItem("settings");
+					settings.set({});
+				}
 			}
 		} catch {
 			/* network error, keep localStorage copy */
