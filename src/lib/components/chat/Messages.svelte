@@ -403,8 +403,13 @@
 		{#each messages as message}
 			<div class="flex flex-col">
 				{#if message.role === "user"}
-					<div class="flex flex-col items-end mb-4">
-						<div class="flex justify-end items-start gap-3">
+					<div class="flex flex-col items-start mb-4">
+						<div class="flex justify-start items-start gap-3">
+							{#if $user?.avatar}
+								<img src={$user.avatar} alt="用户" class="w-8 h-8 rounded-full object-cover" />
+							{:else}
+								<img src="/user.png" alt="用户" class="w-8 h-8 rounded-full" />
+							{/if}
 							<div
 								class="bg-blue-100 text-gray-800 rounded-lg py-2 px-4 max-w-[80%] [&_p]:m-0"
 							>
@@ -460,11 +465,6 @@
 									{@html sanitizeHtml(marked(message.content))}
 								{/if}
 							</div>
-							{#if $user?.avatar}
-								<img src={$user.avatar} alt="用户" class="w-8 h-8 rounded-full object-cover" />
-							{:else}
-								<img src="/user.png" alt="用户" class="w-8 h-8 rounded-full" />
-							{/if}
 						</div>
 						<div class="flex items-center gap-1">
 							{#if message.timestamp}
