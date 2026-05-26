@@ -6,7 +6,7 @@
 	export let disabled = false;
 	export let compact = false;
 
-	$: if (selectedModels.length === 1 && selectedModels[0] === "" && $models.length > 0) {
+	$: if ($models.length > 0 && selectedModels.length === 1 && !$models.some((m: any) => m.name === selectedModels[0])) {
 		const thirdParty = $models.find((m: any) => m.source === "third-party");
 		if (thirdParty) {
 			selectedModels = [thirdParty.name];
