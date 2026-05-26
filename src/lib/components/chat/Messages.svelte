@@ -466,35 +466,38 @@
 								{/if}
 							</div>
 						</div>
-						<div class="flex items-center gap-1 ml-13">
-							{#if message.timestamp}
-								<span class="text-xs text-gray-400 dark:text-gray-500"
-									>{formatTime(message.timestamp)}</span
-								>
-							{/if}
-							{#if !message.error}
-								<button
-									class="text-xs text-gray-400 hover:text-pink-500 dark:hover:text-pink-400 transition"
-									on:click={() => { editingMessageId = message.id; editContent = message.content; }}
-									title="编辑消息"
-								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-										<path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-									</svg>
-								</button>
-								<button
-									class="text-xs text-gray-400 hover:text-red-500 transition"
-									on:click={async () => {
-										await deleteMessage(message.id);
-										toast.success("消息已删除");
-									}}
-									title="删除消息"
-								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-										<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-									</svg>
-								</button>
-							{/if}
+						<div class="flex justify-start items-center gap-3">
+							<div class="w-10"></div>
+							<div class="flex items-center gap-1">
+								{#if message.timestamp}
+									<span class="text-xs text-gray-400 dark:text-gray-500"
+										>{formatTime(message.timestamp)}</span
+									>
+								{/if}
+								{#if !message.error}
+									<button
+										class="text-xs text-gray-400 hover:text-pink-500 dark:hover:text-pink-400 transition"
+										on:click={() => { editingMessageId = message.id; editContent = message.content; }}
+										title="编辑消息"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+											<path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+										</svg>
+									</button>
+									<button
+										class="text-xs text-gray-400 hover:text-red-500 transition"
+										on:click={async () => {
+											await deleteMessage(message.id);
+											toast.success("消息已删除");
+										}}
+										title="删除消息"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+											<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+										</svg>
+									</button>
+								{/if}
+							</div>
 						</div>
 					</div>
 				{:else}
@@ -522,22 +525,27 @@
 							</div>
 						</div>
 						{#if message.id === streamingMessage?.id && !message.done && !message.error}
-							<div class="flex items-center gap-1 ml-13 mb-2">
-								<span
-									class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
-									style="animation-delay: 0ms"
-								/>
-								<span
-									class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
-									style="animation-delay: 150ms"
-								/>
-								<span
-									class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
-									style="animation-delay: 300ms"
-								/>
+							<div class="flex justify-start items-center gap-3 mb-2">
+								<div class="w-10"></div>
+								<div class="flex items-center gap-1">
+									<span
+										class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
+										style="animation-delay: 0ms"
+									/>
+									<span
+										class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
+										style="animation-delay: 150ms"
+									/>
+									<span
+										class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
+										style="animation-delay: 300ms"
+									/>
+								</div>
 							</div>
 						{/if}
-						<div class="flex gap-2 ml-13 items-center flex-wrap">
+						<div class="flex justify-start items-center gap-3">
+							<div class="w-10"></div>
+							<div class="flex gap-2 items-center flex-wrap">
 							<span class="text-xs text-gray-500 dark:text-gray-400"
 								>{message.model || selectedModels?.[0] || "未知"}</span
 							>
@@ -662,6 +670,7 @@
 								>
 							{/if}
 						</div>
+					</div>
 					</div>
 				{/if}
 			</div>
