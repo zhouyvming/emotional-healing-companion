@@ -42,15 +42,20 @@ export async function POST({ request }) {
 		const auth = requireAuth(request);
 		const { providers } = await request.json();
 
-		await pool.execute("DELETE FROM api_providers WHERE username = ?", [auth.username]);
+		const conn = await pool.getConnection();
+		try {
+			await conn.execute("DELETE FROM api_providers WHERE username = ?", [auth.username]);
 
-		if (providers && Array.isArray(providers) && providers.length > 0) {
-			for (const p of providers) {
-				await pool.execute(
-					"INSERT INTO api_providers (id, username, name, base_url, api_key, models) VALUES (?, ?, ?, ?, ?, ?)",
-					[p.id, auth.username, p.name, p.baseUrl, p.apiKey, JSON.stringify(p.models ?? [])]
-				);
+			if (providers && Array.isArray(providers) && providers.length > 0) {
+				for (const p of providers) {
+					await conn.execute(
+						"INSERT INTO api_providers (id, username, name, base_url, api_key, models) VALUES (?, ?, ?, ?, ?, ?)",
+						[p.id, auth.username, p.name, p.baseUrl, p.apiKey, JSON.stringify(p.models ?? [])]
+					);
+				}
 			}
+		} finally {
+			conn.release();
 		}
 
 		return json({ success: true });

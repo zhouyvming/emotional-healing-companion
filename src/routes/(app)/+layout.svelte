@@ -125,13 +125,7 @@
 			if (providers.length > 0) {
 				localStorage.setItem("apiProviders", JSON.stringify(providers));
 			} else {
-				const local = JSON.parse(localStorage.getItem("apiProviders") ?? "[]");
-				if (local.length > 0) {
-					await api("/api/providers", {
-						method: "POST",
-						body: JSON.stringify({ providers: local })
-					});
-				}
+				localStorage.removeItem("apiProviders");
 			}
 		} catch {
 			/* network error, keep localStorage copy */
