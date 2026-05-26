@@ -22,6 +22,7 @@ pool
   password VARCHAR(255) NOT NULL,
   email VARCHAR(255) DEFAULT '',
   avatar LONGTEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_users_username (username)
 )`
 	)
@@ -38,6 +39,9 @@ pool.execute(`ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NOT NULL`).c
 
 // 为已有 users 表补充 settings 列（用户设置 JSON）
 pool.execute(`ALTER TABLE users ADD COLUMN settings JSON`).catch(() => {});
+
+// 为已有 users 表补充 created_at 列
+pool.execute(`ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
 
 pool
 	.execute(
