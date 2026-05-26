@@ -4,7 +4,7 @@
 	import { goto } from "$app/navigation";
 	import { openDB } from "idb";
 
-	import { info, showSettings, settings, models, db, chats, chatId, user } from "$lib/stores";
+	import { info, showSettings, settings, models, db, chats, chatId, user, moodHistory } from "$lib/stores";
 
 	import SettingsModal from "$lib/components/chat/SettingsModal.svelte";
 	import Sidebar from "$lib/components/layout/Sidebar.svelte";
@@ -149,6 +149,19 @@
 		}
 	};
 
+	const syncMoodHistory = async () => {
+		try {
+			const moods = await api("/api/user/mood-history");
+			if (moods.length > 0) {
+				moodHistory.set(moods);
+			} else {
+				moodHistory.set([]);
+			}
+		} catch {
+			/* network error, keep local copy */
+		}
+	};
+
 	const getDB = () => {
 		const refreshChats = async () => {
 			const data = await api(`/api/chats`);
@@ -265,6 +278,7 @@
 		await migrateFromIndexedDB();
 
 		await syncSettings();
+		await syncMoodHistory();
 
 		const savedUser = JSON.parse(localStorage.getItem("user") ?? "null");
 		await user.set(savedUser);

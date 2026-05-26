@@ -6,7 +6,7 @@
 	import auto_render from "katex/dist/contrib/auto-render.mjs";
 	import "katex/dist/katex.min.css";
 
-	import { chatId, db, user, settings } from "$lib/stores";
+	import { chatId, db, user, settings, moodHistory } from "$lib/stores";
 	import { tick, onDestroy } from "svelte";
 	import { copyToClipboard } from "$lib/chat/ollama";
 	import toast from "svelte-french-toast";
@@ -289,11 +289,17 @@
 				<button
 					class="text-xl hover:scale-125 transition-transform p-1"
 					title={mood.label}
-					on:click={() => {
+					on:click={async () => {
+						const date = new Date().toISOString().slice(0, 10);
 						toast.success(`已记录心情：${mood.emoji} ${mood.label}`);
-						const stored = JSON.parse(localStorage.getItem("moodHistory") ?? "[]");
-						stored.push({ date: new Date().toISOString().slice(0, 10), mood: mood.label, score: mood.score });
-						localStorage.setItem("moodHistory", JSON.stringify(stored));
+						const entry = { date, mood: mood.label, score: mood.score };
+						moodHistory.update((h) => [...h.filter((e) => e.date !== date), entry]);
+						const token = JSON.parse(localStorage.getItem("user") ?? "{}").token;
+						fetch("/api/user/mood-history", {
+							method: "POST",
+							headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+							body: JSON.stringify(entry)
+						}).catch(() => {});
 					}}
 				>
 					{mood.emoji}

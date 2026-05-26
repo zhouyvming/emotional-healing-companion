@@ -101,3 +101,18 @@ pool
 )`
 	)
 	.catch((err) => console.error("api_providers table init error:", err));
+
+pool
+	.execute(
+		`CREATE TABLE IF NOT EXISTS mood_history (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(255) NOT NULL,
+  mood_date DATE NOT NULL,
+  mood VARCHAR(50) NOT NULL,
+  score INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_mood_username (username),
+  UNIQUE KEY uk_user_date (username, mood_date)
+)`
+	)
+	.catch((err) => console.error("mood_history table init error:", err));
