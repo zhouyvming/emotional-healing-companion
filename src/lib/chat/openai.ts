@@ -163,6 +163,9 @@ export async function sendPromptOpenAI(
 			? `${systemPrompt}\n\n${emotionGuidance}`
 			: `你是一个温暖共情的AI助手。\n\n${emotionGuidance}`;
 	}
+	systemPrompt = systemPrompt
+		? `${systemPrompt}\n\n请使用Markdown格式输出你的回答，包括标题、列表、加粗、代码块等，让回答结构清晰易读。`
+		: "请使用Markdown格式输出你的回答，包括标题、列表、加粗、代码块等，让回答结构清晰易读。";
 
 	// 上下文自动压缩
 	const contextLimit = settings.num_ctx ?? 200000;

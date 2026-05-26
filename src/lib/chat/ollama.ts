@@ -232,6 +232,9 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				? `${systemPrompt}\n\n${getEmotionPrompt(userPrompt)}`
 				: getEmotionPrompt(userPrompt);
 		}
+		systemPrompt = systemPrompt
+			? `${systemPrompt}\n\n请使用Markdown格式输出你的回答，包括标题、列表、加粗、代码块等，让回答结构清晰易读。`
+			: "请使用Markdown格式输出你的回答，包括标题、列表、加粗、代码块等，让回答结构清晰易读。";
 
 		// 上下文自动压缩：超出 num_ctx 时截断最早的消息
 		const contextLimit = settings.num_ctx ?? 200000;
