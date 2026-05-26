@@ -69,16 +69,20 @@ export async function POST({ request }) {
 		}
 	}
 
-	if (action === "login") {
-		try {
-			const [rows] = await pool.execute<User[]>("SELECT * FROM users WHERE username = ?", [
-				username
-			]);
-			const user = rows[0];
+		if (action === "login") {
+			try {
+				const [rows] = await pool.execute<User[]>("SELECT * FROM users WHERE username = ?", [
+					username
+				]);
+				const user = rows[0];
 
-			if (!user || !(await verifyPassword(String(password), user.password))) {
-				return json({ error: "用户名或密码错误" }, { status: 401 });
-			}
+				if (!user) {
+					return json({ error: "用户未注册" }, { status: 401 });
+				}
+
+				if (!(await verifyPassword(String(password), user.password))) {
+					return json({ error: "密码错误" }, { status: 401 });
+				}
 
 			const token = signToken({ userId: user.id, username: user.username });
 
