@@ -406,9 +406,9 @@
 					<div class="flex flex-col items-start mb-4">
 						<div class="flex justify-start items-start gap-3">
 							{#if $user?.avatar}
-								<img src={$user.avatar} alt="用户" class="w-8 h-8 rounded-full object-cover" />
+								<img src={$user.avatar} alt="用户" class="w-10 h-10 rounded-full object-cover" />
 							{:else}
-								<img src="/user.png" alt="用户" class="w-8 h-8 rounded-full" />
+								<img src="/user.png" alt="用户" class="w-10 h-10 rounded-full" />
 							{/if}
 							<div
 								class="bg-blue-100 text-gray-800 rounded-lg py-2 px-4 max-w-[80%] w-fit [&_p]:m-0"
@@ -466,7 +466,7 @@
 								{/if}
 							</div>
 						</div>
-						<div class="flex items-center gap-1 ml-11">
+						<div class="flex items-center gap-1 ml-13">
 							{#if message.timestamp}
 								<span class="text-xs text-gray-400 dark:text-gray-500"
 									>{formatTime(message.timestamp)}</span
@@ -504,10 +504,10 @@
 								<img
 									src={$user.system_avatar}
 									alt="小愈"
-									class="w-8 h-8 rounded-full object-cover"
+									class="w-10 h-10 rounded-full object-cover"
 								/>
 							{:else}
-								<img src="/cat.png" alt="小愈" class="w-8 h-8 rounded-full" />
+								<img src="/cat.png" alt="小愈" class="w-10 h-10 rounded-full" />
 							{/if}
 							<div
 								class="bg-gray-200 dark:bg-gray-700 rounded-lg py-2 px-4 max-w-[80%] break-words [&_p]:m-0 chat-assistant"
@@ -522,7 +522,7 @@
 							</div>
 						</div>
 						{#if message.id === streamingMessage?.id && !message.done && !message.error}
-							<div class="flex items-center gap-1 ml-11 mb-2">
+							<div class="flex items-center gap-1 ml-13 mb-2">
 								<span
 									class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
 									style="animation-delay: 0ms"
@@ -537,7 +537,7 @@
 								/>
 							</div>
 						{/if}
-						<div class="flex gap-2 ml-11 items-center flex-wrap">
+						<div class="flex gap-2 ml-13 items-center flex-wrap">
 							<span class="text-xs text-gray-500 dark:text-gray-400"
 								>{message.model || selectedModels?.[0] || "未知"}</span
 							>
