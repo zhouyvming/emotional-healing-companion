@@ -457,7 +457,7 @@
 										>
 									</div>
 								{:else}
-									{@html sanitizeHtml(marked(message.content))}
+									{@html sanitizeHtml(message.content)}
 								{/if}
 							</div>
 							{#if $user?.avatar}
