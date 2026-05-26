@@ -81,7 +81,7 @@ export async function POST({ request }) {
 				}
 
 				if (!(await verifyPassword(String(password), user.password))) {
-					return json({ error: "密码错误" }, { status: 401 });
+					return json({ error: "用户名或密码错误" }, { status: 401 });
 				}
 
 			const token = signToken({ userId: user.id, username: user.username });
