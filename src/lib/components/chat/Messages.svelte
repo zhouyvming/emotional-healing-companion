@@ -466,7 +466,7 @@
 								{/if}
 							</div>
 						</div>
-						<div class="flex items-center gap-1">
+						<div class="flex items-center gap-1 ml-11">
 							{#if message.timestamp}
 								<span class="text-xs text-gray-400 dark:text-gray-500"
 									>{formatTime(message.timestamp)}</span
