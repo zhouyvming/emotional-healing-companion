@@ -1,6 +1,7 @@
 import { json } from "@sveltejs/kit";
 import { pool } from "$lib/server/db";
 import { hashPassword, verifyPassword, signToken } from "$lib/server/auth";
+import { datetimeNow } from "$lib/utils";
 import type { RowDataPacket } from "mysql2/promise";
 
 const registerAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -54,10 +55,11 @@ export async function POST({ request }) {
 
 			const hashedPassword = await hashPassword(String(password));
 
-			await pool.execute("INSERT INTO users (username, password, email) VALUES (?, ?, ?)", [
+			await pool.execute("INSERT INTO users (username, password, email, created_at) VALUES (?, ?, ?, ?)", [
 				username,
 				hashedPassword,
-				email
+				email,
+				datetimeNow()
 			]);
 
 			return json({ success: true });
