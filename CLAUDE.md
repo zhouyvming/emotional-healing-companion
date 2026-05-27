@@ -211,15 +211,6 @@ Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 中同
 | `uuid`                              | 消息 ID / 会话 ID 生成                         |
 | `idb`                               | IndexedDB 操作（仅用于旧数据迁移）             |
 
-## 当前已安装模型
-
-| 模型                        | 大小  | 系列  | 参数量 | 量化   |
-| --------------------------- | ----- | ----- | ------ | ------ |
-| `qwen3:0.6b`                | 0.5GB | qwen3 | 752M   | Q4_K_M |
-| `qwen_data2_3000:latest`    | 3.7GB | qwen  | 1.8B   | F16    |
-| `qwen_data2_3000_q4:latest` | 1.1GB | qwen  | 1.8B   | Q4_0   |
-| `qwen_3100_q4:latest`       | 1.1GB | qwen  | 1.8B   | Q4_0   |
-
 ## 相关文档
 
 - [系统后期优化改进（第一轮）](./系统后期优化改进.md) — 基于 Open WebUI/Lobe Chat/ChatGPT/Claude/Gemini 对标分析
