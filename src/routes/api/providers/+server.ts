@@ -44,6 +44,7 @@ export async function POST({ request }) {
 
 		const conn = await pool.getConnection();
 		try {
+			await conn.beginTransaction();
 			await conn.execute("DELETE FROM api_providers WHERE username = ?", [auth.username]);
 
 			if (providers && Array.isArray(providers) && providers.length > 0) {
@@ -54,6 +55,10 @@ export async function POST({ request }) {
 					);
 				}
 			}
+			await conn.commit();
+		} catch (error) {
+			await conn.rollback();
+			throw error;
 		} finally {
 			conn.release();
 		}

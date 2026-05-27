@@ -10,10 +10,16 @@ export interface ApiProvider {
 	models: { id: string; name: string }[];
 }
 
+type OpenAIContent =
+	| string
+	| (
+			| { type: "text"; text: string }
+			| { type: "image_url"; image_url: { url: string } }
+	  )[];
+
 interface OpenAIMessage {
 	role: string;
-	content: string;
-	images?: string[];
+	content: OpenAIContent;
 }
 
 interface ChatContext {
@@ -28,6 +34,22 @@ interface ChatContext {
 	chats: Writable<any[]>;
 	chatId: Writable<string>;
 	notifyUpdate: () => void;
+}
+
+function isVisionModel(model: string) {
+	const name = model.toLowerCase();
+	return (
+		name.includes("vision") ||
+		name.includes("vl") ||
+		name.includes("gpt-4o") ||
+		name.includes("gemini") ||
+		name.includes("qwen-vl")
+	);
+}
+
+function contentLength(content: OpenAIContent) {
+	if (typeof content === "string") return content.length;
+	return content.reduce((sum, part) => sum + (part.type === "text" ? part.text.length : 0), 0);
 }
 
 // 获取所有配置的第三方提供商
@@ -135,12 +157,13 @@ export async function sendPromptOpenAI(
 	await tick();
 	window.scrollTo({ top: document.body.scrollHeight });
 
+	const supportsImages = isVisionModel(model);
 	// 构建 OpenAI 格式消息
-	let apiMessages: OpenAIMessage[] = messages.map((msg: any) => ({
-		role: msg.role,
-		content: msg.content,
-		...(msg.images?.length
-			? {
+	let apiMessages: OpenAIMessage[] = messages.map((msg: any) => {
+		if (msg.images?.length) {
+			if (supportsImages) {
+				return {
+					role: msg.role,
 					content: [
 						{ type: "text", text: msg.content },
 						...msg.images.map((img: string) => ({
@@ -148,9 +171,15 @@ export async function sendPromptOpenAI(
 							image_url: { url: img.includes(",") ? img : `data:image/jpeg;base64,${img}` }
 						}))
 					]
-			  }
-			: {})
-	}));
+				};
+			}
+			return {
+				role: msg.role,
+				content: `${msg.content}\n\n[用户上传了 ${msg.images.length} 张图片，但当前第三方模型可能不支持视觉输入。]`
+			};
+		}
+		return { role: msg.role, content: msg.content };
+	});
 
 	// 注入 system prompt（含情绪感知）
 	let systemPrompt = settings.systemPrompt ?? "";
@@ -170,15 +199,14 @@ export async function sendPromptOpenAI(
 
 	// 上下文自动压缩
 	const contextLimit = settings.num_ctx ?? 200000;
-	let totalChars = apiMessages.reduce((sum, m) => sum + (typeof m.content === "string" ? m.content.length : 0), 0);
+	let totalChars = apiMessages.reduce((sum, m) => sum + contentLength(m.content), 0);
 	if (systemPrompt) totalChars += systemPrompt.length;
 	const estimatedTokens = Math.ceil(totalChars / 2);
 	if (estimatedTokens > contextLimit) {
 		let keepFrom = 0;
 		let runningChars = 0;
 		for (let i = apiMessages.length - 1; i >= 0; i--) {
-			const c = apiMessages[i].content;
-			runningChars += typeof c === "string" ? c.length : 0;
+			runningChars += contentLength(apiMessages[i].content);
 			if (Math.ceil(runningChars / 2) > contextLimit * 0.85) {
 				keepFrom = i + 1;
 				break;

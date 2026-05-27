@@ -324,7 +324,7 @@
 			}
 		}
 
-		saveSettings(updated);
+		await saveSettings(updated);
 
 		// 同步设置到服务端（跨浏览器）
 		authFetch("/api/user/settings", {

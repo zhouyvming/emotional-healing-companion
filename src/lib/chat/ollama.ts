@@ -55,6 +55,41 @@ function getEmotionPrompt(latestUserMessage: string): string {
 如果用户情绪低落，优先倾听和共情，不要急于给建议。`;
 }
 
+async function buildWebSearchContext(userPrompt: string, settings: Record<string, any>) {
+	if (!settings.webSearch) return "";
+
+	try {
+		const user = JSON.parse(localStorage.getItem("user") ?? "{}");
+		const token = user.token;
+		const headers: Record<string, string> = { "Content-Type": "application/json" };
+		if (token) headers.Authorization = `Bearer ${token}`;
+
+		const res = await fetch("/api/web-search", {
+			method: "POST",
+			headers,
+			body: JSON.stringify({
+				query: userPrompt,
+				engine: settings.searchEngine ?? "cn.bing.com",
+				customUrl: settings.customSearchUrl ?? ""
+			})
+		});
+
+		if (!res.ok) return "";
+		const data = await res.json();
+		const results = Array.isArray(data.results) ? data.results.slice(0, 5) : [];
+		if (results.length === 0) return "";
+
+		return results
+			.map(
+				(result: any, index: number) =>
+					`${index + 1}. ${result.title}\n摘要：${result.snippet}\n链接：${result.url}`
+			)
+			.join("\n\n");
+	} catch {
+		return "";
+	}
+}
+
 interface ChatContext {
 	messages: Message[];
 	history: History;
@@ -558,6 +593,11 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		setTimeout(() => {
 			window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 		}, 50);
+
+		const webSearchContext = await buildWebSearchContext(userPrompt, settings);
+		if (webSearchContext) {
+			finalPrompt = `${finalPrompt}\n\n[联网搜索结果，仅供回答时参考，不代表本地对话历史]\n${webSearchContext}`;
+		}
 
 		await sendPrompt(finalPrompt, userMessageId, chatId, onTitleSet);
 	};

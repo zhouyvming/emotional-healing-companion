@@ -35,6 +35,10 @@ export async function POST({ request }) {
 		}
 
 		try {
+			if (String(password ?? "").length < 6) {
+				return json({ error: "密码至少需要6个字符" }, { status: 400 });
+			}
+
 			const [existingUsers] = await pool.execute<User[]>(
 				"SELECT username FROM users WHERE username = ?",
 				[username]

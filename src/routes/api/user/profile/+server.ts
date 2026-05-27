@@ -26,6 +26,9 @@ export async function PUT({ request }) {
 			if (!oldPassword) {
 				return json({ error: "请输入当前密码" }, { status: 400 });
 			}
+			if (String(newPassword).length < 6) {
+				return json({ error: "密码至少需要6个字符" }, { status: 400 });
+			}
 
 			const [pwdRows] = await pool.execute<User[]>(
 				"SELECT password FROM users WHERE username = ?",
@@ -104,6 +107,22 @@ export async function PUT({ request }) {
 				// 如果用户名变更，同步更新 chats 表中的 username
 				if (usernameChanged && newUsername) {
 					await pool.execute("UPDATE chats SET username = ? WHERE username = ?", [
+						newUsername,
+						username
+					]);
+					await pool.execute("UPDATE api_providers SET username = ? WHERE username = ?", [
+						newUsername,
+						username
+					]);
+					await pool.execute("UPDATE mood_history SET username = ? WHERE username = ?", [
+						newUsername,
+						username
+					]);
+					await pool.execute("UPDATE advice_table SET username = ? WHERE username = ?", [
+						newUsername,
+						username
+					]);
+					await pool.execute("UPDATE feedback_table SET username = ? WHERE username = ?", [
 						newUsername,
 						username
 					]);
