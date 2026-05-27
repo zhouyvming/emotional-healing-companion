@@ -210,9 +210,3 @@ Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 中同
 | `tippy.js`                          | 消息 info tooltip（token/s 等流式指标）        |
 | `uuid`                              | 消息 ID / 会话 ID 生成                         |
 | `idb`                               | IndexedDB 操作（仅用于旧数据迁移）             |
-
-## 相关文档
-
-- [系统后期优化改进（第一轮）](./系统后期优化改进.md) — 基于 Open WebUI/Lobe Chat/ChatGPT/Claude/Gemini 对标分析
-- [系统后期优化改进 2（第二轮）](./系统后期优化改进2.md) — 基于 Kimi/豆包/通义千问/文心一言等行业产品对标分析
-- [系统后期优化改进 3（第三轮）](./系统后期优化改进3.md) — 基于前两轮 + 最新代码审查，聚焦情感陪伴核心能力
