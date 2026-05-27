@@ -41,9 +41,11 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 
 **Context compression**: Before sending to any model, total character count is estimated (chars/2 ≈ tokens). If exceeding `num_ctx * 0.85` (default 200K), oldest messages are truncated. A system note `[对话上下文已压缩：早期 N 条消息已省略]` is inserted. Local history is NOT modified.
 
-**Third-party models**: receive raw user input + configured system prompt only. No web search, URL fetching, or date injection.
+**Web search injection**: if `settings.webSearch` is true, `submitPrompt()` calls `/api/web-search` before model dispatch and appends a `[联网搜索结果...]` block to the request-only `finalPrompt`. This context is NOT written into local history.
 
-**Ollama models**: receive user input + system prompt (persona + emotion sensing). No web search or URL fetching.
+**Third-party models**: receive request-only user input + configured system prompt; if web search is enabled, the request-only input may include the search result block. Image uploads are sent as OpenAI vision content only for likely vision-capable models; otherwise they degrade to a text note.
+
+**Ollama models**: receive request-only user input + system prompt (persona + emotion sensing); if web search is enabled, the request-only input may include the search result block.
 
 **Abort mechanism**: `abortRefs` array (index-based, per-model) + `stopRef` boolean. `stopResponse()` sets `stopRef = true` and aborts all controllers in `abortRefs`.
 
@@ -53,7 +55,7 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 
 Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_providers` table for cross-browser support). Models named as `提供商名/模型ID` (provider-name/model-id). `sendPrompt` auto-routes: Ollama models → `sendPromptOllama`, third-party → `sendPromptOpenAI` via `findProvider()` matching by model name prefix.
 
-**Provider sync**: `(app)/+layout.svelte` runs `syncProviders()` on load — fetches providers from `/api/providers` and writes to localStorage. If API returns empty but localStorage has data, uploads to API. SettingsModal saves to both localStorage and API simultaneously.
+**Provider sync**: `(app)/+layout.svelte` runs `syncProviders()` on load — fetches providers from `/api/providers` and writes to localStorage. SettingsModal saves to both localStorage and API simultaneously. `/api/providers` POST uses a transaction around delete+insert to avoid losing providers on partial failure.
 
 **Default model**: New sessions default to first third-party model if any exist, then fall back to first Ollama model (`ModelSelector.svelte`). User can manually set a default via the settings panel "设为默认" button, which persists to `localStorage.settings.models` and takes priority over auto-selection. The compact model selector in the chat input no longer auto-saves on change.
 
@@ -62,11 +64,12 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 - JWT secret overridable via `JWT_SECRET` env var. All API routes use `requireAuth()`.
 - Client-side `authFetch` auto-attaches Bearer token and redirects to `/login` on 401.
 - Registration rate-limited: 5 per minute per IP (in-memory Map).
-- Password minimum 6 characters.
+- Password minimum 6 characters, enforced by both UI and server routes (`/api/auth`, `/api/user/profile`).
 - Open Redirect protection: rejects `//evil.com` protocol-relative URLs.
 - XSS: DOMPurify sanitizes all AI output before `{@html}` rendering.
 - SSRF: `fetch-url` uses `redirect: manual`, `web-search` checks custom URLs via shared `isPrivateUrl()`.
 - TOCTOU: `chats/[id]` PUT statement includes `AND username = ?`.
+- Username changes sync ownership across `chats`, `api_providers`, `mood_history`, `advice_table`, and `feedback_table`, then issue a fresh token.
 
 ## References
 
@@ -80,5 +83,7 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 **Timestamp alignment**: Instead of manual `ml-13` (52px = 40px avatar + 12px gap), timestamp rows use a flex spacer pattern — `<div class="flex justify-start items-center gap-3"><div class="w-10"></div><div class="flex items-center gap-1">...</div></div>` — identical flex structure to the avatar+bubble row, guaranteeing alignment without fragile margin calculations.
 
 **Markdown output**: Both `ollama.ts` and `openai.ts` system prompts now always include a hardcoded Markdown formatting instruction (independent of user-defined system prompt or emotion sensing toggle). The rendering pipeline (`marked` → `DOMPurify` → `{@html}`) handles both Ollama and third-party API outputs identically.
+
+**P0/P1 fixes**: `svelte.config.js` now uses `@sveltejs/adapter-node` to match `node build`. Web search is wired into chat requests. Provider saves are transactional. Settings save awaits store/localStorage update before remote sync. Server-side password length validation is enforced. Username changes sync all username-owned tables. OpenAI-compatible image messages use typed vision content when appropriate and degrade to text for non-vision models.
 
 **Edit safety**: When modifying HTML nesting in Svelte files, prefer self-contained edits where opening+closing tags balance within the replaced string. Avoid splitting edits across separate old/new pairs that touch overlapping regions — this pattern causes hard-to-debug nesting errors (multiple occurrences of `</div>\n</div>` in the file, etc.). Build with full output (not `tail -3`) to catch Svelte parse errors.

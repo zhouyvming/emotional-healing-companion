@@ -43,14 +43,14 @@ src/routes/
 ├── favicon.ico/+server.ts                  # favicon 静默返回 204
 ├── .well-known/[...path]/+server.ts        # Chrome DevTools 探测请求静默处理（返回 204）
 └── api/
-    ├── auth/+server.ts                     # POST 登录/注册（bcryptjs + JWT，注册速率限制 5次/分钟/IP）
-    ├── user/profile/+server.ts             # PUT 用户资料（用户名改时同步chats+签发新token）
+    ├── auth/+server.ts                     # POST 登录/注册（bcryptjs + JWT，注册速率限制 5次/分钟/IP，服务端密码最短6位）
+    ├── user/profile/+server.ts             # PUT 用户资料（用户名改时同步所有username归属表+签发新token）
     ├── chats/+server.ts                    # GET(分页)/POST(创建/更新)/DELETE(全部) 聊天
     ├── chats/[id]/+server.ts              # GET/PUT/DELETE 单条聊天（PUT 含 AND username = ? 防 TOCTOU）
     ├── advice_table/+server.ts             # POST 提交建议
     ├── feedback_table/+server.ts           # POST 提交反馈
     ├── fetch-url/+server.ts               # POST 抓取网页文本（redirect: manual 防 SSRF 重定向，1MB 上限）
-    ├── providers/+server.ts               # GET(按用户列表)/POST(全量保存) API 提供商配置（跨浏览器同步）
+    ├── providers/+server.ts               # GET(按用户列表)/POST(事务式全量保存) API 提供商配置（跨浏览器同步）
     └── web-search/+server.ts              # POST 联网搜索（Bing/百度/DDG 多引擎，isPrivateUrl 防 SSRF）
 ```
 
@@ -86,7 +86,9 @@ src/routes/
 
 **密码迁移脚本**：`scripts/migrate-passwords.ts` 用于将旧密码迁移为 bcryptjs 格式。注意：未迁移的旧密码可能是明文。
 
-**API 提供商配置**：第三方 API 提供商（名称/URL/Key/模型列表）存储在 `localStorage.apiProviders`，设置面板「API」标签管理。**已实现 MySQL `api_providers` 表跨浏览器同步**：`+layout.svelte` 启动时调用 `syncProviders()` 双向同步（API→localStorage 或 localStorage→API），`SettingsModal.svelte` 保存时同时写 localStorage 和 POST `/api/providers`。
+**API 提供商配置**：第三方 API 提供商（名称/URL/Key/模型列表）存储在 `localStorage.apiProviders`，设置面板「API」标签管理。**已实现 MySQL `api_providers` 表跨浏览器同步**：`+layout.svelte` 启动时调用 `syncProviders()` 同步 API→localStorage，`SettingsModal.svelte` 保存时同时写 localStorage 和 POST `/api/providers`。`/api/providers` POST 使用事务包裹 delete+insert，避免部分失败导致配置丢失。
+
+**用户名变更同步**：`user/profile` 改名时同步 `chats`、`api_providers`、`mood_history`、`advice_table`、`feedback_table` 的 `username` 字段，并签发新 token。新增 username 归属表时必须补充此同步逻辑，除非表已经迁移到 `user_id`。
 
 ## 状态管理 (`src/lib/stores/index.ts`)
 
@@ -106,8 +108,8 @@ src/routes/
 
 | 文件                     | 内容                                                                                                                                                                                                                          |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama，AbortController 真正取消）、`sendPrompt`（顺序路由 Ollama/OpenAI，非并发）、`submitPrompt`（文件提取）、`generateChatTitle`、`stopResponse`（abortRefs 数组 + stopRef）、`regenerateResponse`、`editMessage`、`deleteMessage`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。 |
-| `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式，120s 超时 + 60s stream 读取超时）、`findProvider`、`getThirdPartyModels`、`fetchModels`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。第三方模型仅发送原始用户输入 + system prompt。                          |
+| `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama，AbortController 真正取消）、`sendPrompt`（顺序路由 Ollama/OpenAI，非并发）、`submitPrompt`（文件提取 + 联网搜索结果注入到本次请求）、`generateChatTitle`、`stopResponse`（abortRefs 数组 + stopRef）、`regenerateResponse`、`editMessage`、`deleteMessage`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。 |
+| `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式，120s 超时 + 60s stream 读取超时）、`findProvider`、`getThirdPartyModels`、`fetchModels`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。第三方模型接收本次请求输入 + system prompt；图片对可能支持视觉的模型使用 OpenAI vision content，否则降级为文本说明。                          |
 | `src/lib/server/auth.ts` | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                            |
 | `src/lib/server/db.ts`   | MySQL 连接池 + 4 张表 DDL + 列迁移（avatar/system_avatar/timestamp DATETIME）。支持环境变量配置                                                                                                                               |
 | `src/lib/client/http.ts` | `authFetch`（自动附加 JWT Bearer，401 清除登录态并跳转，Content-Type 仅未设置时覆盖）、`getToken`、`getCurrentUser`                                                                                                            |
@@ -127,6 +129,8 @@ src/routes/
 ## 聊天引擎核心设计
 
 **消息路由**：`sendPrompt` 识别模型类型（含 `/` 为第三方），路由到 `sendPromptOpenAI` 或 `sendPromptOllama`。模型调用已改为**顺序执行**（for...of），避免并发 history 写入竞态。
+
+**联网搜索注入**：如果 `settings.webSearch` 为 true，`submitPrompt()` 在模型调用前请求 `/api/web-search`，把前 5 条结果拼成 `[联网搜索结果，仅供回答时参考，不代表本地对话历史]` 附加到 `finalPrompt`。该内容仅用于本次请求，不写入 `history.messages[userMessageId].content`。
 
 **上下文自动压缩**：发送前估算 tokens（字符数/2），超出 `num_ctx × 0.85`（默认 200K）时截断最早消息，注入 `[对话上下文已压缩：早期 N 条消息已省略]`。本地 history 不受影响。
 
@@ -151,7 +155,8 @@ src/routes/
 ```
 
 - `findProvider()` 通过模型名前缀匹配（`提供商名/模型ID` 格式）自动路由
-- 第三方模型仅发送**原始用户输入** + 用户设定的 system prompt，不做额外处理
+- 第三方模型发送**本次请求输入** + 用户设定的 system prompt；联网搜索结果如果启用会随本次请求输入附加，但不写入历史
+- 第三方模型图片输入：可能支持视觉的模型使用 OpenAI `image_url` content；其他模型降级为文本提示，避免非视觉 API 报错
 
 ## 聊天消息数据模型
 
@@ -190,7 +195,7 @@ Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 中同
 - **XSS**：DOMPurify 净化所有 `{@html}` 渲染的 AI 输出
 - **TOCTOU**：`chats/[id]` PUT 语句含 `AND username = ?`
 - **速率限制**：注册 5次/分钟/IP（内存 Map）
-- **密码**：最短 6 位
+- **密码**：最短 6 位，前端和服务端注册/改密接口均校验
 - **参数化查询**：所有 SQL 用 `?` 占位符
 
 ## 关键依赖
