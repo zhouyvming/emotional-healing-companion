@@ -4,6 +4,7 @@
 
 	import { settings, db, chats, chatId, sidebarOpen } from "$lib/stores";
 	import { createChatHandlers } from "$lib/chat/ollama";
+	import type { UploadingFile } from "$lib/client/fileParser";
 
 	import MessageInput from "$lib/components/chat/MessageInput.svelte";
 	import Messages from "$lib/components/chat/Messages.svelte";
@@ -19,7 +20,7 @@
 	let selectedModels = [""];
 	let title = "";
 	let prompt = "";
-	let uploadingFiles: { name: string; data: string; type: string }[] = [];
+	let uploadingFiles: UploadingFile[] = [];
 
 	let messages: any[] = [];
 	let history: any = {
@@ -161,26 +162,26 @@
 				regenerateResponse={wrappedRegenerate}
 				editMessage={wrappedEdit}
 				deleteMessage={wrappedDelete}
-			onBranchNavigate={async () => {
-				if (!$settings.privacyMode && $db) {
-					await $db.updateChatById($chatId, { messages, history });
-				}
-			}}
+				onBranchNavigate={async () => {
+					if (!$settings.privacyMode && $db) {
+						await $db.updateChatById($chatId, { messages, history });
+					}
+				}}
 			/>
 		</div>
 
 		{#if messages.length > 0}
-		<div class="px-3 md:px-0 pb-2">
-		<MessageInput
-			bind:prompt
-			bind:autoScroll
-			{messages}
-			bind:selectedModels
-			bind:uploadingFiles
-			submitPrompt={wrappedSubmit}
-			{stopResponse}
-		/>
-		</div>
+			<div class="px-3 md:px-0 pb-2">
+				<MessageInput
+					bind:prompt
+					bind:autoScroll
+					{messages}
+					bind:selectedModels
+					bind:uploadingFiles
+					submitPrompt={wrappedSubmit}
+					{stopResponse}
+				/>
+			</div>
 		{/if}
 	</div>
 </div>

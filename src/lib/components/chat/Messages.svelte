@@ -12,13 +12,63 @@
 	import toast from "svelte-french-toast";
 	import DOMPurify from "dompurify";
 	import ModelSelector from "./ModelSelector.svelte";
+	import {
+		ensureFilesParsed,
+		isImageFile,
+		parseUploadedFile,
+		type UploadingFile
+	} from "$lib/client/fileParser";
 
 	const purifyConfig = {
-		ALLOWED_TAGS: ["a", "b", "br", "code", "div", "em", "h1", "h2", "h3", "h4", "h5", "h6",
-			"hr", "i", "img", "li", "ol", "p", "pre", "span", "strong", "table", "tbody",
-			"td", "th", "thead", "tr", "ul", "blockquote", "sup", "sub", "del", "input", "math",
-			"semantics", "mrow", "mi", "mo", "mn", "msup", "mfrac", "msqrt", "munder", "mover",
-			"mtable", "mtr", "mtd"],
+		ALLOWED_TAGS: [
+			"a",
+			"b",
+			"br",
+			"code",
+			"div",
+			"em",
+			"h1",
+			"h2",
+			"h3",
+			"h4",
+			"h5",
+			"h6",
+			"hr",
+			"i",
+			"img",
+			"li",
+			"ol",
+			"p",
+			"pre",
+			"span",
+			"strong",
+			"table",
+			"tbody",
+			"td",
+			"th",
+			"thead",
+			"tr",
+			"ul",
+			"blockquote",
+			"sup",
+			"sub",
+			"del",
+			"input",
+			"math",
+			"semantics",
+			"mrow",
+			"mi",
+			"mo",
+			"mn",
+			"msup",
+			"mfrac",
+			"msqrt",
+			"munder",
+			"mover",
+			"mtable",
+			"mtr",
+			"mtd"
+		],
 		ALLOWED_ATTR: ["href", "target", "class", "id", "style", "checked", "type", "disabled"],
 		ALLOW_DATA_ATTR: false
 	};
@@ -28,7 +78,7 @@
 	export let autoScroll;
 	export let selectedModels;
 	export let prompt = "";
-	export let uploadingFiles: { name: string; data: string; type: string }[] = [];
+	export let uploadingFiles: UploadingFile[] = [];
 	export let history: any = {};
 	export let messages: any[] = [];
 	export let onBranchNavigate: () => Promise<void> = async () => {};
@@ -162,11 +212,11 @@
 			synth.cancel();
 			return;
 		}
-		const div = document.createElement('div');
+		const div = document.createElement("div");
 		div.innerHTML = text;
-		const plainText = div.textContent || '';
+		const plainText = div.textContent || "";
 		const utterance = new SpeechSynthesisUtterance(plainText.slice(0, 2000));
-		utterance.lang = 'zh-CN';
+		utterance.lang = "zh-CN";
 		utterance.rate = 1.0;
 		synth.speak(utterance);
 	};
@@ -259,21 +309,47 @@
 
 	$: streamingMessage = messages.find((m: any) => m.role === "assistant" && !m.done && !m.error);
 	$: canSend = prompt.trim() !== "" || uploadingFiles.length > 0;
-	$: sendBtnClass = `px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1 ${canSend ? 'bg-pink-500 text-white hover:bg-pink-600' : 'text-gray-400 bg-gray-100 dark:bg-gray-800 dark:text-gray-500'}`;
+	$: sendBtnClass = `px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1 ${
+		canSend
+			? "bg-pink-500 text-white hover:bg-pink-600"
+			: "text-gray-400 bg-gray-100 dark:bg-gray-800 dark:text-gray-500"
+	}`;
 
-	function handleWelcomeSend() {
-		if (canSend) { submitPrompt(prompt.trim()); }
+	async function handleWelcomeSend() {
+		if (!canSend) return;
+		uploadingFiles = await ensureFilesParsed(uploadingFiles);
+		await submitPrompt(prompt.trim());
 	}
+
+	function updateWelcomeParsedFile(index: number, parsed: UploadingFile) {
+		uploadingFiles = uploadingFiles.map((item, i) => (i === index ? parsed : item));
+	}
+
 	function handleWelcomeFile(e: Event) {
 		const target = e.target as HTMLInputElement;
 		const files = target.files;
 		if (!files) return;
 		for (const file of files) {
-			if (file.size > 10 * 1024 * 1024) { toast.error("文件过大（最大 10MB）"); continue; }
+			if (file.size > 10 * 1024 * 1024) {
+				toast.error("文件过大（最大 10MB）");
+				continue;
+			}
+			toast("正在上传文件");
 			const reader = new FileReader();
-			reader.onload = () => uploadingFiles = [...uploadingFiles, {
-				name: file.name, data: reader.result as string, type: file.type
-			}];
+			reader.onload = async () => {
+				const uploadedFile: UploadingFile = {
+					name: file.name,
+					data: reader.result as string,
+					type: file.type,
+					parseStatus: file.type.startsWith("image/") ? "done" : "pending"
+				};
+				uploadingFiles = [...uploadingFiles, uploadedFile];
+				const fileIndex = uploadingFiles.length - 1;
+				toast.success("已上传文件");
+				if (!isImageFile(uploadedFile)) {
+					updateWelcomeParsedFile(fileIndex, await parseUploadedFile(uploadedFile));
+				}
+			};
 			reader.readAsDataURL(file);
 		}
 		target.value = "";
@@ -309,21 +385,39 @@
 
 		<!-- 输入框（DeepSeek 风格，居中） -->
 		<div class="w-full max-w-2xl mb-6">
-			<div class="bg-white dark:bg-[#1e1e1e] rounded-2xl border border-gray-200 dark:border-gray-700 focus-within:border-pink-400 transition-colors shadow-sm">
+			<div
+				class="bg-white dark:bg-[#1e1e1e] rounded-2xl border border-gray-200 dark:border-gray-700 focus-within:border-pink-400 transition-colors shadow-sm"
+			>
 				<!-- 上传文件预览 -->
 				{#if uploadingFiles.length > 0}
 					<div class="flex flex-wrap gap-2 px-4 pt-3">
 						{#each uploadingFiles as file, i}
 							<div class="relative group">
 								{#if file.type.startsWith("image/")}
-									<img src={file.data} alt={file.name} class="h-14 w-14 object-cover rounded-lg border" />
+									<img
+										src={file.data}
+										alt={file.name}
+										class="h-14 w-14 object-cover rounded-lg border"
+									/>
 								{:else}
-									<div class="h-14 flex items-center px-3 bg-gray-100 dark:bg-gray-800 rounded-lg border text-xs text-gray-500 truncate max-w-[100px]">{file.name}</div>
+									<div
+										class="h-14 flex flex-col justify-center px-3 bg-gray-100 dark:bg-gray-800 rounded-lg border text-xs text-gray-500 max-w-[120px]"
+									>
+										<span class="truncate">{file.name}</span>
+										{#if file.parseStatus === "pending"}
+											<span class="text-[10px] text-pink-500 mt-0.5">解析中</span>
+										{:else if file.parseStatus === "done" && file.text}
+											<span class="text-[10px] text-green-500 mt-0.5">已解析</span>
+										{:else if file.parseStatus === "error"}
+											<span class="text-[10px] text-red-500 mt-0.5">解析失败</span>
+										{/if}
+									</div>
 								{/if}
 								<button
 									class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
 									on:click={() => (uploadingFiles = uploadingFiles.filter((_, j) => j !== i))}
-								>×</button>
+									>×</button
+								>
 							</div>
 						{/each}
 					</div>
@@ -337,28 +431,58 @@
 					on:keydown={(e) => {
 						if (e.key === "Enter" && !e.shiftKey) {
 							e.preventDefault();
-							if (prompt.trim()) { submitPrompt(prompt.trim()); }
+							handleWelcomeSend();
 						}
 					}}
 				/>
 				<div class="flex items-center justify-between px-3 pb-2">
 					<div class="flex items-center gap-1">
-						<button class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition" title="上传文件"
+						<button
+							class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition"
+							title="上传文件"
 							on:click={() => document.getElementById("msg-upload")?.click()}
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
-								stroke="currentColor" stroke-width="2">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="w-5 h-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+								/></svg
+							>
 						</button>
-						<input type="file" id="msg-upload" accept="image/*,.txt,.pdf,.doc,.docx" multiple class="hidden"
+						<input
+							type="file"
+							id="msg-upload"
+							accept="image/*,.txt,.md,.csv,.pdf,.doc,.docx,.xls,.xlsx,.pptx"
+							multiple
+							class="hidden"
 							on:change={handleWelcomeFile}
 						/>
-						<button class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition" title="语音输入"
+						<button
+							class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition"
+							title="语音输入"
 							on:click={() => toast("语音输入请使用底部输入框")}
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+								class="w-5 h-5"
+							>
 								<path d="M7 4a3 3 0 016 0v4a3 3 0 01-6 0V4z" />
-								<path fill-rule="evenodd" d="M5.5 9.643a.75.75 0 00-1.5 0c0 3.147 2.626 5.75 5.925 5.986a.375.375 0 01.15.728A6.252 6.252 0 004.75 10a.75.75 0 00-1.5 0 7.75 7.75 0 005.5 7.448V18.5h-2a.75.75 0 000 1.5h5a.75.75 0 000-1.5h-2v-1.052a7.749 7.749 0 005.5-7.448.75.75 0 00-1.5 0A6.25 6.25 0 017.5 15.75a.375.375 0 01-.15-.728c3.299-.236 5.925-2.84 5.925-5.986a.75.75 0 00-1.5 0C11.775 12.687 9.197 15 10 15A4.75 4.75 0 015.5 9.643z" clip-rule="evenodd"/></svg>
+								<path
+									fill-rule="evenodd"
+									d="M5.5 9.643a.75.75 0 00-1.5 0c0 3.147 2.626 5.75 5.925 5.986a.375.375 0 01.15.728A6.252 6.252 0 004.75 10a.75.75 0 00-1.5 0 7.75 7.75 0 005.5 7.448V18.5h-2a.75.75 0 000 1.5h5a.75.75 0 000-1.5h-2v-1.052a7.749 7.749 0 005.5-7.448.75.75 0 00-1.5 0A6.25 6.25 0 017.5 15.75a.375.375 0 01-.15-.728c3.299-.236 5.925-2.84 5.925-5.986a.75.75 0 00-1.5 0C11.775 12.687 9.197 15 10 15A4.75 4.75 0 015.5 9.643z"
+									clip-rule="evenodd"
+								/></svg
+							>
 						</button>
 					</div>
 					<div class="flex items-center gap-1">
@@ -369,11 +493,20 @@
 							disabled={!canSend}
 							on:click={handleWelcomeSend}
 						>
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-							<path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd"/>
-						</svg>
-						发送
-					</button>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+								class="w-4 h-4"
+							>
+								<path
+									fill-rule="evenodd"
+									d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
+									clip-rule="evenodd"
+								/>
+							</svg>
+							发送
+						</button>
 					</div>
 				</div>
 			</div>
@@ -393,7 +526,10 @@
 					}}
 				>
 					<span class="text-base flex-shrink-0">{topic.emoji}</span>
-					<span class="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 truncate">{topic.text}</span>
+					<span
+						class="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200 truncate"
+						>{topic.text}</span
+					>
 				</button>
 			{/each}
 		</div>
@@ -449,7 +585,9 @@
 									<div class="flex gap-2 mt-1.5 justify-end">
 										<button
 											class="text-xs px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded transition"
-											on:click={() => { editingMessageId = null; }}>取消</button
+											on:click={() => {
+												editingMessageId = null;
+											}}>取消</button
 										>
 										<button
 											class="text-xs px-2 py-0.5 bg-white/30 hover:bg-white/40 rounded transition"
@@ -467,7 +605,7 @@
 							</div>
 						</div>
 						<div class="flex justify-start items-center gap-3">
-							<div class="w-10"></div>
+							<div class="w-10" />
 							<div class="flex items-center gap-1">
 								{#if message.timestamp}
 									<span class="text-xs text-gray-400 dark:text-gray-500"
@@ -477,11 +615,21 @@
 								{#if !message.error}
 									<button
 										class="text-xs text-gray-400 hover:text-pink-500 dark:hover:text-pink-400 transition"
-										on:click={() => { editingMessageId = message.id; editContent = message.content; }}
+										on:click={() => {
+											editingMessageId = message.id;
+											editContent = message.content;
+										}}
 										title="编辑消息"
 									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-											<path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-3.5 w-3.5"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+										>
+											<path
+												d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
+											/>
 										</svg>
 									</button>
 									<button
@@ -492,8 +640,17 @@
 										}}
 										title="删除消息"
 									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-											<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-3.5 w-3.5"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+										>
+											<path
+												fill-rule="evenodd"
+												d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+												clip-rule="evenodd"
+											/>
 										</svg>
 									</button>
 								{/if}
@@ -526,7 +683,7 @@
 						</div>
 						{#if message.id === streamingMessage?.id && !message.done && !message.error}
 							<div class="flex justify-start items-center gap-3 mb-2">
-								<div class="w-10"></div>
+								<div class="w-10" />
 								<div class="flex items-center gap-1">
 									<span
 										class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
@@ -544,62 +701,14 @@
 							</div>
 						{/if}
 						<div class="flex justify-start items-center gap-3">
-							<div class="w-10"></div>
+							<div class="w-10" />
 							<div class="flex gap-2 items-center flex-wrap">
-							<span class="text-xs text-gray-500 dark:text-gray-400"
-								>{message.model || selectedModels?.[0] || "未知"}</span
-							>
-							<button
-								class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
-								on:click={() => handleCopy(message.content)}
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									><path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-									/></svg
+								<span class="text-xs text-gray-500 dark:text-gray-400"
+									>{message.model || selectedModels?.[0] || "未知"}</span
 								>
-								复制
-							</button>
 								<button
 									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
-									on:click={() => speakMessage(message.content)}
-									title="朗读"
-								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-										<path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/>
-									</svg>
-								</button>
-							<button
-								class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
-								on:click={() => handleCopyMarkdown(message)}
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									><path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M4 6h16M4 12h16m-7 6h7"
-									/></svg
-								>
-								MD
-							</button>
-							{#if message.done && !message.error}
-								<button
-									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
-									on:click={() => regenerateResponse()}
+									on:click={() => handleCopy(message.content)}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -611,66 +720,123 @@
 											stroke-linecap="round"
 											stroke-linejoin="round"
 											stroke-width="2"
-											d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+											d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
 										/></svg
 									>
-									重新生成
+									复制
 								</button>
-							{/if}
-							{#if message.done && !message.error && message.parentId && history.messages[message.parentId]?.childrenIds?.length > 1}
 								<button
 									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
-									on:click={() => showPreviousMessage(message)}
-									title="上一个回复"
+									on:click={() => speakMessage(message.content)}
+									title="朗读"
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										class="h-4 w-4"
 										viewBox="0 0 20 20"
 										fill="currentColor"
-										><path
-											fill-rule="evenodd"
-											d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-											clip-rule="evenodd"
-										/></svg
 									>
+										<path
+											fill-rule="evenodd"
+											d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"
+											clip-rule="evenodd"
+										/>
+									</svg>
 								</button>
 								<button
 									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
-									on:click={() => showNextMessage(message)}
-									title="下一个回复"
+									on:click={() => handleCopyMarkdown(message)}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										class="h-4 w-4"
-										viewBox="0 0 20 20"
-										fill="currentColor"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
 										><path
-											fill-rule="evenodd"
-											d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-											clip-rule="evenodd"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M4 6h16M4 12h16m-7 6h7"
 										/></svg
 									>
+									MD
 								</button>
-							{/if}
-							{#if message.done && message.info}
-								<button
-									id="info-{message.id}"
-									class="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1"
-								>
-									{Math.round(
-										((message.info.eval_count ?? 0) / (message.info.eval_duration / 1000000000)) *
-											100
-									) / 100} token/s
-								</button>
-							{/if}
-							{#if message.timestamp}
-								<span class="text-xs text-gray-400 dark:text-gray-500 ml-1"
-									>{formatTime(message.timestamp)}</span
-								>
-							{/if}
+								{#if message.done && !message.error}
+									<button
+										class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+										on:click={() => regenerateResponse()}
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											><path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+											/></svg
+										>
+										重新生成
+									</button>
+								{/if}
+								{#if message.done && !message.error && message.parentId && history.messages[message.parentId]?.childrenIds?.length > 1}
+									<button
+										class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+										on:click={() => showPreviousMessage(message)}
+										title="上一个回复"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+											><path
+												fill-rule="evenodd"
+												d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+												clip-rule="evenodd"
+											/></svg
+										>
+									</button>
+									<button
+										class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+										on:click={() => showNextMessage(message)}
+										title="下一个回复"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+											><path
+												fill-rule="evenodd"
+												d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+												clip-rule="evenodd"
+											/></svg
+										>
+									</button>
+								{/if}
+								{#if message.done && message.info}
+									<button
+										id="info-{message.id}"
+										class="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1"
+									>
+										{Math.round(
+											((message.info.eval_count ?? 0) / (message.info.eval_duration / 1000000000)) *
+												100
+										) / 100} token/s
+									</button>
+								{/if}
+								{#if message.timestamp}
+									<span class="text-xs text-gray-400 dark:text-gray-500 ml-1"
+										>{formatTime(message.timestamp)}</span
+									>
+								{/if}
+							</div>
 						</div>
-					</div>
 					</div>
 				{/if}
 			</div>

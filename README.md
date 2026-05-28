@@ -34,7 +34,7 @@
 - 对话置顶：侧边栏图钉按钮，持久化置顶状态
 - 键盘快捷键：Enter 发送 / Ctrl+Enter 发送 / Ctrl+N 新建对话 / Escape 关闭设置弹窗
 - 情绪感知（AI 自动感知并回应用户情绪状态）
-- 文件/图片上传（粘贴/拖拽/选择，10MB 限制，txt 文本提取）
+- 文件/图片上传（粘贴/拖拽/选择，10MB 限制，支持 txt/md/csv/doc/docx/pdf/xls/xlsx/pptx 文本解析后随本次请求发送）
 - 移动端键盘适配（visualViewport API）
 
 **用户系统**

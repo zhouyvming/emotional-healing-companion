@@ -43,6 +43,8 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 
 **Web search injection**: if `settings.webSearch` is true, `submitPrompt()` calls `/api/web-search` before model dispatch and appends a `[联网搜索结果...]` block to the request-only `finalPrompt`. This context is NOT written into local history.
 
+**File parsing injection**: uploads are read as data URLs in `MessageInput.svelte` / `Messages.svelte`. Non-image documents call authenticated `/api/parse-file`, which extracts text from `txt/md/csv/doc/docx/pdf/xls/xlsx/pptx` (`.doc` best-effort via `word-extractor`) and stores it on the in-memory upload object. `submitPrompt()` appends parsed file text to request-only `finalPrompt`; local message history stores only attachment metadata and preview labels, not the extracted text.
+
 **Third-party models**: receive request-only user input + configured system prompt; if web search is enabled, the request-only input may include the search result block. Image uploads are sent as OpenAI vision content only for likely vision-capable models; otherwise they degrade to a text note.
 
 **Ollama models**: receive request-only user input + system prompt (persona + emotion sensing); if web search is enabled, the request-only input may include the search result block.

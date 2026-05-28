@@ -5,6 +5,7 @@
 	import { convertMessagesToHistory } from "$lib/utils";
 	import { settings, db, chats, chatId, sidebarOpen } from "$lib/stores";
 	import { createChatHandlers } from "$lib/chat/ollama";
+	import type { UploadingFile } from "$lib/client/fileParser";
 
 	import MessageInput from "$lib/components/chat/MessageInput.svelte";
 	import Messages from "$lib/components/chat/Messages.svelte";
@@ -21,7 +22,7 @@
 	let selectedModels = [""];
 	let title = "";
 	let prompt = "";
-	let uploadingFiles: { name: string; data: string; type: string }[] = [];
+	let uploadingFiles: UploadingFile[] = [];
 
 	let messages: any[] = [];
 	let history: any = {
@@ -137,7 +138,8 @@
 				if (lastMsg.role === "assistant" && lastMsg.done !== true && !lastMsg.error) {
 					lastMsg.done = true;
 					lastMsg.error = true;
-					lastMsg.content = (lastMsg.content || "") + "\n\n*[此回复在上次对话中断，内容可能不完整]*";
+					lastMsg.content =
+						(lastMsg.content || "") + "\n\n*[此回复在上次对话中断，内容可能不完整]*";
 				}
 			}
 			await tick();
@@ -155,42 +157,42 @@
 />
 
 {#if loaded}
-<Navbar {title} sidebarOpen={$sidebarOpen} showActions={true} />
-<div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''} pt-12">
-	<div class="py-2.5 flex flex-col justify-between w-full max-w-5xl">
-		<div class="flex-1 overflow-y-auto">
-			<Messages
-				bind:selectedModels
-				bind:history
-				bind:messages
-				bind:autoScroll
-				bind:prompt
-				bind:uploadingFiles
-				submitPrompt={wrappedSubmit}
-				regenerateResponse={wrappedRegenerate}
-				editMessage={wrappedEdit}
-				deleteMessage={wrappedDelete}
-			onBranchNavigate={async () => {
-				if (!$settings.privacyMode && $db) {
-					await $db.updateChatById($chatId, { messages, history });
-				}
-			}}
-			/>
-		</div>
+	<Navbar {title} sidebarOpen={$sidebarOpen} showActions={true} />
+	<div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''} pt-12">
+		<div class="py-2.5 flex flex-col justify-between w-full max-w-5xl">
+			<div class="flex-1 overflow-y-auto">
+				<Messages
+					bind:selectedModels
+					bind:history
+					bind:messages
+					bind:autoScroll
+					bind:prompt
+					bind:uploadingFiles
+					submitPrompt={wrappedSubmit}
+					regenerateResponse={wrappedRegenerate}
+					editMessage={wrappedEdit}
+					deleteMessage={wrappedDelete}
+					onBranchNavigate={async () => {
+						if (!$settings.privacyMode && $db) {
+							await $db.updateChatById($chatId, { messages, history });
+						}
+					}}
+				/>
+			</div>
 
-		{#if messages.length > 0}
-		<div class="px-3 md:px-0 pb-2">
-		<MessageInput
-			bind:prompt
-			bind:autoScroll
-			{messages}
-			bind:selectedModels
-			bind:uploadingFiles
-			submitPrompt={wrappedSubmit}
-			{stopResponse}
-		/>
+			{#if messages.length > 0}
+				<div class="px-3 md:px-0 pb-2">
+					<MessageInput
+						bind:prompt
+						bind:autoScroll
+						{messages}
+						bind:selectedModels
+						bind:uploadingFiles
+						submitPrompt={wrappedSubmit}
+						{stopResponse}
+					/>
+				</div>
+			{/if}
 		</div>
-		{/if}
 	</div>
-</div>
 {/if}

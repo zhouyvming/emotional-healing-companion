@@ -2,6 +2,12 @@
 	import toast from "svelte-french-toast";
 	import { onDestroy, onMount } from "svelte";
 	import ModelSelector from "./ModelSelector.svelte";
+	import {
+		ensureFilesParsed,
+		isImageFile,
+		parseUploadedFile,
+		type UploadingFile
+	} from "$lib/client/fileParser";
 
 	export let submitPrompt: Function;
 	export let stopResponse: Function;
@@ -10,7 +16,7 @@
 	export let autoScroll = true;
 	export let prompt = "";
 	export let messages = [];
-	export let uploadingFiles: { name: string; data: string; type: string }[] = [];
+	export let uploadingFiles: UploadingFile[] = [];
 
 	// 语音输入
 	let recording = false;
@@ -68,21 +74,30 @@
 		target.value = "";
 	}
 
+	function updateParsedFile(index: number, parsed: UploadingFile) {
+		uploadingFiles = uploadingFiles.map((item, i) => (i === index ? parsed : item));
+	}
+
 	function processFile(file: File) {
 		if (file.size > 10 * 1024 * 1024) {
 			toast.error("文件过大（最大 10MB）");
 			return;
 		}
+		toast("正在上传文件");
 		const reader = new FileReader();
-		reader.onload = () => {
-			uploadingFiles = [
-				...uploadingFiles,
-				{
-					name: file.name,
-					data: reader.result as string,
-					type: file.type
-				}
-			];
+		reader.onload = async () => {
+			const uploadedFile: UploadingFile = {
+				name: file.name,
+				data: reader.result as string,
+				type: file.type,
+				parseStatus: file.type.startsWith("image/") ? "done" : "pending"
+			};
+			uploadingFiles = [...uploadingFiles, uploadedFile];
+			const fileIndex = uploadingFiles.length - 1;
+			toast.success("已上传文件");
+			if (!isImageFile(uploadedFile)) {
+				updateParsedFile(fileIndex, await parseUploadedFile(uploadedFile));
+			}
 		};
 		reader.readAsDataURL(file);
 	}
@@ -115,9 +130,10 @@
 		e.preventDefault();
 	}
 
-	function doSubmit() {
+	async function doSubmit() {
 		if (prompt.trim() === "" && uploadingFiles.length === 0) return;
-		submitPrompt(prompt.trim());
+		uploadingFiles = await ensureFilesParsed(uploadingFiles);
+		await submitPrompt(prompt.trim());
 	}
 
 	onDestroy(() => {
@@ -135,7 +151,7 @@
 			const handler = () => {
 				const vv = window.visualViewport!;
 				if (inputWrapper) {
-					inputWrapper.style.paddingBottom = (window.innerHeight - vv.height) + "px";
+					inputWrapper.style.paddingBottom = window.innerHeight - vv.height + "px";
 				}
 			};
 			window.visualViewport.addEventListener("resize", handler);
@@ -193,9 +209,16 @@
 									/>
 								{:else}
 									<div
-										class="h-16 flex items-center px-3 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
+										class="h-16 flex flex-col justify-center px-3 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
 									>
 										<span class="text-xs text-gray-500 truncate max-w-[100px]">{file.name}</span>
+										{#if file.parseStatus === "pending"}
+											<span class="text-[10px] text-pink-500 mt-0.5">解析中</span>
+										{:else if file.parseStatus === "done" && file.text}
+											<span class="text-[10px] text-green-500 mt-0.5">已解析</span>
+										{:else if file.parseStatus === "error"}
+											<span class="text-[10px] text-red-500 mt-0.5">解析失败</span>
+										{/if}
 									</div>
 								{/if}
 								<button
@@ -220,7 +243,7 @@
 						<div class="flex items-center pl-3">
 							<input
 								type="file"
-								accept="image/*,.txt,.pdf,.doc,.docx"
+								accept="image/*,.txt,.md,.csv,.pdf,.doc,.docx,.xls,.xlsx,.pptx"
 								multiple
 								class="hidden"
 								bind:this={fileInput}
@@ -257,7 +280,7 @@
 							on:keydown={(e) => {
 								if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
 									e.preventDefault();
-									if (prompt.trim() !== "") {
+									if (prompt.trim() !== "" || uploadingFiles.length > 0) {
 										doSubmit();
 									}
 								} else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {

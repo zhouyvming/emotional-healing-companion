@@ -130,7 +130,7 @@ export async function sendPromptOpenAI(
   getAutoScroll: () => boolean = () => ctx.autoScroll,
   getTitle: () => string = () => ctx.title
 ) {
-	const { settings, db, history, messages, title, selectedModels, autoScroll, notifyUpdate } = ctx;
+	const { settings, db, history, title, selectedModels, autoScroll, notifyUpdate } = ctx;
 	const uuid = await import("uuid");
 	const { tick } = await import("svelte");
 
@@ -159,13 +159,14 @@ export async function sendPromptOpenAI(
 
 	const supportsImages = isVisionModel(model);
 	// 构建 OpenAI 格式消息
-	let apiMessages: OpenAIMessage[] = messages.map((msg: any) => {
+	let apiMessages: OpenAIMessage[] = getMessages().map((msg: any) => {
+		const contentText = msg.id === parentId && msg.role === "user" ? userPrompt : msg.content;
 		if (msg.images?.length) {
 			if (supportsImages) {
 				return {
 					role: msg.role,
 					content: [
-						{ type: "text", text: msg.content },
+						{ type: "text", text: contentText },
 						...msg.images.map((img: string) => ({
 							type: "image_url" as const,
 							image_url: { url: img.includes(",") ? img : `data:image/jpeg;base64,${img}` }
@@ -175,10 +176,10 @@ export async function sendPromptOpenAI(
 			}
 			return {
 				role: msg.role,
-				content: `${msg.content}\n\n[用户上传了 ${msg.images.length} 张图片，但当前第三方模型可能不支持视觉输入。]`
+				content: `${contentText}\n\n[用户上传了 ${msg.images.length} 张图片，但当前第三方模型可能不支持视觉输入。]`
 			};
 		}
-		return { role: msg.role, content: msg.content };
+		return { role: msg.role, content: contentText };
 	});
 
 	// 注入 system prompt（含情绪感知）

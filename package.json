@@ -34,11 +34,16 @@
 		"dompurify": "^3.4.5",
 		"highlight.js": "^11.9.0",
 		"idb": "^7.1.1",
+		"jszip": "^3.10.1",
 		"katex": "^0.16.9",
+		"mammoth": "^1.12.0",
 		"marked": "^9.1.0",
 		"mysql2": "^3.13.0",
+		"pdf-parse": "^2.4.5",
 		"svelte-french-toast": "^1.2.0",
 		"tippy.js": "^6.3.7",
-		"uuid": "^9.0.1"
+		"uuid": "^9.0.1",
+		"word-extractor": "^1.0.4",
+		"xlsx": "^0.18.5"
 	}
 }

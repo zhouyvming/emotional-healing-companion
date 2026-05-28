@@ -3,7 +3,12 @@ import { tick } from "svelte";
 import { goto } from "$app/navigation";
 import toast from "svelte-french-toast";
 import { OLLAMA_API_BASE_URL } from "$lib/constants";
-import { splitStream, convertMessagesToHistory, datetimeNow, removeMessageBranch } from "$lib/utils";
+import {
+	splitStream,
+	convertMessagesToHistory,
+	datetimeNow,
+	removeMessageBranch
+} from "$lib/utils";
 import type { Writable } from "svelte/store";
 import { findProvider, sendPromptOpenAI } from "$lib/chat/openai";
 
@@ -14,13 +19,22 @@ interface Message {
 	role: "user" | "assistant" | "system";
 	content: string;
 	images?: string[];
-	files?: { name: string; type: string; data: string }[];
+	files?: UploadedFile[];
 	model?: string;
 	timestamp?: string;
 	done?: boolean;
 	error?: boolean;
 	context?: any;
 	info?: Record<string, any>;
+}
+
+interface UploadedFile {
+	name: string;
+	type: string;
+	data: string;
+	text?: string;
+	parseStatus?: "pending" | "done" | "error";
+	parseError?: string;
 }
 
 interface History {
@@ -105,7 +119,7 @@ interface ChatContext {
 	chatId: Writable<string>;
 	isNewChat: boolean;
 	notifyUpdate: () => void;
-	uploadingFiles?: { name: string; data: string; type: string }[];
+	uploadingFiles?: UploadedFile[];
 }
 
 export function createChatHandlers(ctx: () => ChatContext) {
@@ -130,9 +144,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				return;
 			}
 			if (settings.titleAutoGenerate ?? true) {
-				const modelForTitle = selectedModels[0].includes("/")
-					? null
-					: selectedModels[0];
+				const modelForTitle = selectedModels[0].includes("/") ? null : selectedModels[0];
 				if (!modelForTitle) {
 					await c().db.updateChatById(_chatId, { title: userPrompt.slice(0, 50) });
 					onTitleSet(userPrompt.slice(0, 50));
@@ -250,7 +262,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		// 构建消息列表（含图片，剥离 data:...;base64, 前缀）
 		let apiMessages = messages.map((message) => ({
 			role: message.role,
-			content: message.content,
+			content: message.id === parentId && message.role === "user" ? userPrompt : message.content,
 			...(message.images?.length
 				? {
 						images: message.images.map((img: string) =>
@@ -270,7 +282,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 
 		systemPrompt = systemPrompt
 			? `${systemPrompt}\n\n请使用Markdown格式回复，适当使用标题、列表、加粗、代码块等格式让回复更清晰易读。`
-			: '请使用Markdown格式回复，适当使用标题、列表、加粗、代码块等格式让回复更清晰易读。';
+			: "请使用Markdown格式回复，适当使用标题、列表、加粗、代码块等格式让回复更清晰易读。";
 
 		// 上下文自动压缩：超出 num_ctx 时截断最早的消息
 		const contextLimit = settings.num_ctx ?? 200000;
@@ -281,7 +293,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			let keepFrom = 0;
 			let runningChars = 0;
 			for (let i = apiMessages.length - 1; i >= 0; i--) {
-				runningChars += (apiMessages[i].content?.length || 0);
+				runningChars += apiMessages[i].content?.length || 0;
 				if (Math.ceil(runningChars / 2) > contextLimit * 0.85) {
 					keepFrom = i + 1;
 					break;
@@ -289,9 +301,12 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			}
 			const truncated = apiMessages.length - keepFrom;
 			if (truncated > 0 && keepFrom < apiMessages.length) {
-				const systemMsgIndex = apiMessages.findIndex(m => m.role === "system");
+				const systemMsgIndex = apiMessages.findIndex((m) => m.role === "system");
 				apiMessages = apiMessages.slice(keepFrom);
-				const summaryNote = { role: "system" as const, content: `[对话上下文已压缩：早期 ${truncated} 条消息已省略，以下是最近的对话内容]` };
+				const summaryNote = {
+					role: "system" as const,
+					content: `[对话上下文已压缩：早期 ${truncated} 条消息已省略，以下是最近的对话内容]`
+				};
 				if (systemMsgIndex >= 0) {
 					apiMessages[0].content = summaryNote.content + "\n\n" + apiMessages[0].content;
 				} else {
@@ -336,73 +351,73 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					const { value, done } = await reader.read();
 					const currentCtx = c();
 
-				if (done || currentCtx.stopRef.value || _chatId !== currentCtx.chatId) {
-					responseMessage.done = true;
-					currentCtx.notifyUpdate();
-					break;
-				}
+					if (done || currentCtx.stopRef.value || _chatId !== currentCtx.chatId) {
+						responseMessage.done = true;
+						currentCtx.notifyUpdate();
+						break;
+					}
 
-				try {
-					let lines = value.split("\n");
-					for (const line of lines) {
-						if (line !== "") {
-							let data = JSON.parse(line);
-							if ("detail" in data) throw data;
+					try {
+						let lines = value.split("\n");
+						for (const line of lines) {
+							if (line !== "") {
+								let data = JSON.parse(line);
+								if ("detail" in data) throw data;
 
-							if (data.done === false) {
-								const chunk = data.message?.content;
-								if (chunk !== undefined && !(responseMessage.content === "" && chunk === "\n")) {
-									responseMessage.content += chunk;
+								if (data.done === false) {
+									const chunk = data.message?.content;
+									if (chunk !== undefined && !(responseMessage.content === "" && chunk === "\n")) {
+										responseMessage.content += chunk;
+										currentCtx.notifyUpdate();
+									}
+								} else {
+									responseMessage.done = true;
+									responseMessage.context = data.context ?? null;
+									responseMessage.info = {
+										total_duration: data.total_duration,
+										load_duration: data.load_duration,
+										sample_count: data.sample_count,
+										sample_duration: data.sample_duration,
+										prompt_eval_count: data.prompt_eval_count,
+										prompt_eval_duration: data.prompt_eval_duration,
+										eval_count: data.eval_count,
+										eval_duration: data.eval_duration
+									};
+									if (settings.responseAutoCopy) {
+										copyToClipboard(responseMessage.content);
+									}
 									currentCtx.notifyUpdate();
 								}
-							} else {
-								responseMessage.done = true;
-								responseMessage.context = data.context ?? null;
-								responseMessage.info = {
-									total_duration: data.total_duration,
-									load_duration: data.load_duration,
-									sample_count: data.sample_count,
-									sample_duration: data.sample_duration,
-									prompt_eval_count: data.prompt_eval_count,
-									prompt_eval_duration: data.prompt_eval_duration,
-									eval_count: data.eval_count,
-									eval_duration: data.eval_duration
-								};
-								if (settings.responseAutoCopy) {
-									copyToClipboard(responseMessage.content);
-								}
-								currentCtx.notifyUpdate();
 							}
 						}
+					} catch (error: any) {
+						responseMessage.error = true;
+						responseMessage.done = true;
+						if (!responseMessage.content) {
+							responseMessage.content = "响应解析失败，请重试";
+						}
+						if ("detail" in error) toast.error(error.detail);
+						c().notifyUpdate();
+						reader.cancel();
+						break;
 					}
-				} catch (error: any) {
-					responseMessage.error = true;
-					responseMessage.done = true;
-					if (!responseMessage.content) {
-						responseMessage.content = "响应解析失败，请重试";
-					}
-					if ("detail" in error) toast.error(error.detail);
-					c().notifyUpdate();
-					reader.cancel();
-					break;
-				}
 
-				if (currentCtx.autoScroll) {
-					window.scrollTo({ top: document.body.scrollHeight });
+					if (currentCtx.autoScroll) {
+						window.scrollTo({ top: document.body.scrollHeight });
+					}
 				}
-			}
-		} catch (err: any) {
-			// 用户主动停止或连接中断，静默处理
-			if (err.name !== "AbortError" || !c().stopRef.value) {
-				responseMessage.error = true;
-				if (!responseMessage.content) {
-					responseMessage.content = "连接中断，请重试";
+			} catch (err: any) {
+				// 用户主动停止或连接中断，静默处理
+				if (err.name !== "AbortError" || !c().stopRef.value) {
+					responseMessage.error = true;
+					if (!responseMessage.content) {
+						responseMessage.content = "连接中断，请重试";
+					}
 				}
+				responseMessage.done = true;
+				c().notifyUpdate();
 			}
-			responseMessage.done = true;
-			c().notifyUpdate();
-		}
-	} else {
+		} else {
 			responseMessage.error = true;
 			responseMessage.done = true;
 			if (res !== null) {
@@ -450,11 +465,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 
 		const latestMessages = c().messages;
 		const needTitle = latestMessages.length === 2 || !c().title || c().title === "New Chat";
-		if (
-			needTitle &&
-			latestMessages.at(1)?.content !== "" &&
-			!titleGuard.generated
-		) {
+		if (needTitle && latestMessages.at(1)?.content !== "" && !titleGuard.generated) {
 			titleGuard.generated = true;
 			window.history.replaceState(window.history.state, "", `/chat/${_chatId}`);
 			if (!curSettings.privacyMode) {
@@ -506,7 +517,6 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		const ctx = c();
 		const { selectedModels, messages, history, chatId, settings, db, chats, uploadingFiles } = ctx;
 
-
 		if (selectedModels.length === 0 || selectedModels.includes("")) {
 			toast.error("未选择模型");
 			return;
@@ -536,21 +546,31 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				.map((f) => f.data);
 
 			const docs = uploadingFiles.filter((f) => !f.type.startsWith("image/"));
-			userMessage.files = docs.map((f) => ({ name: f.name, type: f.type, data: f.data }));
+			userMessage.files = docs.map((f) => ({
+				name: f.name,
+				type: f.type,
+				data: f.data,
+				parseStatus: f.parseStatus,
+				parseError: f.parseError
+			}));
 
-			// 提取文本文件内容，注入到 prompt 中
+			// 将已解析的文件文本注入到本次请求 prompt 中，本地消息仍只展示附件标签。
 			for (const doc of docs) {
-				if (doc.type === "text/plain" || doc.name.endsWith(".txt")) {
+				if (doc.text) {
+					finalPrompt += `\n\n[文件：${doc.name}]\n${doc.text}`;
+				} else if (doc.type === "text/plain" || doc.name.endsWith(".txt")) {
 					try {
 						const text = atob(doc.data.includes(",") ? doc.data.split(",")[1] : doc.data);
 						finalPrompt += `\n\n[文件：${doc.name}]\n${text.slice(0, 4000)}`;
 					} catch {
 						/* base64 decode failed, skip */
 					}
+				} else if (doc.parseError) {
+					finalPrompt += `\n\n[用户上传了文件：${doc.name}，但解析失败：${doc.parseError}]`;
 				} else {
 					finalPrompt += `\n\n[用户上传了文件：${doc.name}（${
 						doc.type || "未知类型"
-					}），但当前暂不支持解析该格式的内容]`;
+					}），但未能提取文本内容]`;
 				}
 			}
 		}
