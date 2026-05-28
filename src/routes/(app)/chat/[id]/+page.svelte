@@ -20,6 +20,7 @@
 	let autoScroll = true;
 
 	let selectedModels = [""];
+	let kbId = "";
 	let title = "";
 	let prompt = "";
 	let uploadingFiles: UploadingFile[] = [];
@@ -60,6 +61,8 @@
 			abortRefs,
 			autoScroll,
 			uploadingFiles,
+			kbId,
+			getKbId: () => kbId,
 			settings: $settings,
 			db: $db,
 			chats,
@@ -168,6 +171,7 @@
 					bind:autoScroll
 					bind:prompt
 					bind:uploadingFiles
+					bind:kbId
 					submitPrompt={wrappedSubmit}
 					regenerateResponse={wrappedRegenerate}
 					editMessage={wrappedEdit}
@@ -188,6 +192,7 @@
 						{messages}
 						bind:selectedModels
 						bind:uploadingFiles
+						bind:kbId
 						submitPrompt={wrappedSubmit}
 						{stopResponse}
 					/>

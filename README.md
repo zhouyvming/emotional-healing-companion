@@ -12,6 +12,7 @@
 | AI 服务  | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等） |
 | 认证     | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7 天有效期）   |
 | 安全     | DOMPurify HTML 净化、注册速率限制、SSRF/Open Redirect 防护 |
+| 知识库   | RAG 检索增强生成：Ollama Embedding + MySQL 向量存储 + 余弦相似度检索 |
 
 ## 功能
 
@@ -70,6 +71,7 @@
 - 侧边栏聊天列表按日期分组（今天/昨天/本周/更早），可搜索、折叠
 - 响应式布局（移动端侧边栏自动隐藏 + 遮罩层）
 - 流式中断恢复提示（刷新后未完成消息标注）
+- **知识库（RAG）**：上传文档到知识库 → Ollama 本地 Embedding → 对话时向量检索 Top-K 片段注入 Prompt
 
 ## 接入第三方 API 模型
 
@@ -161,18 +163,24 @@ src/
 │   ├── chat/
 │   │   ├── ollama.ts                     # 核心聊天逻辑（Ollama 流式、搜索注入、消息路由、文件处理、标题生成）
 │   │   └── openai.ts                     # OpenAI 兼容 API（流式聊天、多模态降级、模型获取、标题生成）
-│   ├── client/http.ts                    # 客户端 HTTP（authFetch 自动附加 JWT）
-│   ├── server/
-│   │   ├── auth.ts                       # 服务端认证（bcryptjs + JWT）
-│   │   └── db.ts                         # MySQL 连接池 + 表初始化（环境变量配置）
-│   ├── stores/index.ts                   # 9 个 Svelte writable stores（类型完善）
-│   ├── components/
-│   │   ├── chat/
-│   │   │   ├── Messages.svelte           # 消息渲染（DOMPurify/marked/highlight.js/KaTeX/TTS/编辑删除）
-│   │   │   ├── MessageInput.svelte       # 输入框（语音/上传/移动端键盘适配）
-│   │   │   ├── ModelSelector.svelte      # 模型选择器
-│   │   │   ├── SettingsModal.svelte      # 设置弹窗（7标签页）
-│   │   │   └── Settings/Advanced.svelte  # 高级参数（num_ctx 默认 200K）
+│   ├── client/
+│   │   ├── http.ts                       # 客户端 HTTP（authFetch 自动附加 JWT）
+│   │   └── fileParser.ts                 # 文件上传解析协调（状态管理 + 发送前补齐）
+│   │   ├── server/
+│   │   │   ├── auth.ts                   # 服务端认证（bcryptjs + JWT）
+│   │   │   ├── db.ts                     # MySQL 连接池 + 表初始化（9张表，环境变量配置）
+│   │   │   └── knowledge-base.ts         # 知识库引擎（切片/Embedding/余弦相似度/检索）
+│   │   ├── stores/index.ts              # 10 个 Svelte writable stores（类型完善）
+│   │   ├── components/
+│   │   │   ├── chat/
+│   │   │   │   ├── Messages.svelte       # 消息渲染（DOMPurify/marked/highlight.js/KaTeX/TTS/编辑删除）
+│   │   │   │   ├── MessageInput.svelte   # 输入框（语音/上传/移动端键盘适配 + KB选择器）
+│   │   │   │   ├── ModelSelector.svelte  # 模型选择器
+│   │   │   │   ├── KnowledgeBaseSelector.svelte   # 知识库下拉选择器
+│   │   │   │   ├── KnowledgeBaseManager.svelte    # 知识库管理面板
+│   │   │   │   ├── KnowledgeBaseDocuments.svelte  # 知识库文档管理
+│   │   │   │   ├── SettingsModal.svelte  # 设置弹窗（8标签页含知识库）
+│   │   │   │   └── Settings/Advanced.svelte  # 高级参数（num_ctx 默认 200K）
 │   │   ├── layout/
 │   │   │   ├── Sidebar.svelte            # 侧边栏（列表/搜索/分组/置顶/导出JSON+MD/退出）
 │   │   │   └── Navbar.svelte             # 顶部导航栏（标题/重命名/删除）
@@ -189,7 +197,7 @@ src/
 │   │   ├── chat/[id]/+page.svelte        # 对话详情页
 │   │   └── profile/+page.svelte          # 个人资料页
 │   ├── advice_table/+page.svelte         # 建议反馈页
-│   ├── api/                              # 10 个认证 API 路由（含 providers）
+│   ├── api/                              # 17 个认证 API 路由（含 providers + knowledge-bases）
 │   └── .well-known/[...path]/            # Chrome DevTools 静默路由
 └── static/                               # 默认头像、字体、manifest.json
 ```

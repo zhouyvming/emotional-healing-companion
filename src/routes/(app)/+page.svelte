@@ -9,6 +9,7 @@
 	import MessageInput from "$lib/components/chat/MessageInput.svelte";
 	import Messages from "$lib/components/chat/Messages.svelte";
 	import ModelSelector from "$lib/components/chat/ModelSelector.svelte";
+	import KnowledgeBaseSelector from "$lib/components/chat/KnowledgeBaseSelector.svelte";
 	import Navbar from "$lib/components/layout/Navbar.svelte";
 	import { page } from "$app/stores";
 
@@ -18,6 +19,7 @@
 	let autoScroll = true;
 
 	let selectedModels = [""];
+	let kbId = "";
 	let title = "";
 	let prompt = "";
 	let uploadingFiles: UploadingFile[] = [];
@@ -59,6 +61,8 @@
 			abortRefs,
 			autoScroll,
 			uploadingFiles,
+			kbId,
+			getKbId: () => kbId,
 			settings: $settings,
 			db: $db,
 			chats,
@@ -158,6 +162,7 @@
 				bind:autoScroll
 				bind:prompt
 				bind:uploadingFiles
+				bind:kbId
 				submitPrompt={wrappedSubmit}
 				regenerateResponse={wrappedRegenerate}
 				editMessage={wrappedEdit}
@@ -178,6 +183,7 @@
 					{messages}
 					bind:selectedModels
 					bind:uploadingFiles
+					bind:kbId
 					submitPrompt={wrappedSubmit}
 					{stopResponse}
 				/>

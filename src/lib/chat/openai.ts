@@ -34,6 +34,9 @@ interface ChatContext {
 	chats: Writable<any[]>;
 	chatId: Writable<string>;
 	notifyUpdate: () => void;
+	kbId?: string;
+	getKbId?: () => string;
+	abortRefs?: AbortController[];
 }
 
 function isVisionModel(model: string) {

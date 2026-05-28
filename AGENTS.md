@@ -76,9 +76,9 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 ## References
 
 - Full architecture docs: `CLAUDE.md`
-- Product improvement docs: `系统后期优化改进.md`, `系统后期优化改进2.md`, `系统后期优化改进3.md`
+- Implementation plan: `.claude/plans/`
 
-## Recent changes (2026-05-27)
+## Recent changes (2026-05-29)
 
 **Layout**: User messages now left-aligned (avatar on left, `items-start`/`justify-start`). Avatars enlarged to `w-10 h-10` (40px). Bubble has `w-fit` (content-width, no stretching) and NO `break-words` (was causing premature line wraps in Chinese text).
 
@@ -88,4 +88,6 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 
 **P0/P1 fixes**: `svelte.config.js` now uses `@sveltejs/adapter-node` to match `node build`. Web search is wired into chat requests. Provider saves are transactional. Settings save awaits store/localStorage update before remote sync. Server-side password length validation is enforced. Username changes sync all username-owned tables. OpenAI-compatible image messages use typed vision content when appropriate and degrade to text for non-vision models.
 
-**Edit safety**: When modifying HTML nesting in Svelte files, prefer self-contained edits where opening+closing tags balance within the replaced string. Avoid splitting edits across separate old/new pairs that touch overlapping regions — this pattern causes hard-to-debug nesting errors (multiple occurrences of `</div>\n</div>` in the file, etc.). Build with full output (not `tail -3`) to catch Svelte parse errors.
+**Knowledge base (RAG)**: `src/lib/server/knowledge-base.ts` provides `chunkText`, `cosineSimilarity`, `getOllamaEmbedding`, `queryKnowledgeBase`, `processDocument`, and `parseByExtension`. Documents uploaded to a KB are automatically chunked, embedded via Ollama `/api/embeddings` (default model `nomic-embed-text`), and stored in `kb_chunks` with JSON embeddings. At query time, the user question is embedded and cosine-similarity-ranked against all chunks. Chat integration: `buildKnowledgeBaseContext()` in ollama.ts retrieves Top‑5 chunks and injects them into `finalPrompt` before model dispatch, with the instruction "请优先基于这些信息回答，如果参考信息不足以回答问题，请如实说明". The KB context is never written to local history. KB selector available both in the welcome screen (inline next to model selector) and in MessageInput (compact dropdown). KB management through Settings "知识库" tab. Files reuse the `/api/parse-file` parsing pipeline (same as chat uploads).
+
+**Edit safety**: When modifying HTML nesting in Svelte files, prefer self-contained edits where opening+closing tags balance within the replaced string. Avoid splitting edits across separate old/new pairs that touch overlapping regions — this pattern causes hard-to-debug nesting errors. Build with full output to catch Svelte parse errors. Use absolute paths when adding or reading files. Always run `npm run build` to verify changes compile.

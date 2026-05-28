@@ -2,6 +2,7 @@
 	import toast from "svelte-french-toast";
 	import { onDestroy, onMount } from "svelte";
 	import ModelSelector from "./ModelSelector.svelte";
+	import KnowledgeBaseSelector from "./KnowledgeBaseSelector.svelte";
 	import {
 		ensureFilesParsed,
 		isImageFile,
@@ -17,6 +18,7 @@
 	export let prompt = "";
 	export let messages = [];
 	export let uploadingFiles: UploadingFile[] = [];
+	export let kbId = "";
 
 	// 语音输入
 	let recording = false;
@@ -296,6 +298,7 @@
 						/>
 
 						<div class="self-end mb-2 flex space-x-0.5 mr-2 items-center">
+							<KnowledgeBaseSelector bind:selectedKbId={kbId} />
 							<ModelSelector bind:selectedModels compact={true} />
 							<!-- 语音输入按钮 -->
 							<button

@@ -51,3 +51,6 @@ export const sidebarOpen = writable(true);
 
 // 情绪追踪数据
 export const moodHistory = writable<{ date: string; mood: string; score: number }[]>([]);
+
+// 知识库
+export const knowledgeBases = writable<{ id: string; name: string; chunk_size?: number }[]>([]);

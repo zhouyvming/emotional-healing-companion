@@ -5,6 +5,7 @@
 	import { onMount } from "svelte";
 	import { info, settings, models, user } from "$lib/stores";
 	import Advanced from "./Settings/Advanced.svelte";
+	import KnowledgeBaseManager from "./KnowledgeBaseManager.svelte";
 	import { getThirdPartyModels, fetchModels } from "$lib/chat/openai";
 	import { authFetch } from "$lib/client/http";
 
@@ -563,6 +564,30 @@
 
 				<button
 					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab ===
+					'knowledge'
+						? 'bg-gray-200 dark:bg-gray-700 font-medium'
+						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
+					on:click={() => {
+						selectedTab = "knowledge";
+					}}
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 20 20"
+						fill="currentColor"
+						class="w-4 h-4 mr-2"
+					>
+						<path
+							fill-rule="evenodd"
+							d="M10.362 1.093a.75.75 0 00-.724 0L2.523 5.018 10 9.143l7.477-4.125-7.115-3.925zM18 6.443l-7.25 4v8.25l6.862-3.786A.75.75 0 0018 14.25V6.443zm-8.75 4v8.25l-6.862-3.786A.75.75 0 012 14.25V6.443l7.25 4z"
+							clip-rule="evenodd"
+						/>
+					</svg>
+					知识库
+				</button>
+
+				<button
+					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab ===
 					'about'
 						? 'bg-gray-200 dark:bg-gray-700 font-medium'
 						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
@@ -1111,6 +1136,15 @@
 					</div>
 				{/if}
 
+				{#if selectedTab === "knowledge"}
+					<div class="flex flex-col space-y-4">
+						<div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">知识库管理</div>
+							<KnowledgeBaseManager />
+						</div>
+					</div>
+				{/if}
+
 				{#if selectedTab === "about"}
 					<div class="flex flex-col items-center py-6 space-y-4">
 						<div class="text-4xl">🐱</div>
@@ -1140,7 +1174,7 @@
 				{/if}
 
 				<!-- Save button -->
-				{#if selectedTab !== "about" && selectedTab !== "models"}
+				{#if selectedTab !== "about" && selectedTab !== "models" && selectedTab !== "knowledge"}
 					<div class="flex justify-center pt-4 mt-2 border-t dark:border-gray-700">
 						<button
 							class="px-6 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition"

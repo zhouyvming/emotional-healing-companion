@@ -104,6 +104,38 @@ async function buildWebSearchContext(userPrompt: string, settings: Record<string
 	}
 }
 
+async function buildKnowledgeBaseContext(kbId: string, userPrompt: string) {
+	if (!kbId) return "";
+
+	try {
+		const user = JSON.parse(localStorage.getItem("user") ?? "{}");
+		const token = user.token;
+		const headers: Record<string, string> = { "Content-Type": "application/json" };
+		if (token) headers.Authorization = `Bearer ${token}`;
+
+		const res = await fetch(`/api/knowledge-bases/${kbId}/query`, {
+			method: "POST",
+			headers,
+			body: JSON.stringify({ query: userPrompt, k: 5 })
+		});
+
+		if (!res.ok) return "";
+		const data = await res.json();
+		const results = Array.isArray(data.results) ? data.results : [];
+		if (results.length === 0) return "";
+
+		const formatted = results
+			.map(
+				(r: any, i: number) =>
+					`---片段${i + 1}（相关度${Math.round(r.score * 100)}%）---\n${r.content}`
+			)
+			.join("\n\n");
+	return `\n参考信息：\n${formatted}`;
+	} catch {
+		return "";
+	}
+}
+
 interface ChatContext {
 	messages: Message[];
 	history: History;
@@ -120,6 +152,8 @@ interface ChatContext {
 	isNewChat: boolean;
 	notifyUpdate: () => void;
 	uploadingFiles?: UploadedFile[];
+	kbId?: string;
+	getKbId?: () => string;
 }
 
 export function createChatHandlers(ctx: () => ChatContext) {
@@ -617,6 +651,12 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		const webSearchContext = await buildWebSearchContext(userPrompt, settings);
 		if (webSearchContext) {
 			finalPrompt = `${finalPrompt}\n\n[联网搜索结果，仅供回答时参考，不代表本地对话历史]\n${webSearchContext}`;
+		}
+
+		const kbId = ctx.getKbId ? ctx.getKbId() : ctx.kbId;
+		const kbContext = await buildKnowledgeBaseContext(kbId || "", userPrompt);
+		if (kbContext) {
+			finalPrompt = `${finalPrompt}\n\n以下是从知识库中检索到的与用户问题相关的参考信息。请优先基于这些信息回答，如果参考信息不足以回答问题，请如实说明。\n${kbContext}`;
 		}
 
 		await sendPrompt(finalPrompt, userMessageId, chatId, onTitleSet);

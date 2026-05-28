@@ -120,3 +120,49 @@ pool
 )`
 	)
 	.catch((err) => console.error("mood_history table init error:", err));
+
+// 知识库
+pool
+	.execute(
+		`CREATE TABLE IF NOT EXISTS knowledge_bases (
+  id VARCHAR(36) PRIMARY KEY,
+  username VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  embedding_model VARCHAR(255) DEFAULT 'nomic-embed-text',
+  chunk_size INT DEFAULT 500,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_kb_username (username)
+)`
+	)
+	.catch((err) => console.error("knowledge_bases table init error:", err));
+
+pool
+	.execute(
+		`CREATE TABLE IF NOT EXISTS kb_documents (
+  id VARCHAR(36) PRIMARY KEY,
+  kb_id VARCHAR(36) NOT NULL,
+  filename VARCHAR(255) NOT NULL,
+  status VARCHAR(20) DEFAULT 'pending',
+  chunk_count INT DEFAULT 0,
+  error_message TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_kb_docs_kbid (kb_id)
+)`
+	)
+	.catch((err) => console.error("kb_documents table init error:", err));
+
+pool
+	.execute(
+		`CREATE TABLE IF NOT EXISTS kb_chunks (
+  id VARCHAR(36) PRIMARY KEY,
+  doc_id VARCHAR(36) NOT NULL,
+  kb_id VARCHAR(36) NOT NULL,
+  content TEXT NOT NULL,
+  chunk_index INT NOT NULL,
+  embedding JSON NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_chunks_doc (doc_id),
+  INDEX idx_chunks_kb (kb_id)
+)`
+	)
+	.catch((err) => console.error("kb_chunks table init error:", err));

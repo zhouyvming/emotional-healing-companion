@@ -16,7 +16,7 @@ npm run fmt       # Prettier 2 格式化（通过 npx -p 运行，非本地安�
 
 ## 项目概述
 
-SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。品牌名"情感疗愈伴侣"——粉色主题的中文情感支持聊天机器人，支持 **Ollama 本地模型** + **第三方 OpenAI 兼容 API**（OpenAI / DeepSeek / 通义千问等）。
+SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。品牌名"情感疗愈伴侣"——粉色主题的中文情感支持聊天机器人，支持 **Ollama 本地模型** + **第三方 OpenAI 兼容 API**（OpenAI / DeepSeek / 通义千问等），具备 **RAG 知识库**功能（文档上传 → 向量检索 → 对话注入）。
 
 ## 项目启动与依赖
 
@@ -51,10 +51,14 @@ src/routes/
     ├── feedback_table/+server.ts           # POST 提交反馈
     ├── fetch-url/+server.ts               # POST 抓取网页文本（redirect: manual 防 SSRF 重定向，1MB 上限）
     ├── providers/+server.ts               # GET(按用户列表)/POST(事务式全量保存) API 提供商配置（跨浏览器同步）
-    └── web-search/+server.ts              # POST 联网搜索（Bing/百度/DDG 多引擎，isPrivateUrl 防 SSRF）
+    ├── web-search/+server.ts              # POST 联网搜索（Bing/百度/DDG 多引擎，isPrivateUrl 防 SSRF）
+    ├── knowledge-bases/+server.ts         # GET(列表)/POST(创建) 知识库
+    ├── knowledge-bases/[id]/+server.ts    # DELETE 级联删除
+    ├── knowledge-bases/[id]/documents/+server.ts # GET(列表)/POST(上传，复用parse-file)
+    └── knowledge-bases/[id]/query/+server.ts # POST 向量检索 Top-K
 ```
 
-所有 10 个 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
+所有 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
 
 **SPA 模式**：`ssr: false`（`src/routes/+layout.js`），认证完全在客户端进行——JWT 存储在 `localStorage.user`，路由守卫在 `+layout.js` 的 load 函数中检查，无服务端 session。
 
@@ -77,6 +81,9 @@ src/routes/
 | `feedback_table` | `id`, `username`, `content`, `created_at`(TIMESTAMP) |
 | `advice_table` | `id`, `username`, `content`, `created_at`(TIMESTAMP) |
 | `api_providers` | `id`(VARCHAR 36 PK), `username`, `name`, `base_url`(TEXT), `api_key`(TEXT), `models`(JSON), `created_at`(TIMESTAMP) |
+| `knowledge_bases` | `id`(VARCHAR 36 PK), `username`, `name`, `embedding_model`(默认 nomic-embed-text), `chunk_size`(默认 500), `created_at`(TIMESTAMP) |
+| `kb_documents` | `id`(VARCHAR 36 PK), `kb_id`, `filename`, `status`(pending/processing/done/error), `chunk_count`, `error_message`(TEXT), `created_at`(TIMESTAMP) |
+| `kb_chunks` | `id`(VARCHAR 36 PK), `doc_id`, `kb_id`, `content`(TEXT), `chunk_index`, `embedding`(JSON 浮点数组), `created_at`(TIMESTAMP) |
 
 **timestamp 迁移**：2026-05 从 `BIGINT` 毫秒时间戳迁移为 `DATETIME`。`db.ts` 中 `UPDATE FROM_UNIXTIME` 自动转换已有数据。**新代码必须使用 `datetimeNow()`（`YYYY-MM-DD HH:MM:SS` 格式），禁止使用 epoch 毫秒。**
 
@@ -115,6 +122,7 @@ src/routes/
 | `src/lib/server/db.ts`   | MySQL 连接池 + 4 张表 DDL + 列迁移（avatar/system_avatar/timestamp DATETIME）。支持环境变量配置                                                                                                                               |
 | `src/lib/client/http.ts` | `authFetch`（自动附加 JWT Bearer，401 清除登录态并跳转，Content-Type 仅未设置时覆盖）、`getToken`、`getCurrentUser`                                                                                                            |
 | `src/lib/utils/index.ts` | `splitStream`（SSE 流式解析，\r\n 归一化）、`convertMessagesToHistory`（消息数组 → 树形结构）、`datetimeNow()`、`isPrivateUrl()`（共享 SSRF 检查）、`removeMessageBranch()`（消息树递归删除 + currentId 防悬挂）                   |
+| `src/lib/server/knowledge-base.ts` | `chunkText`(固定大小切片+overlap)、`cosineSimilarity`(余弦相似度)、`getOllamaEmbedding`(调用 Ollama /api/embeddings)、`queryKnowledgeBase`(Embed 查询 → Top-K)、`processDocument`(文本提取→切片→embed→入库)、`parseByExtension`(文件解析，与 /api/parse-file 共享实现) |
 
 ## 响应式核心机制：notifyUpdate
 

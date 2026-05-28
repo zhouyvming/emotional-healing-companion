@@ -12,6 +12,7 @@
 	import toast from "svelte-french-toast";
 	import DOMPurify from "dompurify";
 	import ModelSelector from "./ModelSelector.svelte";
+	import KnowledgeBaseSelector from "./KnowledgeBaseSelector.svelte";
 	import {
 		ensureFilesParsed,
 		isImageFile,
@@ -84,6 +85,7 @@
 	export let onBranchNavigate: () => Promise<void> = async () => {};
 	export let editMessage: Function = async () => {};
 	export let deleteMessage: Function = async () => {};
+	export let kbId = "";
 	let editingMessageId: string | null = null;
 	let editContent = "";
 
@@ -486,6 +488,7 @@
 						</button>
 					</div>
 					<div class="flex items-center gap-1">
+						<KnowledgeBaseSelector bind:selectedKbId={kbId} />
 						<ModelSelector bind:selectedModels compact={true} />
 						<button
 							class={sendBtnClass}
