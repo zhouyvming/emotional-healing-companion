@@ -73,6 +73,11 @@
 - 流式中断恢复提示（刷新后未完成消息标注）
 - **知识库（RAG）**：上传文档到知识库 → Ollama 本地 Embedding → 对话时向量检索 Top-K 片段注入 Prompt
 
+> **使用知识库功能必须安装 Ollama 并拉取嵌入模型：**
+> ```bash
+> ollama pull nomic-embed-text
+> ```
+
 ## 接入第三方 API 模型
 
 1. 打开 **设置 → API** 标签页
