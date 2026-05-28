@@ -73,10 +73,14 @@
 - 流式中断恢复提示（刷新后未完成消息标注）
 - **知识库（RAG）**：上传文档到知识库 → Ollama 本地 Embedding → 对话时向量检索 Top-K 片段注入 Prompt
 
-> **使用知识库功能必须安装 Ollama 并拉取嵌入模型：**
+> **使用知识库功能必须安装 Ollama 并拉取嵌入模型，例如：**
 > ```bash
-> ollama pull nomic-embed-text
+> ollama pull nomic-embed-text       # 推荐，274MB，768维，中英文兼容
+> ollama pull bge-m3                 # BGE-M3，1.2GB，1024维，多语言
+> ollama pull multilingual-e5-large  # 多语言 E5，560MB，1024维
+> ollama pull mxbai-embed-large      # 335MB，1024维，英文为主
 > ```
+> 创建知识库后可在数据库 `knowledge_bases.embedding_model` 字段指定使用的模型。
 
 ## 接入第三方 API 模型
 
