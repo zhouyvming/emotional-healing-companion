@@ -200,4 +200,12 @@
 			{/if}
 		</div>
 	</div>
+{:else}
+	<div class="min-h-screen w-full flex items-center justify-center">
+		<div class="flex items-center gap-2">
+			<span class="inline-block w-2 h-2 bg-pink-400 rounded-full animate-bounce" style="animation-delay: 0ms" />
+			<span class="inline-block w-2 h-2 bg-pink-400 rounded-full animate-bounce" style="animation-delay: 150ms" />
+			<span class="inline-block w-2 h-2 bg-pink-400 rounded-full animate-bounce" style="animation-delay: 300ms" />
+		</div>
+	</div>
 {/if}

@@ -1,6 +1,7 @@
 import toast from "svelte-french-toast";
 import type { Writable } from "svelte/store";
 import { datetimeNow } from "$lib/utils";
+import { buildSystemPrompt, compressContext } from "$lib/chat/prompts";
 
 export interface ApiProvider {
 	id: string;
@@ -185,43 +186,19 @@ export async function sendPromptOpenAI(
 		return { role: msg.role, content: contentText };
 	});
 
-	// 注入 system prompt（含情绪感知）
-	let systemPrompt = settings.systemPrompt ?? "";
-	if (settings.emotionSensing !== false) {
-		const emotionGuidance = `[内部情绪分析指引]
-请根据用户的最新消息感知其情绪状态（如开心、焦虑、悲伤、愤怒、平静等），并在回复中以温暖共情的方式适当回应。
-不要直白地说"我感知到你很XX"，而是自然地用匹配用户情绪的语调来回应。
-如果用户情绪低落，优先倾听和共情，不要急于给建议。`;
-		systemPrompt = systemPrompt
-			? `${systemPrompt}\n\n${emotionGuidance}`
-			: `你是一个温暖共情的AI助手。\n\n${emotionGuidance}`;
-	}
-
-	systemPrompt = systemPrompt
-		? `${systemPrompt}\n\n请使用Markdown格式回复，适当使用标题、列表、加粗、代码块等格式让回复更清晰易读。`
-		: '请使用Markdown格式回复，适当使用标题、列表、加粗、代码块等格式让回复更清晰易读。';
-
-	// 上下文自动压缩
-	const contextLimit = settings.num_ctx ?? 200000;
-	let totalChars = apiMessages.reduce((sum, m) => sum + contentLength(m.content), 0);
-	if (systemPrompt) totalChars += systemPrompt.length;
-	const estimatedTokens = Math.ceil(totalChars / 2);
-	if (estimatedTokens > contextLimit) {
-		let keepFrom = 0;
-		let runningChars = 0;
-		for (let i = apiMessages.length - 1; i >= 0; i--) {
-			runningChars += contentLength(apiMessages[i].content);
-			if (Math.ceil(runningChars / 2) > contextLimit * 0.85) {
-				keepFrom = i + 1;
-				break;
-			}
-		}
-		const truncated = apiMessages.length - keepFrom;
-		if (truncated > 0 && keepFrom < apiMessages.length) {
-			apiMessages = apiMessages.slice(keepFrom);
-			const summaryNote: OpenAIMessage = { role: "system", content: `[对话上下文已压缩：早期 ${truncated} 条消息已省略，以下是最近的对话内容]` };
-			apiMessages.unshift(summaryNote);
-		}
+	let systemPrompt = buildSystemPrompt(settings.systemPrompt, settings.emotionSensing);
+	const { messages: compressed, truncated } = compressContext(
+		apiMessages,
+		systemPrompt.length,
+		settings.num_ctx ?? 200000,
+		(m) => contentLength(m.content)
+	);
+	if (truncated > 0) {
+		apiMessages = compressed;
+		apiMessages.unshift({
+			role: "system",
+			content: `[对话上下文已压缩：早期 ${truncated} 条消息已省略，以下是最近的对话内容]`
+		} as OpenAIMessage);
 	}
 
 	const controller = new AbortController();

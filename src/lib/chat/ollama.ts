@@ -11,6 +11,7 @@ import {
 } from "$lib/utils";
 import type { Writable } from "svelte/store";
 import { findProvider, sendPromptOpenAI } from "$lib/chat/openai";
+import { buildSystemPrompt, compressContext } from "$lib/chat/prompts";
 
 interface Message {
 	id: string;
@@ -59,14 +60,6 @@ export function copyToClipboard(text: string) {
 		return;
 	}
 	navigator.clipboard.writeText(text).catch(() => {});
-}
-
-// 情绪分析 prompt
-function getEmotionPrompt(latestUserMessage: string): string {
-	return `[内部情绪分析指引]
-请根据用户的最新消息感知其情绪状态（如开心、焦虑、悲伤、愤怒、平静等），并在回复中以温暖共情的方式适当回应。
-不要直白地说"我感知到你很XX"，而是自然地用匹配用户情绪的语调来回应。
-如果用户情绪低落，优先倾听和共情，不要急于给建议。`;
 }
 
 async function buildWebSearchContext(userPrompt: string, settings: Record<string, any>) {

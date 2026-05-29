@@ -1,7 +1,7 @@
 import { json } from "@sveltejs/kit";
 import { pool } from "$lib/server/db";
 import { requireAuth, AuthError } from "$lib/server/auth";
-import { datetimeNow } from "$lib/utils";
+import { datetimeNow, safeJsonParse } from "$lib/utils";
 import type { RowDataPacket } from "mysql2/promise";
 import type { RequestHandler } from "./$types";
 
@@ -107,11 +107,3 @@ export const DELETE: RequestHandler = async ({ params, request }) => {
 	}
 };
 
-function safeJsonParse(val: string | object) {
-	if (typeof val === "object") return val;
-	try {
-		return JSON.parse(val);
-	} catch {
-		return null;
-	}
-}

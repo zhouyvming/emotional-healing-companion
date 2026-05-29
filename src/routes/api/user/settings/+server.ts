@@ -1,6 +1,7 @@
 import { json } from "@sveltejs/kit";
 import { pool } from "$lib/server/db";
 import { requireAuth, AuthError } from "$lib/server/auth";
+import { safeJsonParse } from "$lib/utils";
 import type { RowDataPacket } from "mysql2/promise";
 
 interface UserRow extends RowDataPacket {
@@ -45,11 +46,3 @@ export async function PUT({ request }) {
 	}
 }
 
-function safeJsonParse(val: string | object | null) {
-	if (typeof val === "object") return val;
-	try {
-		return JSON.parse(val ?? "{}");
-	} catch {
-		return {};
-	}
-}
