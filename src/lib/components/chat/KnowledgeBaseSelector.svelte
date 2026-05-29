@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from "svelte";
+
 	export let selectedKbId = "";
 	export let disabled = false;
 
@@ -18,11 +20,8 @@
 		}
 	}
 
-	// 组件挂载时加载
-	import { onMount } from "svelte";
 	onMount(loadKnowledgeBases);
 
-	// 暴露刷新方法给父组件
 	export { loadKnowledgeBases as refresh };
 </script>
 
@@ -34,7 +33,11 @@
 	title="选择知识库"
 >
 	<option value="">未选择知识库</option>
-	{#each kbList as kb}
-		<option value={kb.id}>📚 {kb.name}</option>
-	{/each}
+	{#if kbList.length === 0}
+		<option disabled>暂无可用知识库</option>
+	{:else}
+		{#each kbList as kb}
+			<option value={kb.id}>📚 {kb.name}</option>
+		{/each}
+	{/if}
 </select>

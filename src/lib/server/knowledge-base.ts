@@ -163,6 +163,10 @@ export async function queryKnowledgeBase(
 
 	if (chunks.length === 0) return [];
 
+	if (chunks.length > 5000) {
+		console.warn(`[知识库] KB ${kbId} 有 ${chunks.length} 个切片，检索性能可能下降，建议归档旧文档`);
+	}
+
 	// 计算相似度并排序
 	const scored = chunks.map((c) => {
 		const emb = typeof c.embedding === "string" ? JSON.parse(c.embedding) : c.embedding;

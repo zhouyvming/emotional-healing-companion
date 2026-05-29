@@ -6,7 +6,7 @@
 	import auto_render from "katex/dist/contrib/auto-render.mjs";
 	import "katex/dist/katex.min.css";
 
-	import { chatId, db, user, settings, moodHistory } from "$lib/stores";
+	import { user, settings, moodHistory } from "$lib/stores";
 	import { tick, onDestroy } from "svelte";
 	import { copyToClipboard } from "$lib/chat/ollama";
 	import toast from "svelte-french-toast";

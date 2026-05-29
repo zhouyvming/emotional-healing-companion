@@ -88,7 +88,10 @@ async function buildWebSearchContext(userPrompt: string, settings: Record<string
 			})
 		});
 
-		if (!res.ok) return "";
+		if (!res.ok) {
+			console.warn("[联网搜索] API 返回错误", res.status);
+			return "";
+		}
 		const data = await res.json();
 		const results = Array.isArray(data.results) ? data.results.slice(0, 5) : [];
 		if (results.length === 0) return "";
@@ -99,7 +102,8 @@ async function buildWebSearchContext(userPrompt: string, settings: Record<string
 					`${index + 1}. ${result.title}\n摘要：${result.snippet}\n链接：${result.url}`
 			)
 			.join("\n\n");
-	} catch {
+	} catch (err) {
+		console.error("[联网搜索] 检索失败:", err);
 		return "";
 	}
 }
@@ -119,7 +123,10 @@ async function buildKnowledgeBaseContext(kbId: string, userPrompt: string) {
 			body: JSON.stringify({ query: userPrompt, k: 5 })
 		});
 
-		if (!res.ok) return "";
+		if (!res.ok) {
+			console.warn("[知识库] API 返回错误", res.status);
+			return "";
+		}
 		const data = await res.json();
 		const results = Array.isArray(data.results) ? data.results : [];
 		if (results.length === 0) return "";
@@ -130,8 +137,9 @@ async function buildKnowledgeBaseContext(kbId: string, userPrompt: string) {
 					`---片段${i + 1}（相关度${Math.round(r.score * 100)}%）---\n${r.content}`
 			)
 			.join("\n\n");
-	return `\n参考信息：\n${formatted}`;
-	} catch {
+		return `\n参考信息：\n${formatted}`;
+	} catch (err) {
+		console.error("[知识库] 检索失败:", err);
 		return "";
 	}
 }

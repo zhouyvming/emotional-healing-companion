@@ -2,9 +2,41 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
 const SALT_ROUNDS = 10;
-const SECRET = process.env.JWT_SECRET ?? (
-	// console.warn("⚠ 使用默认 JWT secret，生产环境请设置 JWT_SECRET 环境变量"), 
-	"emotional-healing-companion-secret-key-change-in-production");
+const SECRET = process.env.JWT_SECRET ?? "emotional-healing-companion-secret-key-change-in-production";
+
+if (!process.env.JWT_SECRET) {
+	console.warn("[安全] 使用默认 JWT secret，生产环境请设置 JWT_SECRET 环境变量");
+}
+
+// API Key 加密（AES-256-GCM，密钥派生自 JWT_SECRET）
+function getCipherKey(): Buffer {
+	return crypto.createHash("sha256").update(SECRET).digest();
+}
+
+export function encryptApiKey(plaintext: string): string {
+	const key = getCipherKey();
+	const iv = crypto.randomBytes(16);
+	const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+	const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+	const tag = cipher.getAuthTag();
+	return Buffer.concat([iv, tag, encrypted]).toString("base64");
+}
+
+export function decryptApiKey(encoded: string): string {
+	try {
+		const key = getCipherKey();
+		const buf = Buffer.from(encoded, "base64");
+		const iv = buf.subarray(0, 16);
+		const tag = buf.subarray(16, 32);
+		const encrypted = buf.subarray(32);
+		const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+		decipher.setAuthTag(tag);
+		return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+	} catch {
+		// 兼容旧数据：未被加密的旧 key 直接返回原文
+		return encoded;
+	}
+}
 
 export async function hashPassword(password: string): Promise<string> {
 	return bcrypt.hash(password, SALT_ROUNDS);

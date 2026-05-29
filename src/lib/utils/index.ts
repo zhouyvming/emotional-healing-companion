@@ -21,13 +21,7 @@ export const isPrivateUrl = (urlString: string): boolean => {
 	}
 };
 
-export const datetimeNow = () => {
-	const d = new Date();
-	const pad = (n: number) => String(n).padStart(2, "0");
-	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
-		d.getHours()
-	)}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-};
+export const datetimeNow = () => new Date().toISOString().replace(/\.\d{3}Z$/, "");
 
 export const splitStream = (splitOn: string) => {
 	let buffer = "";
@@ -106,5 +100,14 @@ export const removeMessageBranch = (
 
 	if (currentIdWasDeleted) {
 		history.currentId = message.parentId;
+	}
+};
+
+export const safeJsonParse = <T>(val: string | object, fallback: T): T => {
+	if (typeof val === "object") return val as unknown as T;
+	try {
+		return JSON.parse(val) as T;
+	} catch {
+		return fallback;
 	}
 };

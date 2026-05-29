@@ -4,8 +4,8 @@ import { hashPassword, verifyPassword, signToken } from "$lib/server/auth";
 import { datetimeNow } from "$lib/utils";
 import type { RowDataPacket } from "mysql2/promise";
 
-const registerAttempts = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW = 60000;
 const RATE_LIMIT_MAX = 5;
 
 interface User extends RowDataPacket {
@@ -17,21 +17,27 @@ interface User extends RowDataPacket {
 	system_avatar: string | null;
 }
 
+function checkRateLimit(ip: string): boolean {
+	const now = Date.now();
+	const entry = rateLimitMap.get(ip);
+	if (entry && now < entry.resetAt && entry.count >= RATE_LIMIT_MAX) {
+		return false;
+	}
+	if (!entry || now >= entry.resetAt) {
+		rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+	} else {
+		entry.count++;
+	}
+	return true;
+}
+
 export async function POST({ request }) {
 	const { action, username, password, email } = await request.json();
+	const ip = request.headers.get("x-forwarded-for") || "unknown";
 
 	if (action === "register") {
-		// 速率限制
-		const ip = request.headers.get("x-forwarded-for") || "unknown";
-		const now = Date.now();
-		const attempt = registerAttempts.get(ip);
-		if (attempt && now < attempt.resetAt && attempt.count >= RATE_LIMIT_MAX) {
+		if (!checkRateLimit(ip)) {
 			return json({ error: "操作过于频繁，请稍后重试" }, { status: 429 });
-		}
-		if (!attempt || now >= attempt.resetAt) {
-			registerAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
-		} else {
-			attempt.count++;
 		}
 
 		try {
@@ -73,20 +79,24 @@ export async function POST({ request }) {
 		}
 	}
 
-		if (action === "login") {
-			try {
-				const [rows] = await pool.execute<User[]>("SELECT * FROM users WHERE username = ?", [
-					username
-				]);
-				const user = rows[0];
+	if (action === "login") {
+		if (!checkRateLimit(ip)) {
+			return json({ error: "操作过于频繁，请稍后重试" }, { status: 429 });
+		}
 
-				if (!user) {
-					return json({ error: "用户未注册" }, { status: 401 });
-				}
+		try {
+			const [rows] = await pool.execute<User[]>("SELECT * FROM users WHERE username = ?", [
+				username
+			]);
+			const user = rows[0];
 
-				if (!(await verifyPassword(String(password), user.password))) {
-					return json({ error: "用户名或密码错误" }, { status: 401 });
-				}
+			if (!user) {
+				return json({ error: "用户未注册" }, { status: 401 });
+			}
+
+			if (!(await verifyPassword(String(password), user.password))) {
+				return json({ error: "用户名或密码错误" }, { status: 401 });
+			}
 
 			const token = signToken({ userId: user.id, username: user.username });
 

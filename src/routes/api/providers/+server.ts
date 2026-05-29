@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { pool } from "$lib/server/db";
-import { requireAuth, AuthError } from "$lib/server/auth";
+import { requireAuth, AuthError, encryptApiKey, decryptApiKey } from "$lib/server/auth";
 import type { RowDataPacket } from "mysql2/promise";
 
 interface ProviderRow extends RowDataPacket {
@@ -24,7 +24,7 @@ export async function GET({ request }) {
 				id: row.id,
 				name: row.name,
 				baseUrl: row.base_url,
-				apiKey: row.api_key,
+				apiKey: decryptApiKey(row.api_key),
 				models: safeJsonParse(row.models)
 			}))
 		);
@@ -51,7 +51,7 @@ export async function POST({ request }) {
 				for (const p of providers) {
 					await conn.execute(
 						"INSERT INTO api_providers (id, username, name, base_url, api_key, models) VALUES (?, ?, ?, ?, ?, ?)",
-						[p.id, auth.username, p.name, p.baseUrl, p.apiKey, JSON.stringify(p.models ?? [])]
+						[p.id, auth.username, p.name, p.baseUrl, encryptApiKey(String(p.apiKey)), JSON.stringify(p.models ?? [])]
 					);
 				}
 			}

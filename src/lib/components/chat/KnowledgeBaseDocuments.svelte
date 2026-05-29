@@ -108,7 +108,10 @@
 	{#if loading}
 		<div class="text-center text-xs text-gray-400 py-2">加载中...</div>
 	{:else if docs.length === 0}
-		<div class="text-center text-xs text-gray-400 py-2">暂未上传文档</div>
+		<div class="text-center text-xs text-gray-400 py-4">
+			暂未上传文档<br />
+			<span class="text-[10px]">点击右上角「上传文档」添加 PDF、Word、Excel 等文件</span>
+		</div>
 	{:else}
 		{#each docs as doc}
 			<div class="flex items-center justify-between py-1.5 px-2 bg-gray-50 dark:bg-gray-900 rounded">
