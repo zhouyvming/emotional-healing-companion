@@ -1,7 +1,4 @@
-import crypto from "node:crypto";
 import { existsSync } from "node:fs";
-import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import type { RowDataPacket } from "mysql2/promise";
@@ -32,7 +29,7 @@ export interface TtsVoiceSummary extends TtsVoicePreset {
 
 export interface TtsAudioResult {
 	buffer: Buffer;
-	mime: "audio/wav";
+	mime: "audio/mpeg";
 }
 
 const SHERPA_ENGINE = "sherpa-onnx" as const;
@@ -55,15 +52,21 @@ export const TTS_PRESETS: TtsVoicePreset[] = [
 		sourceUrl: "https://github.com/k2-fsa/sherpa-onnx",
 		sizeBytes: 129_508_635,
 		tags: ["中文", "女声", "离线", "sherpa-onnx"],
-		notes: "内置离线中文 TTS；模型文件位于 tools/sherpa-onnx，输出 WAV，无需 ffmpeg。"
+		notes: "内置离线中文 TTS；模型文件位于 tools/sherpa-onnx，输出 MP3（lamejs 编码），无需 ffmpeg。"
 	}
 ];
 
 let ttsInstance: any | null = null;
+let _lamejs: any = null;
+
+function getLamejs() {
+	if (!_lamejs) _lamejs = require("lamejs");
+	return _lamejs;
+}
 
 const defaultVoiceSummary = (): TtsVoiceSummary => ({
 	...TTS_PRESETS[0],
-	sampleMime: "audio/wav",
+	sampleMime: "audio/mpeg",
 	createdAt: "",
 	updatedAt: ""
 });
@@ -164,6 +167,27 @@ function getTtsInstance() {
 	return ttsInstance;
 }
 
+/** Float32Array → Int16Array → MP3 via lamejs (pure JS, zero native deps) */
+function encodeMp3(samples: Float32Array, sampleRate: number, volume: number): Buffer {
+	const lamejs = getLamejs();
+	const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
+
+	const vol = Math.max(0, Math.min(1, volume));
+	const pcm = new Int16Array(samples.length);
+	for (let i = 0; i < samples.length; i++) {
+		const s = Math.max(-1, Math.min(1, samples[i] * vol)) * 32767;
+		pcm[i] = s < 0 ? Math.max(-32768, Math.ceil(s)) : Math.min(32767, Math.floor(s));
+	}
+
+	const mp3Data = mp3encoder.encodeBuffer(pcm);
+	const endData = mp3encoder.flush();
+
+	return Buffer.concat([
+		Buffer.from(mp3Data.buffer || mp3Data),
+		Buffer.from(endData.buffer || endData)
+	]);
+}
+
 const TTS_ALLOWED_CHARS = /[^一-鿿a-zA-Z0-9\s　-〿＀-￯㐀-䶿.,!?;:'"()\-、。，！？；：“”‘’（）—…《》]/g;
 
 function sanitizeTtsText(raw: string): string {
@@ -183,18 +207,13 @@ export async function synthesizeSpeech(
 		throw new Error("当前仅支持内置 sherpa-onnx 中文离线音色。");
 	}
 
-	const wavPath = path.join(os.tmpdir(), `tts-${crypto.randomUUID()}.wav`);
-	try {
-		const tts = getTtsInstance();
-		const audio = tts.generateWithConfig(text, {
-			sid: 0,
-			speed: Math.max(0.6, Math.min(1.6, Number(input.rate || 1))),
-			silenceScale: 0.2
-		});
-		tts.save(wavPath, audio);
-		const buffer = await fs.readFile(wavPath);
-		return { buffer, mime: "audio/wav" };
-	} finally {
-		fs.unlink(wavPath).catch(() => {});
-	}
+	const tts = getTtsInstance();
+	const audio = tts.generateWithConfig(text, {
+		sid: 0,
+		speed: Math.max(0.6, Math.min(1.6, Number(input.rate || 1))),
+		silenceScale: 0.2
+	});
+
+	const mp3 = encodeMp3(audio.samples, audio.sampleRate, Number(input.volume ?? 1));
+	return { buffer: mp3, mime: "audio/mpeg" };
 }
