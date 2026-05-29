@@ -19,12 +19,14 @@ npm run fmt       # Prettier 2 格式化（通过 npx -p 运行，非本地安�
 
 ## 项目概述
 
-SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。品牌名"情感疗愈伴侣"——粉色主题的中文情感支持聊天机器人，支持 **Ollama 本地模型** + **第三方 OpenAI 兼容 API**（OpenAI / DeepSeek / 通义千问等），具备 **RAG 知识库**功能（文档上传 → 向量检索 → 对话注入）。
+SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。品牌名"情感疗愈伴侣"——粉色主题的中文情感支持聊天机器人，支持 **Ollama 本地模型** + **本地 OpenAI-compatible 后端**（vLLM / llama.cpp / LM Studio）+ **第三方 OpenAI 兼容 API**（OpenAI / DeepSeek / 通义千问等），具备 **RAG 知识库**功能（文档上传 → 向量检索 → 对话注入）。
 
 ## 最新状态（2026-05-29）
 
 - `npm run verify` 通过（`typecheck + build + node --test`）；`git diff --check` 通过。当前构建只剩未设置 `JWT_SECRET` 时的默认 secret 警告。
 - 第三方 OpenAI 兼容模型已改为同源后端代理：聊天/标题生成走 `/api/openai-compatible/chat`，模型列表走 `/api/openai-compatible/models`。前端只传 `providerId`，服务端按当前登录用户读取 provider、解密 API Key、校验模型列表并转发，避免浏览器直连 provider URL 时出现 CORS 导致的 `Failed to fetch`。
+- 本地模型后端新增 OpenAI-compatible 模式：支持 vLLM、llama.cpp server、LM Studio，聊天/标题生成走 `/api/local-openai/chat`，模型列表走 `/api/local-openai/models`，模型名显示为 `local/<model-id>`。
+- 本地 OpenAI-compatible 代理会拒绝当前应用自身 origin，避免误填 `http://localhost:8080/v1` 时把 `/v1/models` 打回 SvelteKit 导致 404；llama.cpp 预设为 `http://localhost:8081/v1`。
 - `/api/providers` GET 返回脱敏 API Key；POST 收到脱敏 Key 时保留现有加密值。Provider base URL 会规范化并拒绝私网/本机地址。
 - 知识库文档处理状态已增强：保存原始 `source_type/source_data`，支持 `processing/done/error`、错误记录、轮询刷新和失败重试接口。
 - `SettingsModal.svelte` 改为懒加载；Vite vendor chunk 已拆分；`Messages.svelte` 使用 `highlight.js/lib/core` 并按需注册语言，消除大 chunk 警告。
@@ -66,6 +68,8 @@ src/routes/
     ├── providers/+server.ts               # GET(按用户列表)/POST(事务式全量保存) API 提供商配置（跨浏览器同步）
     ├── openai-compatible/chat/+server.ts  # POST 同源代理 OpenAI-compatible /chat/completions（流式透传，避免 CORS）
     ├── openai-compatible/models/+server.ts # POST 同源代理 OpenAI-compatible /models（刷新第三方模型列表）
+    ├── local-openai/chat/+server.ts       # POST 本地 OpenAI-compatible /chat/completions（vLLM/llama.cpp/LM Studio）
+    ├── local-openai/models/+server.ts     # POST 本地 OpenAI-compatible /models
     ├── web-search/+server.ts              # POST 联网搜索（Bing/百度/DDG 多引擎，isPrivateUrl 防 SSRF）
     ├── knowledge-bases/+server.ts         # GET(列表)/POST(创建) 知识库
     ├── knowledge-bases/[id]/+server.ts    # DELETE 级联删除
@@ -137,6 +141,7 @@ src/routes/
 | `src/lib/client/fileParser.ts`     | 前端上传文件解析协调：图片跳过解析，txt/md/csv/doc/docx/pdf/xls/xlsx/pptx 调用 `/api/parse-file`，维护 `parseStatus`/`parseError` 并显示上传、完成、解析中的 toast。                                                                                                                                                                                                                                                          |
 | `src/lib/server/auth.ts`           | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                                                                                                                                                                                                                            |
 | `src/lib/server/providers.ts`      | `maskApiKey`/`isMaskedApiKey`、`normalizeProviderBaseUrl`、`getProviderForUser`、`providerAllowsModel`，统一处理 Provider 脱敏、私网 URL 阻断、用户归属查询和模型白名单校验                                                                                                                                                                                                                                                   |
+| `src/lib/server/local-openai.ts`   | `normalizeLocalOpenAIBaseUrl`、`localOpenAIHeaders`，供本地 vLLM/llama.cpp/LM Studio 代理路由复用；仅允许本机或内网地址                                                                                                                                                                                                                                                                                                       |
 | `src/lib/server/db.ts`             | MySQL 连接池 + 9 张表 DDL + 列迁移。支持环境变量配置                                                                                                                                                                                                                                                                                                                                                                          |
 | `src/lib/client/http.ts`           | `authFetch`（自动附加 JWT Bearer，401 清除登录态并跳转，Content-Type 仅未设置时覆盖）、`getToken`、`getCurrentUser`                                                                                                                                                                                                                                                                                                           |
 | `src/lib/utils/index.ts`           | `splitStream`、`safeJsonParse`(JSON 解析兜底)（SSE 流式解析，\r\n 归一化）、`convertMessagesToHistory`（消息数组 → 树形结构）、`datetimeNow()`、`isPrivateUrl()`（共享 SSRF 检查）、`removeMessageBranch()`（消息树递归删除 + currentId 防悬挂）                                                                                                                                                                              |
@@ -189,6 +194,21 @@ src/routes/
 - Provider `baseUrl` 通过 `normalizeProviderBaseUrl()` 规范化，仅允许 http/https，并拒绝 localhost、私网和内网地址
 - 第三方模型发送**本次请求输入** + 用户设定的 system prompt；联网搜索结果如果启用会随本次请求输入附加，但不写入历史
 - 第三方模型图片输入：可能支持视觉的模型使用 OpenAI `image_url` content；其他模型降级为文本提示，避免非视觉 API 报错
+
+## 本地 OpenAI-compatible 后端
+
+本地模型后端由 `settings.localModelProvider` 控制：
+
+- `"ollama"`：沿用 Ollama `/tags`、`/chat`、`/generate`、`/pull`、`/delete`、`/version`
+- `"openai-compatible"`：使用 `/api/local-openai/models` 和 `/api/local-openai/chat` 代理到本地 OpenAI-compatible 服务
+
+支持预设：
+
+- LM Studio：`http://localhost:1234/v1`
+- vLLM：`http://localhost:8000/v1`
+- llama.cpp server：`http://localhost:8081/v1`（项目默认占用 8080，需要给 llama.cpp 换端口）
+
+本地兼容模型在前端统一显示为 `local/<model-id>`，聊天发送前用 `getLocalOpenAIModelId()` 还原真实模型 ID。`normalizeLocalOpenAIBaseUrl()` 只允许本机或内网 URL；`assertNotSameOriginLocalBackend()` 会拒绝当前应用自身 origin，避免把 `http://localhost:8080/v1/models` 打回 SvelteKit 导致 404。这与第三方 Provider 的 SSRF 策略相反，第三方 Provider 必须是公网地址。
 
 ## 聊天消息数据模型
 

@@ -4,6 +4,12 @@ import { datetimeNow } from "$lib/utils";
 import { buildSystemPrompt, compressContext } from "$lib/chat/prompts";
 import { getToken } from "$lib/client/http";
 import type { ChatHistory, ChatMessage, ChatSettings } from "$lib/types/chat";
+import {
+	LOCAL_OPENAI_API_BASE_URL,
+	LOCAL_OPENAI_MODEL_PREFIX,
+	LOCAL_OPENAI_PROVIDER_ID,
+	LOCAL_OPENAI_PROVIDER_NAME
+} from "$lib/constants";
 
 export interface ApiProvider {
 	id: string;
@@ -12,6 +18,32 @@ export interface ApiProvider {
 	apiKey?: string;
 	hasApiKey?: boolean;
 	models: { id: string; name: string }[];
+}
+
+export function isLocalOpenAIModel(modelName: string) {
+	return modelName.startsWith(LOCAL_OPENAI_MODEL_PREFIX);
+}
+
+export function getLocalOpenAIModelId(modelName: string) {
+	return modelName.startsWith(LOCAL_OPENAI_MODEL_PREFIX)
+		? modelName.slice(LOCAL_OPENAI_MODEL_PREFIX.length)
+		: modelName;
+}
+
+export function getLocalOpenAIProvider(settings: ChatSettings): ApiProvider {
+	return {
+		id: LOCAL_OPENAI_PROVIDER_ID,
+		name:
+			typeof settings.localOpenAIName === "string" && settings.localOpenAIName
+				? settings.localOpenAIName
+				: LOCAL_OPENAI_PROVIDER_NAME,
+		baseUrl:
+			typeof settings.localOpenAIBaseUrl === "string" && settings.localOpenAIBaseUrl
+				? settings.localOpenAIBaseUrl
+				: LOCAL_OPENAI_API_BASE_URL,
+		apiKey: typeof settings.localOpenAIApiKey === "string" ? settings.localOpenAIApiKey : undefined,
+		models: []
+	};
 }
 
 type OpenAIContent =
@@ -133,6 +165,24 @@ export async function fetchModels(providerId: string): Promise<string[]> {
 		);
 }
 
+export async function fetchLocalOpenAIModels(baseUrl: string, apiKey?: string): Promise<string[]> {
+	const res = await fetch("/api/local-openai/models", {
+		method: "POST",
+		headers: getAuthHeaders(),
+		body: JSON.stringify({ baseUrl, apiKey })
+	});
+	if (!res.ok) {
+		const err = await res.json().catch(() => ({}));
+		throw new Error(err.error?.message || err.error || `HTTP ${res.status}`);
+	}
+	const data = await res.json();
+	return (data.data ?? [])
+		.map((m: any) => m.id)
+		.filter(
+			(id: string) => !id.startsWith("dall-e") && !id.startsWith("whisper") && !id.startsWith("tts")
+		);
+}
+
 export async function sendPromptOpenAI(
 	provider: ApiProvider,
 	model: string,
@@ -232,12 +282,24 @@ export async function sendPromptOpenAI(
 			seed: settings.seed ?? undefined,
 			stop: settings.stop || undefined
 		};
-		const res = await fetch("/api/openai-compatible/chat", {
-			method: "POST",
-			headers: getAuthHeaders(),
-			body: JSON.stringify({ providerId: provider.id, payload }),
-			signal: controller.signal
-		});
+		const isLocalProvider = provider.id === LOCAL_OPENAI_PROVIDER_ID;
+		const res = await fetch(
+			isLocalProvider ? "/api/local-openai/chat" : "/api/openai-compatible/chat",
+			{
+				method: "POST",
+				headers: getAuthHeaders(),
+				body: JSON.stringify(
+					isLocalProvider
+						? {
+								baseUrl: provider.baseUrl,
+								apiKey: provider.apiKey,
+								payload
+						  }
+						: { providerId: provider.id, payload }
+				),
+				signal: controller.signal
+			}
+		);
 
 		clearTimeout(timeout);
 
@@ -356,24 +418,46 @@ async function generateOpenAITitle(
 			return;
 		}
 		try {
-			const res = await fetch("/api/openai-compatible/chat", {
-				method: "POST",
-				headers: getAuthHeaders(),
-				body: JSON.stringify({
-					providerId: provider.id,
-					payload: {
-						model,
-						messages: [
-							{
-								role: "user",
-								content: `请根据以下对话内容生成一个简洁的标题（5个词以内）。\n语言规则：检测用户输入语言，标题使用相同语言。只回复标题文本。\n\n用户输入：${userPrompt}`
-							}
-						],
-						max_tokens: 20,
-						temperature: 0.3
-					}
-				})
-			});
+			const isLocalProvider = provider.id === LOCAL_OPENAI_PROVIDER_ID;
+			const res = await fetch(
+				isLocalProvider ? "/api/local-openai/chat" : "/api/openai-compatible/chat",
+				{
+					method: "POST",
+					headers: getAuthHeaders(),
+					body: JSON.stringify(
+						isLocalProvider
+							? {
+									baseUrl: provider.baseUrl,
+									apiKey: provider.apiKey,
+									payload: {
+										model,
+										messages: [
+											{
+												role: "user",
+												content: `请根据以下对话内容生成一个简洁的标题（5个词以内）。\n语言规则：检测用户输入语言，标题使用相同语言。只回复标题文本。\n\n用户输入：${userPrompt}`
+											}
+										],
+										max_tokens: 20,
+										temperature: 0.3
+									}
+							  }
+							: {
+									providerId: provider.id,
+									payload: {
+										model,
+										messages: [
+											{
+												role: "user",
+												content: `请根据以下对话内容生成一个简洁的标题（5个词以内）。\n语言规则：检测用户输入语言，标题使用相同语言。只回复标题文本。\n\n用户输入：${userPrompt}`
+											}
+										],
+										max_tokens: 20,
+										temperature: 0.3
+									}
+							  }
+					)
+				}
+			);
 			if (!res.ok) throw new Error();
 			const data = await res.json();
 			const content = data.choices?.[0]?.message?.content?.trim();

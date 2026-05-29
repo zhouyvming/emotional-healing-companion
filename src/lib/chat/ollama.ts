@@ -10,7 +10,13 @@ import {
 	removeMessageBranch
 } from "$lib/utils";
 import type { Writable } from "svelte/store";
-import { findProvider, sendPromptOpenAI } from "$lib/chat/openai";
+import {
+	findProvider,
+	getLocalOpenAIModelId,
+	getLocalOpenAIProvider,
+	isLocalOpenAIModel,
+	sendPromptOpenAI
+} from "$lib/chat/openai";
 import { buildSystemPrompt, compressContext } from "$lib/chat/prompts";
 
 interface Message {
@@ -179,6 +185,47 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				return;
 			}
 			if (settings.titleAutoGenerate ?? true) {
+				if (isLocalOpenAIModel(selectedModels[0])) {
+					const provider = getLocalOpenAIProvider(settings);
+					const modelForTitle = getLocalOpenAIModelId(selectedModels[0]);
+					const res = await fetch("/api/local-openai/chat", {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${
+								JSON.parse(localStorage.getItem("user") ?? "{}").token ?? ""
+							}`
+						},
+						body: JSON.stringify({
+							baseUrl: provider.baseUrl,
+							apiKey: provider.apiKey,
+							payload: {
+								model: modelForTitle,
+								messages: [
+									{
+										role: "user",
+										content: `请根据以下对话内容生成一个简洁的标题（5个词以内）。\n语言规则：检测用户输入语言，标题使用相同语言。只回复标题文本。\n\n用户输入：${userPrompt}`
+									}
+								],
+								max_tokens: 20,
+								temperature: 0.3
+							}
+						})
+					})
+						.then(async (res) => {
+							if (!res.ok) throw await res.json();
+							return res.json();
+						})
+						.catch((error) => {
+							console.warn("[标题生成] 本地 OpenAI 兼容 API 请求失败:", error);
+							return null;
+						});
+					const content = res?.choices?.[0]?.message?.content?.trim();
+					const newTitle = content ? content.slice(0, 50) : userPrompt.slice(0, 20);
+					await c().db.updateChatById(_chatId, { title: newTitle });
+					onTitleSet(newTitle);
+					return;
+				}
 				const modelForTitle = selectedModels[0].includes("/") ? null : selectedModels[0];
 				if (!modelForTitle) {
 					await c().db.updateChatById(_chatId, { title: userPrompt.slice(0, 50) });
@@ -491,6 +538,22 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		const { selectedModels, chats, db } = ctx;
 		const titleGuard = { generated: false };
 		for (const model of selectedModels) {
+			if (isLocalOpenAIModel(model)) {
+				await sendPromptOpenAI(
+					getLocalOpenAIProvider(ctx.settings),
+					getLocalOpenAIModelId(model),
+					userPrompt,
+					parentId,
+					_chatId,
+					ctx as any,
+					onTitleSet,
+					titleGuard,
+					() => c().messages,
+					() => c().autoScroll,
+					() => c().title
+				);
+				continue;
+			}
 			const provider = findProvider(model);
 			if (provider) {
 				const actualModel = model.split("/").slice(1).join("/") || model;

@@ -42,6 +42,8 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 
 **Message routing**: Ollama models → `sendPromptOllama` (streaming SSE via Ollama `/api/chat`), third-party OpenAI-compatible → `sendPromptOpenAI` (same-origin streaming proxy `/api/openai-compatible/chat`). Models processed **sequentially** (not `Promise.all`) to avoid history corruption.
 
+**Local OpenAI-compatible backends**: Settings can switch local model provider from Ollama to OpenAI-compatible (`settings.localModelProvider = "openai-compatible"`). vLLM, llama.cpp server, and LM Studio use `/api/local-openai/models` and `/api/local-openai/chat`; model names are surfaced as `local/<model-id>`. These routes require auth and only allow local/private base URLs. Ollama pull/delete/version checks are Ollama-only.
+
 **Context compression**: Before sending to any model, total character count is estimated (chars/2 ≈ tokens). If exceeding `num_ctx * 0.85` (default 200K), oldest messages are truncated. A system note `[对话上下文已压缩：早期 N 条消息已省略]` is inserted. Local history is NOT modified.
 
 **Web search injection**: if `settings.webSearch` is true, `submitPrompt()` calls `/api/web-search` before model dispatch and appends a `[联网搜索结果...]` block to the request-only `finalPrompt`. This context is NOT written into local history.
@@ -94,6 +96,10 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 **Verification update**: `npm run verify` now runs `typecheck + build + node --test scripts/*.test.mjs` and passes. `git diff --check` passes; the only runtime build warning is the default JWT secret warning when `JWT_SECRET` is unset. The earlier large chunk warning was removed by chunk splitting and highlight.js core imports.
 
 **Provider/key hardening**: `src/lib/server/providers.ts` centralizes provider lookup, masked-key detection, model allow-list checks, and base URL normalization. OpenAI-compatible chat/model proxy routes now accept only `providerId` + payload, fetch provider credentials server-side, enforce user ownership, apply request timeouts, and classify upstream auth/rate-limit/server failures for clearer UI errors.
+
+**Local backend support**: Added first-class support for vLLM, llama.cpp server, and LM Studio through a local OpenAI-compatible proxy. Configure it in Settings → General → Connection. Presets use LM Studio `http://localhost:1234/v1`, vLLM `http://localhost:8000/v1`, and llama.cpp `http://localhost:8081/v1` because this app runs on 8080; custom local/private URLs are accepted but must not match the app origin.
+
+**Local proxy same-origin guard**: `/api/local-openai/*` rejects a base URL with the same origin as the current app. This prevents `http://localhost:8080/v1/models` from being routed back into SvelteKit and returning `Not found: /v1/models`.
 
 **Knowledge base retry/status**: `kb_documents` now stores `source_type`, `source_data`, and `processed_at` for retryable processing. Upload processing marks `processing/done/error`, clears stale chunks before retry, cleans residual chunks after failure, and exposes `/api/knowledge-bases/[id]/documents/[docId]/retry`. `KnowledgeBaseDocuments.svelte` polls while work is pending/processing and shows retry for failed docs.
 

@@ -1,12 +1,17 @@
 <script lang="ts">
 	import Modal from "../common/Modal.svelte";
-	import { WEB_UI_VERSION, OLLAMA_API_BASE_URL } from "$lib/constants";
+	import {
+		LOCAL_OPENAI_API_BASE_URL,
+		LOCAL_OPENAI_MODEL_PREFIX,
+		WEB_UI_VERSION,
+		OLLAMA_API_BASE_URL
+	} from "$lib/constants";
 	import toast from "svelte-french-toast";
 	import { onMount } from "svelte";
 	import { info, settings, models, user } from "$lib/stores";
 	import Advanced from "./Settings/Advanced.svelte";
 	import KnowledgeBaseManager from "./KnowledgeBaseManager.svelte";
-	import { getThirdPartyModels, fetchModels } from "$lib/chat/openai";
+	import { getThirdPartyModels, fetchLocalOpenAIModels, fetchModels } from "$lib/chat/openai";
 	import { authFetch } from "$lib/client/http";
 
 	export let show = false;
@@ -14,7 +19,7 @@
 	$: if (!show) showAddProvider = false;
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && show) {
+		if (e.key === "Escape" && show) {
 			show = false;
 			e.preventDefault();
 		}
@@ -29,13 +34,17 @@
 
 	// General
 	let API_BASE_URL = OLLAMA_API_BASE_URL;
+	let localModelProvider: "ollama" | "openai-compatible" = "ollama";
+	let localOpenAIBaseUrl = LOCAL_OPENAI_API_BASE_URL;
+	let localOpenAIApiKey = "";
+	let localOpenAIName = "本地兼容";
 	let theme = "dark";
 	let fontSize = "normal";
 	let proactiveGreeting = true;
 	let privacyMode = false;
 	let webSearch = true;
-	let searchEngine = 'cn.bing.com';
-	let customSearchUrl = '';
+	let searchEngine = "cn.bing.com";
+	let customSearchUrl = "";
 	let emotionSensing = true;
 	let titleAutoGenerate = true;
 	let responseAutoCopy = false;
@@ -123,7 +132,7 @@
 		const p = providers[idx];
 		toast("正在获取模型列表...");
 		try {
-		const modelIds = await fetchModels(p.id);
+			const modelIds = await fetchModels(p.id);
 			providers[idx].models = modelIds.map((id: string) => ({ id, name: id }));
 			providers = [...providers];
 			saveProviders();
@@ -232,7 +241,46 @@
 		num_ctx: 200000
 	};
 
+	const localOpenAIModelsFromIds = (modelIds: string[]) =>
+		modelIds.map((id) => ({
+			name: `${LOCAL_OPENAI_MODEL_PREFIX}${id}`,
+			details: {
+				family: localOpenAIName || "本地 OpenAI 兼容",
+				parameter_size: "Local",
+				quantization_level: ""
+			},
+			size: 0,
+			source: "local-openai"
+		}));
+
 	const checkOllamaConnection = async () => {
+		if (localModelProvider === "openai-compatible") {
+			try {
+				const target = new URL(localOpenAIBaseUrl);
+				if (target.origin === window.location.origin) {
+					toast.error("本地兼容后端不能使用当前应用端口，请把模型服务换到其他端口");
+					return;
+				}
+			} catch {
+				toast.error("请输入有效的本地 API 地址");
+				return;
+			}
+			try {
+				const modelIds = await fetchLocalOpenAIModels(localOpenAIBaseUrl, localOpenAIApiKey);
+				const thirdPartyModels = getThirdPartyModels();
+				models.set([...localOpenAIModelsFromIds(modelIds), ...thirdPartyModels]);
+				await saveSettings({
+					localModelProvider,
+					localOpenAIBaseUrl,
+					localOpenAIApiKey,
+					localOpenAIName
+				});
+				toast.success(`本地兼容服务连接已验证，获取到 ${modelIds.length} 个模型`);
+			} catch (error: any) {
+				toast.error("本地兼容服务连接失败：" + (error.message || "未知错误"));
+			}
+			return;
+		}
 		if (API_BASE_URL === "") {
 			API_BASE_URL = OLLAMA_API_BASE_URL;
 		}
@@ -312,6 +360,10 @@
 	const saveAllSettings = async () => {
 		const updated: Record<string, any> = {
 			API_BASE_URL: API_BASE_URL === "" ? OLLAMA_API_BASE_URL : API_BASE_URL,
+			localModelProvider,
+			localOpenAIBaseUrl,
+			localOpenAIApiKey,
+			localOpenAIName,
 			theme,
 			fontSize,
 			proactiveGreeting,
@@ -369,6 +421,10 @@
 	};
 
 	const getModels = async (url = "") => {
+		if (localModelProvider === "openai-compatible") {
+			const modelIds = await fetchLocalOpenAIModels(localOpenAIBaseUrl, localOpenAIApiKey);
+			return { models: localOpenAIModelsFromIds(modelIds) };
+		}
 		const res = await fetch(`${url || $settings?.API_BASE_URL || OLLAMA_API_BASE_URL}/tags`, {
 			method: "GET",
 			headers: {
@@ -393,7 +449,7 @@
 	};
 
 	onMount(() => {
-		window.addEventListener('keydown', handleKeydown);
+		window.addEventListener("keydown", handleKeydown);
 		const stored = JSON.parse(localStorage.getItem("settings") ?? "{}");
 		loadProviders();
 
@@ -410,12 +466,16 @@
 		systemPrompt = stored.systemPrompt ?? "";
 		systemName = stored.systemName ?? "";
 		webSearch = stored.webSearch ?? true;
-		searchEngine = stored.searchEngine ?? 'cn.bing.com';
-		customSearchUrl = stored.customSearchUrl ?? '';
+		searchEngine = stored.searchEngine ?? "cn.bing.com";
+		customSearchUrl = stored.customSearchUrl ?? "";
 		emotionSensing = stored.emotionSensing ?? true;
 		const userData = JSON.parse(localStorage.getItem("user") ?? "{}");
 		systemAvatarPreview = userData.system_avatar ?? "";
 		API_BASE_URL = stored.API_BASE_URL ?? OLLAMA_API_BASE_URL;
+		localModelProvider = stored.localModelProvider ?? "ollama";
+		localOpenAIBaseUrl = stored.localOpenAIBaseUrl ?? LOCAL_OPENAI_API_BASE_URL;
+		localOpenAIApiKey = stored.localOpenAIApiKey ?? "";
+		localOpenAIName = stored.localOpenAIName ?? "本地兼容";
 		requestFormat = stored.requestFormat ?? "";
 
 		if (stored.seed !== undefined && stored.seed !== "") options.seed = stored.seed;
@@ -426,7 +486,7 @@
 		}
 		editingProviderIndex = null;
 		return () => {
-			window.removeEventListener('keydown', handleKeydown);
+			window.removeEventListener("keydown", handleKeydown);
 		};
 	});
 </script>
@@ -744,25 +804,95 @@
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">连接</div>
 							<div
-								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
+								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-3"
 							>
-								<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">Ollama API 地址</div>
-								<div class="flex gap-2">
-									<input
-										class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-										placeholder="http://localhost:11434/api"
-										bind:value={API_BASE_URL}
-									/>
-									<button
-										class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition text-sm"
-										on:click={checkOllamaConnection}
+								<div>
+									<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">本地模型后端</div>
+									<select
+										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+										bind:value={localModelProvider}
 									>
-										测试
-									</button>
+										<option value="ollama">Ollama</option>
+										<option value="openai-compatible"
+											>OpenAI 兼容（vLLM / llama.cpp / LM Studio）</option
+										>
+									</select>
 								</div>
-								<div class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-									默认: {OLLAMA_API_BASE_URL}
-								</div>
+
+								{#if localModelProvider === "ollama"}
+									<div>
+										<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">Ollama API 地址</div>
+										<div class="flex gap-2">
+											<input
+												class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+												placeholder="http://localhost:11434/api"
+												bind:value={API_BASE_URL}
+											/>
+											<button
+												class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition text-sm"
+												on:click={checkOllamaConnection}
+											>
+												测试
+											</button>
+										</div>
+										<div class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+											默认: {OLLAMA_API_BASE_URL}
+										</div>
+									</div>
+								{:else}
+									<div class="space-y-2">
+										<div class="grid grid-cols-3 gap-2">
+											<button
+												class="py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition"
+												on:click={() => {
+													localOpenAIName = "LM Studio";
+													localOpenAIBaseUrl = "http://localhost:1234/v1";
+												}}>LM Studio</button
+											>
+											<button
+												class="py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition"
+												on:click={() => {
+													localOpenAIName = "vLLM";
+													localOpenAIBaseUrl = "http://localhost:8000/v1";
+												}}>vLLM</button
+											>
+											<button
+												class="py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition"
+												on:click={() => {
+													localOpenAIName = "llama.cpp";
+													localOpenAIBaseUrl = "http://localhost:8081/v1";
+												}}>llama.cpp</button
+											>
+										</div>
+										<div class="flex gap-2">
+											<input
+												class="w-32 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+												placeholder="显示名称"
+												bind:value={localOpenAIName}
+											/>
+											<input
+												class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+												placeholder="http://localhost:1234/v1"
+												bind:value={localOpenAIBaseUrl}
+											/>
+											<button
+												class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition text-sm"
+												on:click={checkOllamaConnection}
+											>
+												测试
+											</button>
+										</div>
+										<input
+											class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+											placeholder="API Key（可选，vLLM/LM Studio/llama.cpp 通常留空）"
+											bind:value={localOpenAIApiKey}
+										/>
+										<div class="text-xs text-gray-400 dark:text-gray-500">
+											仅允许本机或内网地址，不能使用当前应用端口。模型将以 {LOCAL_OPENAI_MODEL_PREFIX}模型ID
+											显示；llama.cpp 如默认占用 8080，请改用 8081 等端口。
+										</div>
+									</div>
+								{/if}
 							</div>
 						</div>
 					</div>
@@ -849,7 +979,7 @@
 											<option value="custom">自定义...</option>
 										</select>
 									</div>
-									{#if searchEngine === 'custom'}
+									{#if searchEngine === "custom"}
 										<div class="mt-1">
 											<input
 												class="w-full rounded-md py-1.5 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
@@ -888,75 +1018,85 @@
 							</div>
 						</div>
 
-					<div>
-						<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">AI 人设</div>
-						<div
-							class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
-						>
-							<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-								自定义 AI 的身份、性格和说话风格
-							</div>
-							<div class="mb-3">
-								<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">AI 名称</div>
-								<input
-									type="text"
-									bind:value={systemName}
-									class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-									placeholder="小愈"
-								/>
-							</div>
-							<textarea
-								bind:value={systemPrompt}
-								class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
-								rows="4"
-								placeholder="例如：你是一个温柔知心的情感陪伴AI，名叫小愈。你用温暖、共情的语气与用户交流..."
-							/>
-						</div>
-					</div>
-				</div>
-			{/if}
-
-				{#if selectedTab === "models"}
-					<div class="flex flex-col space-y-4">
 						<div>
-							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">
-								拉取新模型
-							</div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">AI 人设</div>
 							<div
 								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
 							>
-								<div class="flex gap-2">
-									<input
-										class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-										placeholder="例如: llama3:8b, qwen2.5:7b"
-										bind:value={pullModelName}
-										disabled={pulling}
-									/>
-									<button
-										class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-										on:click={pullModel}
-										disabled={pulling || !pullModelName.trim()}
-									>
-										{pulling ? "拉取中..." : "拉取"}
-									</button>
+								<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+									自定义 AI 的身份、性格和说话风格
 								</div>
-								{#if pullProgress}
-									<div class="mt-2 text-xs text-gray-500 dark:text-gray-400">{pullProgress}</div>
-								{/if}
+								<div class="mb-3">
+									<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">AI 名称</div>
+									<input
+										type="text"
+										bind:value={systemName}
+										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+										placeholder="小愈"
+									/>
+								</div>
+								<textarea
+									bind:value={systemPrompt}
+									class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
+									rows="4"
+									placeholder="例如：你是一个温柔知心的情感陪伴AI，名叫小愈。你用温暖、共情的语气与用户交流..."
+								/>
 							</div>
 						</div>
+					</div>
+				{/if}
+
+				{#if selectedTab === "models"}
+					<div class="flex flex-col space-y-4">
+						{#if localModelProvider === "ollama"}
+							<div>
+								<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">
+									拉取新模型
+								</div>
+								<div
+									class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
+								>
+									<div class="flex gap-2">
+										<input
+											class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+											placeholder="例如: llama3:8b, qwen2.5:7b"
+											bind:value={pullModelName}
+											disabled={pulling}
+										/>
+										<button
+											class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+											on:click={pullModel}
+											disabled={pulling || !pullModelName.trim()}
+										>
+											{pulling ? "拉取中..." : "拉取"}
+										</button>
+									</div>
+									{#if pullProgress}
+										<div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+											{pullProgress}
+										</div>
+									{/if}
+								</div>
+							</div>
+						{/if}
 
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">
-								已安装模型（Ollama 本地） · <span class="font-normal text-gray-400">v{$info?.ollama?.version ?? "未知"}</span>
+								本地模型（{localModelProvider === "ollama"
+									? "Ollama"
+									: localOpenAIName || "OpenAI 兼容"}）{#if localModelProvider === "ollama"}
+									· <span class="font-normal text-gray-400"
+										>v{$info?.ollama?.version ?? "未知"}</span
+									>
+								{/if}
 							</div>
 							<div
 								class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden"
 							>
-								{#if $models.filter(m => m.source !== "third-party").length === 0}
+								{#if $models.filter((m) => m.source !== "third-party").length === 0}
 									<div class="py-4 text-center text-xs text-gray-400">暂无本地模型</div>
 								{:else}
-									{#each $models.filter(m => m.source !== "third-party") as model}
+									{#each $models.filter((m) => m.source !== "third-party") as model}
 										{#if model.name !== "hr"}
 											<div
 												class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -990,32 +1130,43 @@
 														on:click={() => setDefaultModel(model.name)}
 														title="设为默认模型"
 													>
-														<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-pink-400">
-															<path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd"/>
-														</svg>
-													</button>
-													<button
-														class="flex-shrink-0 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition ml-1"
-														on:click={() => {
-															showDeleteModelConfirm = model.name;
-														}}
-														title="删除模型"
-													>
 														<svg
 															xmlns="http://www.w3.org/2000/svg"
-															fill="none"
-															viewBox="0 0 24 24"
-															stroke-width="1.5"
-															stroke="currentColor"
-															class="w-4 h-4 text-red-400"
+															viewBox="0 0 20 20"
+															fill="currentColor"
+															class="w-4 h-4 text-pink-400"
 														>
 															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+																fill-rule="evenodd"
+																d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
+																clip-rule="evenodd"
 															/>
 														</svg>
 													</button>
+													{#if model.source !== "local-openai"}
+														<button
+															class="flex-shrink-0 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition ml-1"
+															on:click={() => {
+																showDeleteModelConfirm = model.name;
+															}}
+															title="删除模型"
+														>
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																fill="none"
+																viewBox="0 0 24 24"
+																stroke-width="1.5"
+																stroke="currentColor"
+																class="w-4 h-4 text-red-400"
+															>
+																<path
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																	d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+																/>
+															</svg>
+														</button>
+													{/if}
 												{/if}
 											</div>
 										{/if}
@@ -1037,7 +1188,9 @@
 
 							<!-- 添加提供商 -->
 							{#if showAddProvider}
-								<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-2 mb-3">
+								<div
+									class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-2 mb-3"
+								>
 									<input
 										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
 										placeholder="提供商名称（如 DeepSeek）"
@@ -1056,7 +1209,10 @@
 										/>
 										<button
 											class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-											on:click={() => { addProvider(); showAddProvider = false; }}
+											on:click={() => {
+												addProvider();
+												showAddProvider = false;
+											}}
 											disabled={!newProviderName || !newProviderUrl || !newProviderKey}
 										>
 											添加
@@ -1066,7 +1222,9 @@
 							{:else}
 								<button
 									class="w-full py-2.5 mb-3 rounded-lg bg-pink-50 dark:bg-pink-900/30 border border-dashed border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
-									on:click={() => { showAddProvider = true; }}
+									on:click={() => {
+										showAddProvider = true;
+									}}
 								>
 									+ 添加提供商
 								</button>
@@ -1078,16 +1236,23 @@
 								>
 									<div class="flex items-center justify-between mb-2">
 										{#if editingProviderIndex === i}
-											<input class="flex-1 rounded-md py-1 px-2 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600" bind:value={provider.name} placeholder="名称" />
+											<input
+												class="flex-1 rounded-md py-1 px-2 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
+												bind:value={provider.name}
+												placeholder="名称"
+											/>
 										{:else}
 											<span class="text-sm font-medium">{provider.name}</span>
 										{/if}
 										<div class="flex gap-1">
 											<button
 												class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded transition"
-												on:click={() => editingProviderIndex === i ? (editingProviderIndex = null, saveProviders()) : (editingProviderIndex = i)}
+												on:click={() =>
+													editingProviderIndex === i
+														? ((editingProviderIndex = null), saveProviders())
+														: (editingProviderIndex = i)}
 											>
-												{editingProviderIndex === i ? '保存' : '编辑'}
+												{editingProviderIndex === i ? "保存" : "编辑"}
 											</button>
 											<button
 												class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded transition"
@@ -1101,8 +1266,16 @@
 									</div>
 									{#if editingProviderIndex === i}
 										<div class="space-y-2 mb-2">
-											<input class="w-full rounded-md py-1 px-2 text-xs dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600" bind:value={provider.baseUrl} placeholder="API 地址" />
-											<input class="w-full rounded-md py-1 px-2 text-xs dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600" bind:value={provider.apiKey} placeholder="API Key" />
+											<input
+												class="w-full rounded-md py-1 px-2 text-xs dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
+												bind:value={provider.baseUrl}
+												placeholder="API 地址"
+											/>
+											<input
+												class="w-full rounded-md py-1 px-2 text-xs dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
+												bind:value={provider.apiKey}
+												placeholder="API Key"
+											/>
 										</div>
 									{:else}
 										<div class="text-xs text-gray-400 truncate mb-1">{provider.baseUrl}</div>
@@ -1110,7 +1283,9 @@
 									{#if provider.models.length > 0}
 										<div class="space-y-0.5 mt-2 max-h-40 overflow-y-auto">
 											{#each provider.models as m}
-												<div class="flex items-center justify-between py-1.5 px-2 bg-gray-50 dark:bg-gray-900 rounded">
+												<div
+													class="flex items-center justify-between py-1.5 px-2 bg-gray-50 dark:bg-gray-900 rounded"
+												>
 													<span class="text-xs font-medium">{m.name}</span>
 													<div class="flex items-center gap-2">
 														<button
@@ -1148,7 +1323,9 @@
 				{#if selectedTab === "knowledge"}
 					<div class="flex flex-col space-y-4">
 						<div>
-							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">知识库管理</div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">
+								知识库管理
+							</div>
 							<KnowledgeBaseManager />
 						</div>
 					</div>

@@ -35,6 +35,10 @@ interface Settings {
 	responseAutoCopy?: boolean;
 	topicDirectSend?: boolean;
 	requestFormat?: string;
+	localModelProvider?: "ollama" | "openai-compatible";
+	localOpenAIBaseUrl?: string;
+	localOpenAIApiKey?: string;
+	localOpenAIName?: string;
 	seed?: number;
 	temperature?: number;
 	repeat_penalty?: number;

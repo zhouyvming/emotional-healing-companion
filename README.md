@@ -5,6 +5,8 @@
 ## 最新状态（2026-05-29）
 
 - 当前代码已通过 `npm run verify`（`typecheck + build + node --test`）和 `git diff --check`。
+- 本地模型调用现支持 Ollama 与本地 OpenAI-compatible 后端，可接入 vLLM、llama.cpp server、LM Studio。
+- 本地 OpenAI-compatible 后端会拒绝当前应用自身地址，避免误填 `http://localhost:8080/v1` 时把 `/v1/models` 打回 SvelteKit 导致 404；llama.cpp 预设改为 `http://localhost:8081/v1`。
 - 第三方 OpenAI 兼容 API 已改为同源后端代理，前端只提交 `providerId`，API Key 与 base URL 由服务端按登录用户读取并转发，避免浏览器直连 provider URL 时因为 CORS 出现 `Failed to fetch`。
 - Provider API Key 在接口返回时脱敏；保存脱敏 Key 会保留数据库中的原加密值。Provider base URL 会阻止私网/本机地址。
 - 知识库文档处理支持 `processing/done/error` 状态、失败错误记录、自动轮询和失败重试。
@@ -13,22 +15,23 @@
 
 ## 技术栈
 
-| 层面     | 技术                                                                       |
-| -------- | -------------------------------------------------------------------------- |
-| 前端框架 | SvelteKit 1.x + Svelte 4（SPA 模式，`ssr: false`）                         |
-| UI       | Tailwind CSS（粉色主题，深色/浅色模式切换）                                |
-| 数据库   | MySQL 8（`mysql2/promise`），`localhost:3307`                              |
-| AI 服务  | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等）                 |
-| 认证     | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7 天有效期）                   |
-| 安全     | DOMPurify HTML 净化、速率限制、SSRF/Open Redirect 防护、API Key 脱敏与加密 |
-| 知识库   | RAG 检索增强生成：Ollama Embedding + MySQL 向量存储 + 余弦相似度检索       |
+| 层面     | 技术                                                                                    |
+| -------- | --------------------------------------------------------------------------------------- |
+| 前端框架 | SvelteKit 1.x + Svelte 4（SPA 模式，`ssr: false`）                                      |
+| UI       | Tailwind CSS（粉色主题，深色/浅色模式切换）                                             |
+| 数据库   | MySQL 8（`mysql2/promise`），`localhost:3307`                                           |
+| AI 服务  | Ollama + 本地 OpenAI-compatible（vLLM / llama.cpp / LM Studio）+ 第三方 OpenAI 兼容 API |
+| 认证     | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7 天有效期）                                |
+| 安全     | DOMPurify HTML 净化、速率限制、SSRF/Open Redirect 防护、API Key 脱敏与加密              |
+| 知识库   | RAG 检索增强生成：Ollama Embedding + MySQL 向量存储 + 余弦相似度检索                    |
 
 ## 功能
 
 **聊天**
 
 - 流式响应（SSE 解析，完成后批量保存）
-- 支持 **Ollama 本地模型** + **OpenAI 兼容 API**（DeepSeek / 通义千问 / OpenAI 等）
+- 支持 **Ollama 本地模型** + **本地 OpenAI-compatible 后端**（vLLM / llama.cpp / LM Studio）+ **第三方 OpenAI 兼容 API**（DeepSeek / 通义千问 / OpenAI 等）
+- 本地 OpenAI-compatible 模型通过 `/api/local-openai/*` 同源代理转发，模型名显示为 `local/模型ID`
 - 第三方 OpenAI 兼容 API 通过 `/api/openai-compatible/*` 后端代理转发，前端只传 `providerId`，降低 CORS、Key 暴露和浏览器网络策略导致的失败
 - 多模型顺序对话（多个模型各自产生独立回复分支）
 - 树形消息结构，支持对话分支
@@ -107,6 +110,18 @@
 第三方模型发送本次请求输入 + 用户设定的 system prompt + Markdown 格式指令。若开启联网搜索，请求输入会附加搜索结果块但不写入历史；图片输入仅对可能支持视觉的模型使用 OpenAI vision content，其余模型降级为文本提示。
 
 聊天流、自动标题生成和模型列表刷新都会先请求本项目同源 API，再由服务端携带 provider API key 转发到上游 OpenAI-compatible 服务，因此浏览器不需要直接访问第三方 `baseUrl`，也不会接收明文 API Key。
+
+## 接入本地 OpenAI-compatible 后端
+
+1. 打开 **设置 → 常规 → 连接**
+2. 将本地模型后端切换为 **OpenAI 兼容（vLLM / llama.cpp / LM Studio）**
+3. 选择预设或填写 API 地址：
+   - LM Studio：`http://localhost:1234/v1`
+   - vLLM：`http://localhost:8000/v1`
+   - llama.cpp server：`http://localhost:8081/v1`（本项目默认使用 8080，请给 llama.cpp 换到其他端口）
+4. 点击 **测试** 拉取模型列表，模型会以 `local/模型ID` 出现在聊天模型选择器中
+
+本地兼容后端只允许本机或内网地址，且不能填写当前应用自己的地址。聊天流、标题生成和模型列表刷新都会通过 `/api/local-openai/chat`、`/api/local-openai/models` 代理到本地服务。
 
 ## 新机子上手全流程
 
@@ -239,6 +254,8 @@ src/
 │   ├── api/                              # 21 个 API 端点
 │   │   ├── openai-compatible/chat/+server.ts    # 第三方 OpenAI-compatible 聊天流同源代理
 │   │   ├── openai-compatible/models/+server.ts  # 第三方 OpenAI-compatible 模型列表同源代理
+│   │   ├── local-openai/chat/+server.ts         # 本地 vLLM/llama.cpp/LM Studio 聊天流代理
+│   │   ├── local-openai/models/+server.ts       # 本地 OpenAI-compatible 模型列表代理
 │   │   ├── knowledge-bases/[id]/documents/[docId]/retry/+server.ts # 知识库文档失败重试
 │   └── .well-known/[...path]/            # Chrome DevTools 静默路由
 └── static/                               # 默认头像、字体、manifest.json

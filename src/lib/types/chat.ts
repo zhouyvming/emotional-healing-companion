@@ -39,5 +39,9 @@ export interface ChatSettings {
 	stop?: string;
 	privacyMode?: boolean;
 	titleAutoGenerate?: boolean;
+	localModelProvider?: "ollama" | "openai-compatible";
+	localOpenAIBaseUrl?: string;
+	localOpenAIApiKey?: string;
+	localOpenAIName?: string;
 	[key: string]: unknown;
 }

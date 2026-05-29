@@ -18,8 +18,12 @@
 
 	import Sidebar from "$lib/components/layout/Sidebar.svelte";
 	import toast from "svelte-french-toast";
-	import { OLLAMA_API_BASE_URL } from "$lib/constants";
-	import { getThirdPartyModels } from "$lib/chat/openai";
+	import {
+		LOCAL_OPENAI_API_BASE_URL,
+		LOCAL_OPENAI_MODEL_PREFIX,
+		OLLAMA_API_BASE_URL
+	} from "$lib/constants";
+	import { fetchLocalOpenAIModels, getThirdPartyModels } from "$lib/chat/openai";
 	import { datetimeNow } from "$lib/utils";
 
 	let requiredOllamaVersion = "0.1.16";
@@ -47,6 +51,8 @@
 		const userStr = localStorage.getItem("user");
 		return userStr ? JSON.parse(userStr).username : "guest";
 	};
+
+	const getLocalModelProvider = () => $settings?.localModelProvider ?? "ollama";
 
 	const migrateFromIndexedDB = async () => {
 		const MIGRATION_KEY = "chats_migrated_to_mysql";
@@ -91,6 +97,30 @@
 	};
 
 	const getModels = async () => {
+		if (getLocalModelProvider() === "openai-compatible") {
+			try {
+				const modelIds = await fetchLocalOpenAIModels(
+					($settings?.localOpenAIBaseUrl as string) || LOCAL_OPENAI_API_BASE_URL,
+					$settings?.localOpenAIApiKey as string | undefined
+				);
+				connectionError = "";
+				return modelIds.map((id) => ({
+					name: `${LOCAL_OPENAI_MODEL_PREFIX}${id}`,
+					details: {
+						family: ($settings?.localOpenAIName as string) || "本地 OpenAI 兼容",
+						parameter_size: "Local",
+						quantization_level: ""
+					},
+					size: 0,
+					source: "local-openai"
+				}));
+			} catch (error: any) {
+				connectionError =
+					error?.message || "无法连接到本地 OpenAI 兼容服务，请检查服务是否启动或 API 地址是否正确";
+				toast.error("Local model connection failed");
+				return [];
+			}
+		}
 		const res = await fetch(`${$settings?.API_BASE_URL ?? OLLAMA_API_BASE_URL}/tags`, {
 			method: "GET",
 			headers: {
@@ -247,6 +277,9 @@
 	};
 
 	const getOllamaVersion = async () => {
+		if (getLocalModelProvider() !== "ollama") {
+			return requiredOllamaVersion;
+		}
 		const res = await fetch(`${$settings?.API_BASE_URL ?? OLLAMA_API_BASE_URL}/version`, {
 			method: "GET",
 			headers: {
@@ -338,7 +371,7 @@
 
 {#if loaded}
 	<div class="app relative">
-		{#if ($info?.ollama?.version ?? "0").localeCompare( requiredOllamaVersion, undefined, { numeric: true, sensitivity: "case", caseFirst: "upper" } ) < 0}
+		{#if getLocalModelProvider() === "ollama" && ($info?.ollama?.version ?? "0").localeCompare( requiredOllamaVersion, undefined, { numeric: true, sensitivity: "case", caseFirst: "upper" } ) < 0}
 			<div class="absolute w-full h-full flex z-50">
 				<div
 					class="absolute rounded-xl w-full h-full backdrop-blur bg-gray-900/60 flex justify-center"
@@ -403,7 +436,9 @@
 							</svg>
 						</div>
 						<div class="flex-1 text-sm">
-							<p class="font-medium text-amber-800 dark:text-amber-200">无法连接到 Ollama</p>
+							<p class="font-medium text-amber-800 dark:text-amber-200">
+								无法连接到{getLocalModelProvider() === "ollama" ? " Ollama" : "本地模型服务"}
+							</p>
 							<p class="mt-1 text-amber-700 dark:text-amber-300">{connectionError}</p>
 						</div>
 						<button
