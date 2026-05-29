@@ -9,6 +9,11 @@ Thumbs.db
 *.local
 vite.config.ts.timestamp-*
 .claude/
+tools/piper/
+tools/piper-*/
+tools/piper_windows_amd64.zip
+tools/sherpa-onnx/
+g2pW/
 系统后期优化改进.md
 系统后期优化改进2.md
 系统后期优化改进2-1.md

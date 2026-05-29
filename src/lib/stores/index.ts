@@ -39,6 +39,11 @@ interface Settings {
 	localOpenAIBaseUrl?: string;
 	localOpenAIApiKey?: string;
 	localOpenAIName?: string;
+	ttsEnabled?: boolean;
+	ttsEngine?: "sherpa-onnx";
+	ttsVoiceId?: string;
+	ttsRate?: number;
+	ttsVolume?: number;
 	seed?: number;
 	temperature?: number;
 	repeat_penalty?: number;

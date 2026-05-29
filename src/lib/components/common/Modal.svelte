@@ -3,6 +3,7 @@
 	import { fade } from "svelte/transition";
 
 	export let show = true;
+	export let widthClass = "w-[640px]";
 	let mounted = false;
 
 	onMount(() => {
@@ -28,7 +29,7 @@
 		}}
 	>
 		<div
-			class="m-auto rounded-xl w-[640px] bg-gray-50 dark:bg-gray-900 shadow-3xl"
+			class="m-auto rounded-xl {widthClass} bg-gray-50 dark:bg-gray-900 shadow-3xl"
 			transition:fade={{ delay: 100, duration: 200 }}
 			on:click={(e) => {
 				e.stopPropagation();

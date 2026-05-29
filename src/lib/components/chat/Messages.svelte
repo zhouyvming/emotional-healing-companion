@@ -20,6 +20,7 @@
 	import DOMPurify from "dompurify";
 	import ModelSelector from "./ModelSelector.svelte";
 	import KnowledgeBaseSelector from "./KnowledgeBaseSelector.svelte";
+	import { authFetch } from "$lib/client/http";
 	import {
 		ensureFilesParsed,
 		isImageFile,
@@ -105,6 +106,8 @@
 	export let kbId = "";
 	let editingMessageId: string | null = null;
 	let editContent = "";
+	let currentTtsAudio: HTMLAudioElement | null = null;
+	let speakingMessageId = "";
 
 	const suggestedTopics = [
 		{ emoji: "💭", text: "今天心情不太好，想聊聊天" },
@@ -225,19 +228,57 @@
 
 	const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, purifyConfig);
 
-	const speakMessage = (text: string) => {
-		const synth = window.speechSynthesis;
-		if (synth.speaking) {
-			synth.cancel();
+	const stopTtsAudio = () => {
+		if (currentTtsAudio) {
+			currentTtsAudio.pause();
+			URL.revokeObjectURL(currentTtsAudio.src);
+			currentTtsAudio = null;
+		}
+		speakingMessageId = "";
+	};
+
+	const speakMessage = async (message: any) => {
+		if (speakingMessageId === message.id) {
+			stopTtsAudio();
+			return;
+		}
+		stopTtsAudio();
+		if (!$settings.ttsEnabled || !$settings.ttsVoiceId) {
+			toast.error("请先在设置中启用离线朗读音色");
 			return;
 		}
 		const div = document.createElement("div");
-		div.innerHTML = text;
-		const plainText = div.textContent || "";
-		const utterance = new SpeechSynthesisUtterance(plainText.slice(0, 2000));
-		utterance.lang = "zh-CN";
-		utterance.rate = 1.0;
-		synth.speak(utterance);
+		div.innerHTML = message.content;
+		const plainText = (div.textContent || "").trim().slice(0, 2000);
+		if (!plainText) {
+			toast.error("朗读文本为空");
+			return;
+		}
+		speakingMessageId = message.id;
+		try {
+			const res = await authFetch("/api/tts/speak", {
+				method: "POST",
+				body: JSON.stringify({
+					text: plainText,
+					voiceId: $settings.ttsVoiceId,
+					rate: $settings.ttsRate ?? 1,
+					volume: $settings.ttsVolume ?? 1
+				})
+			});
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				throw new Error(data.error || "语音生成失败");
+			}
+			const url = URL.createObjectURL(await res.blob());
+			currentTtsAudio = new Audio(url);
+			currentTtsAudio.volume = Math.max(0, Math.min(1, $settings.ttsVolume ?? 1));
+			currentTtsAudio.onended = stopTtsAudio;
+			currentTtsAudio.onerror = stopTtsAudio;
+			await currentTtsAudio.play();
+		} catch (error: any) {
+			stopTtsAudio();
+			toast.error(error.message || "语音播放失败");
+		}
 	};
 
 	const handleCopy = (text: string) => {
@@ -323,7 +364,7 @@
 	};
 
 	onDestroy(() => {
-		window.speechSynthesis.cancel();
+		stopTtsAudio();
 	});
 
 	$: streamingMessage = messages.find((m: any) => m.role === "assistant" && !m.done && !m.error);
@@ -747,7 +788,8 @@
 								</button>
 								<button
 									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
-									on:click={() => speakMessage(message.content)}
+									on:click={() => speakMessage(message)}
+									aria-label={speakingMessageId === message.id ? "停止朗读" : "朗读"}
 									title="朗读"
 								>
 									<svg
