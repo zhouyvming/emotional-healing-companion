@@ -195,10 +195,13 @@ function encodeWav(samples: Float32Array, sampleRate: number, volume: number): B
 	return buf;
 }
 
-const TTS_ALLOWED_CHARS = /[^一-鿿a-zA-Z0-9\s　-〿＀-￯㐀-䶿.,!?;:'"()\-、。，！？；：“”‘’（）—…《》]/g;
-
 function sanitizeTtsText(raw: string): string {
-	return raw.replace(/[\uD800-\uDFFF]/g, "").replace(TTS_ALLOWED_CHARS, "").trim().slice(0, 500);
+	return raw
+		.replace(/<[^>]*>/g, "")           // strip HTML tags
+		.replace(/[\uD800-\uDFFF]/g, "")   // strip surrogate pairs
+		.replace(/\s+/g, " ")              // collapse whitespace
+		.trim()
+		.slice(0, 500);
 }
 
 export async function synthesizeSpeech(
