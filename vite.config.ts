@@ -3,6 +3,27 @@ import { defineConfig } from "vite";
 import fs from "fs";
 
 export default defineConfig({
+	build: {
+		rollupOptions: {
+			output: {
+				manualChunks(id) {
+					if (!id.includes("node_modules")) return;
+					if (id.includes("katex")) return "vendor-katex";
+					if (id.includes("highlight.js")) return "vendor-highlight";
+					if (id.includes("marked") || id.includes("dompurify")) return "vendor-markdown";
+					if (
+						id.includes("xlsx") ||
+						id.includes("pdf-parse") ||
+						id.includes("mammoth") ||
+						id.includes("jszip")
+					) {
+						return "vendor-doc-parsers";
+					}
+					return "vendor";
+				}
+			}
+		}
+	},
 	plugins: [
 		sveltekit(),
 		{

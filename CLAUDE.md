@@ -7,10 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev       # 启动开发服务器，运行在 http://localhost:8080（注意非默认5173端口）
 npm run build     # Vite 生产构建，产物在 build/ 目录，使用 adapter-node，运行 `node build`
+npm run typecheck # TypeScript 检查
+npm run test      # Node test runner，执行 scripts/*.test.mjs
+npm run verify    # typecheck + build + test
 npm run fmt       # Prettier 2 格式化（通过 npx -p 运行，非本地安装）
 ```
 
-本项目没有测试套件，所有验证均为手动。
+项目已有基础 Node 测试套件；UI、聊天流、Provider 配置和知识库交互仍需手动浏览器验证。
 
 代码风格：Prettier 2，**Tab 缩进** + **无尾逗号** + 100 字符行宽（见 `.prettierrc`）。
 
@@ -20,8 +23,11 @@ SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。品牌名"情�
 
 ## 最新状态（2026-05-29）
 
-- `npx tsc --noEmit` 通过；`npm run build` 通过。
-- 第三方 OpenAI 兼容模型已改为同源后端代理：聊天/标题生成走 `/api/openai-compatible/chat`，模型列表走 `/api/openai-compatible/models`，避免浏览器直连 provider URL 时出现 CORS 导致的 `Failed to fetch`。
+- `npm run verify` 通过（`typecheck + build + node --test`）；`git diff --check` 通过。当前构建只剩未设置 `JWT_SECRET` 时的默认 secret 警告。
+- 第三方 OpenAI 兼容模型已改为同源后端代理：聊天/标题生成走 `/api/openai-compatible/chat`，模型列表走 `/api/openai-compatible/models`。前端只传 `providerId`，服务端按当前登录用户读取 provider、解密 API Key、校验模型列表并转发，避免浏览器直连 provider URL 时出现 CORS 导致的 `Failed to fetch`。
+- `/api/providers` GET 返回脱敏 API Key；POST 收到脱敏 Key 时保留现有加密值。Provider base URL 会规范化并拒绝私网/本机地址。
+- 知识库文档处理状态已增强：保存原始 `source_type/source_data`，支持 `processing/done/error`、错误记录、轮询刷新和失败重试接口。
+- `SettingsModal.svelte` 改为懒加载；Vite vendor chunk 已拆分；`Messages.svelte` 使用 `highlight.js/lib/core` 并按需注册语言，消除大 chunk 警告。
 - `KnowledgeBaseManager.svelte` 的展开/删除交互已改为真实按钮，修复 Svelte a11y click/keyboard/role 警告。
 - `vite.config.ts` 的 generated tsconfig patch 使用 `ignoreDeprecations: "5.0"`；路由 handler 类型、`safeJsonParse()`、`word-extractor` 类型声明、GBK 解码均已清理到可通过 typecheck。
 
@@ -64,12 +70,13 @@ src/routes/
     ├── knowledge-bases/+server.ts         # GET(列表)/POST(创建) 知识库
     ├── knowledge-bases/[id]/+server.ts    # DELETE 级联删除
     ├── knowledge-bases/[id]/documents/+server.ts # GET(列表)/POST(上传，复用parse-file)
+    ├── knowledge-bases/[id]/documents/[docId]/retry/+server.ts # POST 失败文档重试
     └── knowledge-bases/[id]/query/+server.ts # POST 向量检索 Top-K
 ```
 
 所有 API 路由均受 `requireAuth()` 保护，从 JWT Bearer token 提取用户身份。
 
-**SPA 模式**：`ssr: false`（`src/routes/+layout.js`），认证完全在客户端进行——JWT 存储在 `localStorage.user`，路由守卫在 `+layout.js` 的 load 函数中检查，无服务端 session。
+**SPA 模式**：`ssr: false`（`src/routes/+layout.ts`），认证完全在客户端进行——JWT 存储在 `localStorage.user`，路由守卫在 `+layout.ts` 的 load 函数中检查，无服务端 session。
 
 ## 认证体系 (`src/lib/server/auth.ts`)
 
@@ -91,7 +98,7 @@ src/routes/
 | `advice_table` | `id`, `username`, `content`, `created_at`(TIMESTAMP) |
 | `api_providers` | `id`(VARCHAR 36 PK), `username`, `name`, `base_url`(TEXT), `api_key`(TEXT, AES-256-GCM 加密), `models`(JSON), `created_at`(TIMESTAMP) |
 | `knowledge_bases` | `id`(VARCHAR 36 PK), `username`, `name`, `embedding_model`(默认 nomic-embed-text), `chunk_size`(默认 500), `created_at`(TIMESTAMP) |
-| `kb_documents` | `id`(VARCHAR 36 PK), `kb_id`, `filename`, `status`(pending/processing/done/error), `chunk_count`, `error_message`(TEXT), `created_at`(TIMESTAMP) |
+| `kb_documents` | `id`(VARCHAR 36 PK), `kb_id`, `filename`, `status`(pending/processing/done/error), `chunk_count`, `error_message`(TEXT), `source_type`, `source_data`, `processed_at`, `created_at`(TIMESTAMP) |
 | `kb_chunks` | `id`(VARCHAR 36 PK), `doc_id`, `kb_id`, `content`(TEXT), `chunk_index`, `embedding`(JSON 浮点数组), `created_at`(TIMESTAMP) |
 
 **timestamp 迁移**：2026-05 从 `BIGINT` 毫秒时间戳迁移为 `DATETIME`。`db.ts` 中 `UPDATE FROM_UNIXTIME` 自动转换已有数据。**新代码必须使用 `datetimeNow()`（ISO 8601 格式 `YYYY-MM-DDTHH:MM:SS`），禁止使用 epoch 毫秒。**
@@ -102,7 +109,7 @@ src/routes/
 
 **密码迁移脚本**：`scripts/migrate-passwords.ts` 用于将旧密码迁移为 bcryptjs 格式。注意：未迁移的旧密码可能是明文。
 
-**API 提供商配置**：第三方 API 提供商（名称/URL/Key/模型列表）存储在 `localStorage.apiProviders`，设置面板「API」标签管理。**已实现 MySQL `api_providers` 表跨浏览器同步**：`+layout.svelte` 启动时调用 `syncProviders()` 同步 API→localStorage，`SettingsModal.svelte` 保存时同时写 localStorage 和 POST `/api/providers`。`/api/providers` POST 使用事务包裹 delete+insert，避免部分失败导致配置丢失。
+**API 提供商配置**：第三方 API 提供商（名称/URL/Key/模型列表）存储在 `localStorage.apiProviders`，设置面板「API」标签管理。**已实现 MySQL `api_providers` 表跨浏览器同步**：`+layout.svelte` 启动时调用 `syncProviders()` 同步 API→localStorage，`SettingsModal.svelte` 保存时同时写 localStorage 和 POST `/api/providers`，保存后重新拉取脱敏 provider 列表。`/api/providers` POST 使用事务包裹 delete+insert，避免部分失败导致配置丢失；脱敏 Key 会保留现有加密值。
 
 **用户名变更同步**：`user/profile` 改名时同步 `chats`、`api_providers`、`mood_history`、`advice_table`、`feedback_table` 的 `username` 字段，并签发新 token。新增 username 归属表时必须补充此同步逻辑，除非表已经迁移到 `user_id`。
 
@@ -129,6 +136,7 @@ src/routes/
 | `src/lib/chat/openai.ts`           | `sendPromptOpenAI`（OpenAI 兼容流式，120s 超时 + 60s stream 读取超时，通过 `/api/openai-compatible/chat` 同源代理转发）、`findProvider`、`getThirdPartyModels`、`fetchModels`（通过 `/api/openai-compatible/models` 转发）。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。第三方模型接收本次请求输入 + system prompt；图片对可能支持视觉的模型使用 OpenAI vision content，否则降级为文本说明。 |
 | `src/lib/client/fileParser.ts`     | 前端上传文件解析协调：图片跳过解析，txt/md/csv/doc/docx/pdf/xls/xlsx/pptx 调用 `/api/parse-file`，维护 `parseStatus`/`parseError` 并显示上传、完成、解析中的 toast。                                                                                                                                                                                                                                                          |
 | `src/lib/server/auth.ts`           | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                                                                                                                                                                                                                            |
+| `src/lib/server/providers.ts`      | `maskApiKey`/`isMaskedApiKey`、`normalizeProviderBaseUrl`、`getProviderForUser`、`providerAllowsModel`，统一处理 Provider 脱敏、私网 URL 阻断、用户归属查询和模型白名单校验                                                                                                                                                                                                                                                   |
 | `src/lib/server/db.ts`             | MySQL 连接池 + 9 张表 DDL + 列迁移。支持环境变量配置                                                                                                                                                                                                                                                                                                                                                                          |
 | `src/lib/client/http.ts`           | `authFetch`（自动附加 JWT Bearer，401 清除登录态并跳转，Content-Type 仅未设置时覆盖）、`getToken`、`getCurrentUser`                                                                                                                                                                                                                                                                                                           |
 | `src/lib/utils/index.ts`           | `splitStream`、`safeJsonParse`(JSON 解析兜底)（SSE 流式解析，\r\n 归一化）、`convertMessagesToHistory`（消息数组 → 树形结构）、`datetimeNow()`、`isPrivateUrl()`（共享 SSRF 检查）、`removeMessageBranch()`（消息树递归删除 + currentId 防悬挂）                                                                                                                                                                              |
@@ -176,7 +184,9 @@ src/routes/
 ```
 
 - `findProvider()` 通过模型名前缀匹配（`提供商名/模型ID` 格式）自动路由
-- 前端不再直接请求第三方 `baseUrl`。模型列表、聊天流、标题生成都经由受 `requireAuth()` 保护的 `/api/openai-compatible/*` 后端代理，再由服务端携带 provider API key 转发到上游，避免浏览器 CORS `Failed to fetch`
+- 前端不再直接请求第三方 `baseUrl`，也不再向代理接口提交 API Key/baseUrl。模型列表、聊天流、标题生成都经由受 `requireAuth()` 保护的 `/api/openai-compatible/*` 后端代理，前端只提交 `providerId`；服务端校验 provider 属于当前用户、模型在该 provider 配置列表中，再携带解密后的 provider API key 转发到上游，避免浏览器 CORS `Failed to fetch`
+- `/api/providers` GET 只返回脱敏 Key；设置面板保存后会重新拉取脱敏列表。POST 时如果传入脱敏 Key，会保留数据库中已有加密 Key；传入新 Key 才重新加密保存
+- Provider `baseUrl` 通过 `normalizeProviderBaseUrl()` 规范化，仅允许 http/https，并拒绝 localhost、私网和内网地址
 - 第三方模型发送**本次请求输入** + 用户设定的 system prompt；联网搜索结果如果启用会随本次请求输入附加，但不写入历史
 - 第三方模型图片输入：可能支持视觉的模型使用 OpenAI `image_url` content；其他模型降级为文本提示，避免非视觉 API 报错
 
@@ -186,15 +196,16 @@ src/routes/
 
 ## 核心组件
 
-| 组件                     | 位置    | 关键特性                                                                                                                                                                                                                                                                                                                     |
-| ------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Messages.svelte**      | chat/   | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮**、TTS 朗读（onDestroy 取消）。用户消息左对齐（头像在左，气泡 w-fit 无 break-words），时间戳行用 flex spacer（`<div class="w-10">`）对齐气泡左边缘。 |
-| **MessageInput.svelte**  | chat/   | 固定底部、自动伸缩（max 200px）、发送/停止按钮、语音输入（onDestroy 中止）、文件/图片上传（粘贴/拖拽/选择，10MB 限制，Office/PDF 解析状态展示）、Enter 发送/Shift+Enter 换行、**visualViewport 移动端键盘适配**                                                                                                              |
-| **ModelSelector.svelte** | chat/   | `<select>` 下拉、自动选中首个可用模型（第三方优先）、设为默认模型持久化（设置面板）。紧凑模式不再自动保存选中变更。                                                                                                                                                                                                          |
-| **SettingsModal.svelte** | chat/   | 8 标签页：常规（外观+连接+系统头像）、知识库（创建/上传文档）、偏好与人设（7 项开关含情绪感知+AI 名称+system prompt）、模型与 API（拉取/列表/删除/设为默认+第三方提供商管理+添加表单折叠）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K** 全部参数显示滑块默认值）、关于                                        |
-| **Sidebar.svelte**       | layout/ | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏。导出功能已移至个人主页。                                                                                                                           |
-| **Navbar.svelte**        | layout/ | 对话标题（可重命名）、新对话按钮、删除确认                                                                                                                                                                                                                                                                                   |
-| **Modal.svelte**         | common/ | 通用弹窗容器（点击背景关闭）                                                                                                                                                                                                                                                                                                 |
+| 组件                              | 位置    | 关键特性                                                                                                                                                                                                                                                                                                                     |
+| --------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Messages.svelte**               | chat/   | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮**、TTS 朗读（onDestroy 取消）。用户消息左对齐（头像在左，气泡 w-fit 无 break-words），时间戳行用 flex spacer（`<div class="w-10">`）对齐气泡左边缘。 |
+| **MessageInput.svelte**           | chat/   | 固定底部、自动伸缩（max 200px）、发送/停止按钮、语音输入（onDestroy 中止）、文件/图片上传（粘贴/拖拽/选择，10MB 限制，Office/PDF 解析状态展示）、Enter 发送/Shift+Enter 换行、**visualViewport 移动端键盘适配**                                                                                                              |
+| **ModelSelector.svelte**          | chat/   | `<select>` 下拉、自动选中首个可用模型（第三方优先）、设为默认模型持久化（设置面板）。紧凑模式不再自动保存选中变更。                                                                                                                                                                                                          |
+| **SettingsModal.svelte**          | chat/   | 8 标签页：常规（外观+连接+系统头像）、知识库（创建/上传文档）、偏好与人设（7 项开关含情绪感知+AI 名称+system prompt）、模型与 API（拉取/列表/删除/设为默认+第三方提供商管理+添加表单折叠）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K** 全部参数显示滑块默认值）、关于                                        |
+| **KnowledgeBaseDocuments.svelte** | chat/   | 知识库文档列表、上传状态展示、pending/processing 自动轮询、error 状态重试、删除文档                                                                                                                                                                                                                                          |
+| **Sidebar.svelte**                | layout/ | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏。导出功能已移至个人主页。                                                                                                                           |
+| **Navbar.svelte**                 | layout/ | 对话标题（可重命名）、新对话按钮、删除确认                                                                                                                                                                                                                                                                                   |
+| **Modal.svelte**                  | common/ | 通用弹窗容器（点击背景关闭）                                                                                                                                                                                                                                                                                                 |
 
 ## 样式与主题
 
@@ -215,6 +226,8 @@ Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 中同
 
 - **Open Redirect**：login/register 拒绝 `//evil.com` 协议相对 URL
 - **SSRF**：`fetch-url` 用 `redirect: manual` 防重定向绕过；`isPrivateUrl()` 共享于 `fetch-url` 和 `web-search`
+- **Provider SSRF**：第三方 Provider base URL 入库前用 `normalizeProviderBaseUrl()` 校验并拒绝本机/私网地址
+- **Provider Key 保护**：浏览器不接收明文 API Key；Provider 列表只返回脱敏值，代理路由服务端读取并解密真实 Key
 - **XSS**：DOMPurify 净化所有 `{@html}` 渲染的 AI 输出
 - **TOCTOU**：`chats/[id]` PUT 语句含 `AND username = ?`
 - **速率限制**：注册 + 登录 5 次/分钟/IP（内存 Map）
@@ -233,3 +246,12 @@ Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 中同
 | `tippy.js`                          | 消息 info tooltip（token/s 等流式指标） |
 | `uuid`                              | 消息 ID / 会话 ID 生成                  |
 | `idb`                               | IndexedDB 操作（仅用于旧数据迁移）      |
+
+## 验证与测试
+
+- `npm run typecheck`：TypeScript 检查
+- `npm run build`：SvelteKit/Vite 生产构建
+- `npm run test`：Node test runner，执行 `scripts/*.test.mjs`
+- `npm run verify`：串行执行 typecheck、build、test
+
+当前 `scripts/core-utils.test.mjs` 覆盖私网 URL 检测、`safeJsonParse` 兜底和知识库 chunk overlap。新增共享工具或高风险服务端逻辑时优先补充这里的纯函数测试；聊天流和浏览器交互仍需手动验证。

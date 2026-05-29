@@ -3,12 +3,14 @@ import type { Writable } from "svelte/store";
 import { datetimeNow } from "$lib/utils";
 import { buildSystemPrompt, compressContext } from "$lib/chat/prompts";
 import { getToken } from "$lib/client/http";
+import type { ChatHistory, ChatMessage, ChatSettings } from "$lib/types/chat";
 
 export interface ApiProvider {
 	id: string;
 	name: string;
 	baseUrl: string;
-	apiKey: string;
+	apiKey?: string;
+	hasApiKey?: boolean;
 	models: { id: string; name: string }[];
 }
 
@@ -22,13 +24,13 @@ interface OpenAIMessage {
 }
 
 interface ChatContext {
-	messages: any[];
-	history: any;
+	messages: ChatMessage[];
+	history: ChatHistory;
 	stopRef: { value: boolean };
 	abortRef: { value: AbortController | null };
 	autoScroll: boolean;
 	selectedModels: string[];
-	settings: Record<string, any>;
+	settings: ChatSettings;
 	db: any;
 	chats: Writable<any[]>;
 	chatId: string;
@@ -37,6 +39,26 @@ interface ChatContext {
 	kbId?: string;
 	getKbId?: () => string;
 	abortRefs?: AbortController[];
+}
+
+function getAuthHeaders() {
+	const token = getToken();
+	const headers: Record<string, string> = { "Content-Type": "application/json" };
+	if (token) headers.Authorization = `Bearer ${token}`;
+	return headers;
+}
+
+export function describeApiError(error: unknown) {
+	if (error instanceof Error) {
+		if (error.name === "AbortError") return "API 请求超时，请稍后重试";
+		if (/401|登录|过期/.test(error.message)) return "登录已过期，请重新登录";
+		if (/403/.test(error.message)) return "API 提供商或模型无权限访问";
+		if (/404/.test(error.message)) return "API 提供商、模型或接口不存在";
+		if (/429|rate/i.test(error.message)) return "API 调用过于频繁，请稍后重试";
+		if (/5\d\d|timeout|超时/i.test(error.message)) return "上游 API 暂时不可用，请稍后重试";
+		return error.message || "未知错误";
+	}
+	return "未知错误";
 }
 
 function isVisionModel(model: string) {
@@ -55,7 +77,6 @@ function contentLength(content: OpenAIContent) {
 	return content.reduce((sum, part) => sum + (part.type === "text" ? part.text.length : 0), 0);
 }
 
-// 获取所有配置的第三方提供商
 export function getProviders(): ApiProvider[] {
 	try {
 		return JSON.parse(localStorage.getItem("apiProviders") ?? "[]");
@@ -64,10 +85,8 @@ export function getProviders(): ApiProvider[] {
 	}
 }
 
-// 查找模型所属的提供商（模型名为 "提供商名/模型ID" 格式）
 export function findProvider(modelName: string): ApiProvider | null {
 	const parts = modelName.split("/");
-	// 先用完整名匹配，再用模型ID匹配
 	return (
 		getProviders().find((p) =>
 			p.models.some(
@@ -77,16 +96,14 @@ export function findProvider(modelName: string): ApiProvider | null {
 	);
 }
 
-// 获取所有第三方模型（供 ModelSelector 使用）
 export function getAllThirdPartyModels(): { name: string; provider: string }[] {
 	return getProviders().flatMap((p) => p.models.map((m) => ({ name: m.id, provider: p.name })));
 }
 
-// 获取第三方模型列表（Ollama models 格式，直接合并到 $models）
 export function getThirdPartyModels(): any[] {
 	try {
-		return getProviders().flatMap((p: any) =>
-			p.models.map((m: any) => ({
+		return getProviders().flatMap((p) =>
+			p.models.map((m) => ({
 				name: `${p.name}/${m.id}`,
 				details: { family: p.name, parameter_size: "API", quantization_level: "" },
 				size: 0,
@@ -98,20 +115,15 @@ export function getThirdPartyModels(): any[] {
 	}
 }
 
-// 从 OpenAI 兼容 API 获取模型列表
-export async function fetchModels(baseUrl: string, apiKey: string): Promise<string[]> {
-	const token = getToken();
-	const headers: Record<string, string> = { "Content-Type": "application/json" };
-	if (token) headers.Authorization = `Bearer ${token}`;
-
+export async function fetchModels(providerId: string): Promise<string[]> {
 	const res = await fetch("/api/openai-compatible/models", {
 		method: "POST",
-		headers,
-		body: JSON.stringify({ baseUrl, apiKey })
+		headers: getAuthHeaders(),
+		body: JSON.stringify({ providerId })
 	});
 	if (!res.ok) {
 		const err = await res.json().catch(() => ({}));
-		throw new Error(err.error?.message || `HTTP ${res.status}`);
+		throw new Error(err.error?.message || err.error || `HTTP ${res.status}`);
 	}
 	const data = await res.json();
 	return (data.data ?? [])
@@ -121,7 +133,6 @@ export async function fetchModels(baseUrl: string, apiKey: string): Promise<stri
 		);
 }
 
-// OpenAI 兼容流式聊天
 export async function sendPromptOpenAI(
 	provider: ApiProvider,
 	model: string,
@@ -131,16 +142,16 @@ export async function sendPromptOpenAI(
 	ctx: ChatContext,
 	onTitleSet: (t: string) => void,
 	titleGuard: { generated: boolean } = { generated: false },
-	getMessages: () => any[] = () => ctx.messages,
+	getMessages: () => ChatMessage[] = () => ctx.messages,
 	getAutoScroll: () => boolean = () => ctx.autoScroll,
 	getTitle: () => string = () => ctx.title
 ) {
-	const { settings, db, history, title, selectedModels, autoScroll, notifyUpdate } = ctx;
+	const { settings, db, history, selectedModels, notifyUpdate } = ctx;
 	const uuid = await import("uuid");
 	const { tick } = await import("svelte");
 
-	let responseMessageId = uuid.v4();
-	let responseMessage: any = {
+	const responseMessageId = uuid.v4();
+	const responseMessage: any = {
 		parentId,
 		id: responseMessageId,
 		childrenIds: [],
@@ -163,7 +174,6 @@ export async function sendPromptOpenAI(
 	window.scrollTo({ top: document.body.scrollHeight });
 
 	const supportsImages = isVisionModel(model);
-	// 构建 OpenAI 格式消息
 	let apiMessages: OpenAIMessage[] = getMessages().map((msg: any) => {
 		const contentText = msg.id === parentId && msg.role === "user" ? userPrompt : msg.content;
 		if (msg.images?.length) {
@@ -187,7 +197,7 @@ export async function sendPromptOpenAI(
 		return { role: msg.role, content: contentText };
 	});
 
-	let systemPrompt = buildSystemPrompt(settings.systemPrompt, settings.emotionSensing);
+	const systemPrompt = buildSystemPrompt(settings.systemPrompt, settings.emotionSensing);
 	const { messages: compressed, truncated } = compressContext(
 		apiMessages,
 		systemPrompt.length,
@@ -199,7 +209,7 @@ export async function sendPromptOpenAI(
 		apiMessages.unshift({
 			role: "system",
 			content: `[对话上下文已压缩：早期 ${truncated} 条消息已省略，以下是最近的对话内容]`
-		} as OpenAIMessage);
+		});
 	}
 
 	const controller = new AbortController();
@@ -209,10 +219,6 @@ export async function sendPromptOpenAI(
 	const timeout = setTimeout(() => controller.abort(), 120000);
 
 	try {
-		const baseUrl = provider.baseUrl.replace(/\/+$/, "");
-		const token = getToken();
-		const headers: Record<string, string> = { "Content-Type": "application/json" };
-		if (token) headers.Authorization = `Bearer ${token}`;
 		const payload = {
 			model,
 			messages: [
@@ -228,8 +234,8 @@ export async function sendPromptOpenAI(
 		};
 		const res = await fetch("/api/openai-compatible/chat", {
 			method: "POST",
-			headers,
-			body: JSON.stringify({ baseUrl, apiKey: provider.apiKey, payload }),
+			headers: getAuthHeaders(),
+			body: JSON.stringify({ providerId: provider.id, payload }),
 			signal: controller.signal
 		});
 
@@ -237,11 +243,10 @@ export async function sendPromptOpenAI(
 
 		if (!res.ok) {
 			const err = await res.json().catch(() => ({}));
-			throw new Error(err.error?.message || `HTTP ${res.status}`);
+			throw new Error(err.error?.message || err.error || `HTTP ${res.status}`);
 		}
 
 		const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
-
 		let buffer = "";
 		while (true) {
 			const streamTimeout = setTimeout(() => {
@@ -286,32 +291,28 @@ export async function sendPromptOpenAI(
 		}
 	} catch (error: any) {
 		clearTimeout(timeout);
-		// 用户主动停止，静默处理
 		if (error.name === "AbortError" && ctx.stopRef.value) {
 			responseMessage.done = true;
 			notifyUpdate();
 		} else {
+			const message = describeApiError(error);
 			responseMessage.error = true;
 			responseMessage.done = true;
 			if (!responseMessage.content) {
-				responseMessage.content =
-					error.name === "AbortError"
-						? "请求超时，请稍后重试"
-						: `API 调用失败：${error.message || "未知错误"}`;
+				responseMessage.content = `API 调用失败：${message}`;
 			}
-			toast.error("API 请求失败：" + (error.message || "未知错误"));
+			toast.error(`API 请求失败：${message}`);
 			notifyUpdate();
 		}
 	}
 
 	ctx.stopRef.value = false;
-	ctx.abortRefs.splice(abortIndex, 1);
+	ctx.abortRefs?.splice(abortIndex, 1);
 	await tick();
 	if (getAutoScroll()) {
 		window.scrollTo({ top: document.body.scrollHeight });
 	}
 
-	// 隐私模式跳过保存
 	const curSettings = ctx.settings;
 	if (!curSettings.privacyMode) {
 		await db.updateChatById(_chatId, {
@@ -328,7 +329,6 @@ export async function sendPromptOpenAI(
 		});
 	}
 
-	// 生成标题
 	const latestMessages = getMessages();
 	const needTitle = latestMessages.length === 2 || !getTitle() || getTitle() === "New Chat";
 	if (needTitle && latestMessages.at(1)?.content !== "" && !titleGuard.generated) {
@@ -356,16 +356,11 @@ async function generateOpenAITitle(
 			return;
 		}
 		try {
-			const baseUrl = provider.baseUrl.replace(/\/+$/, "");
-			const token = getToken();
-			const headers: Record<string, string> = { "Content-Type": "application/json" };
-			if (token) headers.Authorization = `Bearer ${token}`;
 			const res = await fetch("/api/openai-compatible/chat", {
 				method: "POST",
-				headers,
+				headers: getAuthHeaders(),
 				body: JSON.stringify({
-					baseUrl,
-					apiKey: provider.apiKey,
+					providerId: provider.id,
 					payload: {
 						model,
 						messages: [
@@ -391,13 +386,13 @@ async function generateOpenAITitle(
 			onTitleSet(fallback);
 		}
 	} catch (err) {
-		console.error("[OpenAI标题生成] 异常:", err);
+		console.error("[OpenAI 标题生成] 异常:", err);
 		try {
 			const fallback = userPrompt.slice(0, 20);
 			await ctx.db.updateChatById(_chatId, { title: fallback });
 			onTitleSet(fallback);
 		} catch (e) {
-			console.error("[OpenAI标题生成] 兜底保存也失败:", e);
+			console.error("[OpenAI 标题生成] 兜底保存也失败:", e);
 		}
 	}
 }

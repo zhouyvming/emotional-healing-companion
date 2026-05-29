@@ -79,13 +79,22 @@
 		models.set([...ollamaModels, ...getThirdPartyModels()]);
 	}
 
-	function saveProviders() {
+	async function saveProviders() {
 		localStorage.setItem("apiProviders", JSON.stringify(providers));
-		authFetch("/api/providers", {
-			method: "POST",
-			body: JSON.stringify({ providers })
-		}).catch(() => {});
-		refreshAllModels();
+		try {
+			await authFetch("/api/providers", {
+				method: "POST",
+				body: JSON.stringify({ providers })
+			});
+			const res = await authFetch("/api/providers");
+			if (res.ok) {
+				providers = await res.json();
+				localStorage.setItem("apiProviders", JSON.stringify(providers));
+			}
+			refreshAllModels();
+		} catch (error: any) {
+			toast.error(error.message || "保存 API 提供商失败");
+		}
 	}
 	function addProvider() {
 		if (!newProviderName || !newProviderUrl || !newProviderKey) return;
@@ -114,7 +123,7 @@
 		const p = providers[idx];
 		toast("正在获取模型列表...");
 		try {
-			const modelIds = await fetchModels(p.baseUrl, p.apiKey);
+		const modelIds = await fetchModels(p.id);
 			providers[idx].models = modelIds.map((id: string) => ({ id, name: id }));
 			providers = [...providers];
 			saveProviders();

@@ -5,6 +5,9 @@
 	"scripts": {
 		"dev": "vite dev --host --port 8080",
 		"build": "vite build",
+		"typecheck": "tsc --noEmit",
+		"test": "node --test scripts/*.test.mjs",
+		"verify": "npm run typecheck && npm run build && npm run test",
 		"fmt": "npm run prettier:svelte && npm run prettier",
 		"prettier:svelte": "npx -p prettier@2 -- prettier --plugin-search-dir . --write .",
 		"prettier": "npx -p prettier@2 -- prettier --write '**/*.{js,css,md,html,json}'"

@@ -12,15 +12,15 @@ interface DocRow extends RowDataPacket {
 	filename: string;
 	status: string;
 	chunk_count: number;
-	error_message: string;
+	error_message: string | null;
 	created_at: string;
+	processed_at: string | null;
 }
 
 export const GET: RequestHandler = async ({ params, request }) => {
 	try {
 		const auth = requireAuth(request);
 
-		// 验证 KB 属于该用户
 		const [kbRows] = await pool.execute<RowDataPacket[]>(
 			"SELECT id FROM knowledge_bases WHERE id = ? AND username = ?",
 			[params.id, auth.username]
@@ -30,7 +30,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 		}
 
 		const [rows] = await pool.execute<DocRow[]>(
-			"SELECT id, filename, status, chunk_count, error_message, created_at FROM kb_documents WHERE kb_id = ? ORDER BY created_at DESC",
+			"SELECT id, filename, status, chunk_count, error_message, created_at, processed_at FROM kb_documents WHERE kb_id = ? ORDER BY created_at DESC",
 			[params.id]
 		);
 		return json(rows);
@@ -46,7 +46,6 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	try {
 		const auth = requireAuth(request);
 
-		// 验证 KB 属于该用户
 		const [kbRows] = await pool.execute<RowDataPacket[]>(
 			"SELECT id FROM knowledge_bases WHERE id = ? AND username = ?",
 			[params.id, auth.username]
@@ -62,17 +61,15 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
 		const docId = uuidv4();
 		await pool.execute(
-			"INSERT INTO kb_documents (id, kb_id, filename, status) VALUES (?, ?, ?, 'pending')",
-			[docId, params.id, name]
+			"INSERT INTO kb_documents (id, kb_id, filename, source_type, source_data, status) VALUES (?, ?, ?, ?, ?, 'pending')",
+			[docId, params.id, name, String(type || ""), String(data)]
 		);
 
-		// 解析 base64 → Buffer
-		const base64 = data.includes(",") ? data.split(",")[1] : data;
+		const base64 = String(data).includes(",") ? String(data).split(",")[1] : String(data);
 		const buffer = Buffer.from(base64, "base64");
 
-		// 异步处理文档（不阻塞响应）
-		processDocument(params.id, docId, String(name), String(type || ""), buffer).catch(
-			(err) => console.error("[KB] document processing error:", err)
+		processDocument(params.id, docId, String(name), String(type || ""), buffer).catch((err) =>
+			console.error("[KB] document processing error:", err)
 		);
 
 		return json({ id: docId, filename: name, status: "pending" });

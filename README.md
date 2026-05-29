@@ -4,21 +4,24 @@
 
 ## 最新状态（2026-05-29）
 
-- 当前代码已通过 `npx tsc --noEmit` 和 `npm run build`。
-- 第三方 OpenAI 兼容 API 已改为同源后端代理，避免浏览器直连 provider URL 时因为 CORS 出现 `Failed to fetch`。
+- 当前代码已通过 `npm run verify`（`typecheck + build + node --test`）和 `git diff --check`。
+- 第三方 OpenAI 兼容 API 已改为同源后端代理，前端只提交 `providerId`，API Key 与 base URL 由服务端按登录用户读取并转发，避免浏览器直连 provider URL 时因为 CORS 出现 `Failed to fetch`。
+- Provider API Key 在接口返回时脱敏；保存脱敏 Key 会保留数据库中的原加密值。Provider base URL 会阻止私网/本机地址。
+- 知识库文档处理支持 `processing/done/error` 状态、失败错误记录、自动轮询和失败重试。
+- 设置弹窗已懒加载，Vite vendor chunks 已拆分，代码高亮改为按需注册 highlight.js 语言。
 - 知识库管理面板修复了 Svelte 无障碍警告，展开/删除操作现在使用键盘可访问的按钮。
 
 ## 技术栈
 
-| 层面     | 技术                                                                 |
-| -------- | -------------------------------------------------------------------- |
-| 前端框架 | SvelteKit 1.x + Svelte 4（SPA 模式，`ssr: false`）                   |
-| UI       | Tailwind CSS（粉色主题，深色/浅色模式切换）                          |
-| 数据库   | MySQL 8（`mysql2/promise`），`localhost:3307`                        |
-| AI 服务  | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等）           |
-| 认证     | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7 天有效期）             |
-| 安全     | DOMPurify HTML 净化、注册速率限制、SSRF/Open Redirect 防护           |
-| 知识库   | RAG 检索增强生成：Ollama Embedding + MySQL 向量存储 + 余弦相似度检索 |
+| 层面     | 技术                                                                       |
+| -------- | -------------------------------------------------------------------------- |
+| 前端框架 | SvelteKit 1.x + Svelte 4（SPA 模式，`ssr: false`）                         |
+| UI       | Tailwind CSS（粉色主题，深色/浅色模式切换）                                |
+| 数据库   | MySQL 8（`mysql2/promise`），`localhost:3307`                              |
+| AI 服务  | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等）                 |
+| 认证     | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7 天有效期）                   |
+| 安全     | DOMPurify HTML 净化、速率限制、SSRF/Open Redirect 防护、API Key 脱敏与加密 |
+| 知识库   | RAG 检索增强生成：Ollama Embedding + MySQL 向量存储 + 余弦相似度检索       |
 
 ## 功能
 
@@ -26,7 +29,7 @@
 
 - 流式响应（SSE 解析，完成后批量保存）
 - 支持 **Ollama 本地模型** + **OpenAI 兼容 API**（DeepSeek / 通义千问 / OpenAI 等）
-- 第三方 OpenAI 兼容 API 通过 `/api/openai-compatible/*` 后端代理转发，降低 CORS 和浏览器网络策略导致的失败
+- 第三方 OpenAI 兼容 API 通过 `/api/openai-compatible/*` 后端代理转发，前端只传 `providerId`，降低 CORS、Key 暴露和浏览器网络策略导致的失败
 - 多模型顺序对话（多个模型各自产生独立回复分支）
 - 树形消息结构，支持对话分支
 - 自动生成对话标题（语言自适应）
@@ -59,7 +62,7 @@
 - 查看已安装 Ollama 模型详情（大小、系列、参数量、量化级别）
 - 拉取新模型（流式进度显示）/ 删除模型（含确认）
 - 第三方 API 提供商管理：添加/删除/获取模型列表
-- 第三方 API 提供商配置跨浏览器同步（MySQL `api_providers` 表，保存使用事务）
+- 第三方 API 提供商配置跨浏览器同步（MySQL `api_providers` 表，保存使用事务，返回脱敏 Key）
 - 设为默认模型：设置面板一键指定默认模型（第三方优先），新会话自动使用
 
 **设置面板**
@@ -78,7 +81,7 @@
 - 侧边栏聊天列表按日期分组（今天/昨天/本周/更早），可搜索、折叠
 - 响应式布局（移动端侧边栏自动隐藏 + 遮罩层）
 - 流式中断恢复提示（刷新后未完成消息标注）
-- **知识库（RAG）**：上传文档到知识库 → Ollama 本地 Embedding → 对话时向量检索 Top-K 片段注入 Prompt
+- **知识库（RAG）**：上传文档到知识库 → Ollama 本地 Embedding → 对话时向量检索 Top-K 片段注入 Prompt；处理失败可在文档列表中重试
 
 > **使用知识库功能必须安装 Ollama 并拉取嵌入模型，例如：**
 >
@@ -103,7 +106,7 @@
 
 第三方模型发送本次请求输入 + 用户设定的 system prompt + Markdown 格式指令。若开启联网搜索，请求输入会附加搜索结果块但不写入历史；图片输入仅对可能支持视觉的模型使用 OpenAI vision content，其余模型降级为文本提示。
 
-聊天流、自动标题生成和模型列表刷新都会先请求本项目同源 API，再由服务端携带 provider API key 转发到上游 OpenAI-compatible 服务，因此浏览器不需要直接访问第三方 `baseUrl`。
+聊天流、自动标题生成和模型列表刷新都会先请求本项目同源 API，再由服务端携带 provider API key 转发到上游 OpenAI-compatible 服务，因此浏览器不需要直接访问第三方 `baseUrl`，也不会接收明文 API Key。
 
 ## 新机子上手全流程
 
@@ -174,6 +177,17 @@ npm run build
 
 构建产物在 `build/` 目录，可用 `node build` 启动。
 
+### 验证
+
+```bash
+npm run typecheck
+npm run build
+npm run test
+npm run verify
+```
+
+`npm run verify` 会依次执行 TypeScript 检查、生产构建和 Node 测试。当前测试覆盖私网 URL 检测、JSON 兜底解析和知识库文本切片 overlap。
+
 ## 项目结构
 
 ```
@@ -190,7 +204,10 @@ src/
 │   ├── server/
 │   │   ├── auth.ts                       # 服务端认证（bcryptjs + JWT + API Key 加密）
 │   │   ├── db.ts                         # MySQL 连接池 + 表初始化（9张表）
-│   │   └── knowledge-base.ts             # 知识库引擎（切片/Embedding/余弦相似度/检索/文件解析）
+│   │   ├── providers.ts                  # 第三方 Provider 校验/脱敏/服务端取 Key/URL 规范化
+│   │   └── knowledge-base.ts             # 知识库引擎（切片/Embedding/余弦相似度/检索/文件解析/失败重试）
+│   ├── types/
+│   │   └── chat.ts                       # 聊天消息、上传文件、设置共享类型
 │   ├── stores/index.ts                   # 10 个 Svelte writable stores（类型完善）
 │   │   ├── components/
 │   │   │   ├── chat/
@@ -222,6 +239,7 @@ src/
 │   ├── api/                              # 21 个 API 端点
 │   │   ├── openai-compatible/chat/+server.ts    # 第三方 OpenAI-compatible 聊天流同源代理
 │   │   ├── openai-compatible/models/+server.ts  # 第三方 OpenAI-compatible 模型列表同源代理
+│   │   ├── knowledge-bases/[id]/documents/[docId]/retry/+server.ts # 知识库文档失败重试
 │   └── .well-known/[...path]/            # Chrome DevTools 静默路由
 └── static/                               # 默认头像、字体、manifest.json
 ```

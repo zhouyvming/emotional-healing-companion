@@ -41,7 +41,9 @@ pool.execute(`ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NOT NULL`).c
 pool.execute(`ALTER TABLE users ADD COLUMN settings JSON`).catch(() => {});
 
 // 为已有 users 表补充 created_at 列
-pool.execute(`ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+pool
+	.execute(`ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
+	.catch(() => {});
 
 pool
 	.execute(
@@ -142,14 +144,21 @@ pool
   id VARCHAR(36) PRIMARY KEY,
   kb_id VARCHAR(36) NOT NULL,
   filename VARCHAR(255) NOT NULL,
+  source_type VARCHAR(255),
+  source_data LONGTEXT,
   status VARCHAR(20) DEFAULT 'pending',
   chunk_count INT DEFAULT 0,
   error_message TEXT,
+  processed_at DATETIME,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_kb_docs_kbid (kb_id)
 )`
 	)
 	.catch((err) => console.error("kb_documents table init error:", err));
+
+pool.execute(`ALTER TABLE kb_documents ADD COLUMN source_type VARCHAR(255)`).catch(() => {});
+pool.execute(`ALTER TABLE kb_documents ADD COLUMN source_data LONGTEXT`).catch(() => {});
+pool.execute(`ALTER TABLE kb_documents ADD COLUMN processed_at DATETIME`).catch(() => {});
 
 pool
 	.execute(

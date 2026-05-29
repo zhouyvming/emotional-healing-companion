@@ -4,9 +4,18 @@
 	import { goto } from "$app/navigation";
 	import { openDB } from "idb";
 
-	import { info, showSettings, settings, models, db, chats, chatId, user, moodHistory } from "$lib/stores";
+	import {
+		info,
+		showSettings,
+		settings,
+		models,
+		db,
+		chats,
+		chatId,
+		user,
+		moodHistory
+	} from "$lib/stores";
 
-	import SettingsModal from "$lib/components/chat/SettingsModal.svelte";
 	import Sidebar from "$lib/components/layout/Sidebar.svelte";
 	import toast from "svelte-french-toast";
 	import { OLLAMA_API_BASE_URL } from "$lib/constants";
@@ -16,6 +25,13 @@
 	let requiredOllamaVersion = "0.1.16";
 	let loaded = false;
 	let connectionError = "";
+	let SettingsModalComponent: any = null;
+
+	$: if ($showSettings && !SettingsModalComponent) {
+		import("$lib/components/chat/SettingsModal.svelte").then((module) => {
+			SettingsModalComponent = module.default;
+		});
+	}
 
 	const getToken = () => {
 		const userStr = localStorage.getItem("user");
@@ -428,7 +444,9 @@
 		>
 			<Sidebar />
 
-			<SettingsModal bind:show={$showSettings} />
+			{#if SettingsModalComponent}
+				<svelte:component this={SettingsModalComponent} bind:show={$showSettings} />
+			{/if}
 
 			<slot />
 		</div>

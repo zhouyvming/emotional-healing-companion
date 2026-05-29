@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { marked } from "marked";
 	import tippy from "tippy.js";
-	import hljs from "highlight.js";
+	import hljs from "highlight.js/lib/core";
+	import bash from "highlight.js/lib/languages/bash";
+	import css from "highlight.js/lib/languages/css";
+	import json from "highlight.js/lib/languages/json";
+	import markdown from "highlight.js/lib/languages/markdown";
+	import python from "highlight.js/lib/languages/python";
+	import typescript from "highlight.js/lib/languages/typescript";
+	import xml from "highlight.js/lib/languages/xml";
 	import "highlight.js/styles/github-dark.min.css";
 	import auto_render from "katex/dist/contrib/auto-render.mjs";
 	import "katex/dist/katex.min.css";
@@ -19,6 +26,16 @@
 		parseUploadedFile,
 		type UploadingFile
 	} from "$lib/client/fileParser";
+
+	hljs.registerLanguage("bash", bash);
+	hljs.registerLanguage("css", css);
+	hljs.registerLanguage("json", json);
+	hljs.registerLanguage("markdown", markdown);
+	hljs.registerLanguage("python", python);
+	hljs.registerLanguage("typescript", typescript);
+	hljs.registerLanguage("javascript", typescript);
+	hljs.registerLanguage("xml", xml);
+	hljs.registerLanguage("html", xml);
 
 	const purifyConfig = {
 		ALLOWED_TAGS: [

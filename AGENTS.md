@@ -5,10 +5,13 @@
 ```bash
 npm run dev       # dev server on http://localhost:8080 (NOT default 5173)
 npm run build     # Vite build → build/ (adapter-node, run with `node build`)
+npm run typecheck # TypeScript check via `tsc --noEmit`
+npm run test      # Node test runner for scripts/*.test.mjs
+npm run verify    # typecheck + build + test
 npm run fmt       # Prettier 2 via npx -p (NOT local install)
 ```
 
-No test suite. All verification is manual.
+Verification uses TypeScript, Vite build, and a small Node test suite. Still do manual browser verification for UI/chat/provider flows.
 
 ## Architecture gotchas
 
@@ -59,7 +62,7 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 
 **Provider sync**: `(app)/+layout.svelte` runs `syncProviders()` on load — fetches providers from `/api/providers` and writes to localStorage. SettingsModal saves to both localStorage and API simultaneously. `/api/providers` POST uses a transaction around delete+insert to avoid losing providers on partial failure.
 
-**OpenAI-compatible proxy**: browser code MUST NOT call third-party `baseUrl` directly for chat/model list requests. Use `/api/openai-compatible/chat` and `/api/openai-compatible/models`, both protected by `requireAuth()`. The server route forwards to `${baseUrl}/chat/completions` or `${baseUrl}/models` with the provider API key, avoiding browser CORS `Failed to fetch` failures.
+**OpenAI-compatible proxy**: browser code MUST NOT call third-party `baseUrl` directly for chat/model list requests and MUST NOT send provider `apiKey`/`baseUrl` to proxy endpoints. Use `/api/openai-compatible/chat` and `/api/openai-compatible/models` with `providerId`; both routes are protected by `requireAuth()`, load the provider for the current username, validate configured model membership, and forward with the decrypted provider API key server-side. `/api/providers` GET returns masked keys only; masked keys in POST preserve the existing encrypted value. Provider base URLs are normalized and private/internal URLs are rejected.
 
 **Default model**: New sessions default to first third-party model if any exist, then fall back to first Ollama model (`ModelSelector.svelte`). User can manually set a default via the settings panel "设为默认" button, which persists to `localStorage.settings.models` and takes priority over auto-selection. The compact model selector in the chat input no longer auto-saves on change.
 
@@ -72,6 +75,7 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 - Open Redirect protection: rejects `//evil.com` protocol-relative URLs.
 - XSS: DOMPurify sanitizes all AI output before `{@html}` rendering.
 - SSRF: `fetch-url` uses `redirect: manual`, `web-search` checks custom URLs via shared `isPrivateUrl()`.
+- SSRF: third-party provider `baseUrl` is validated through `normalizeProviderBaseUrl()` in `src/lib/server/providers.ts`; private/internal hosts are rejected before storage/use.
 - TOCTOU: `chats/[id]` PUT statement includes `AND username = ?`.
 - Username changes sync ownership across `chats`, `api_providers`, `mood_history`, `advice_table`, and `feedback_table`, then issue a fresh token.
 - **API key encryption**: `api_providers.api_key` is encrypted with AES-256-GCM (key derived from JWT_SECRET) before storage. `encryptApiKey()`/`decryptApiKey()` in `auth.ts`.
@@ -86,6 +90,16 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 ## Recent changes (2026-05-29)
 
 **Current verification status**: `npx tsc --noEmit` passes, and `npm run build` passes. Remaining known build warnings are the default JWT secret warning in dev and the existing large chunk warning.
+
+**Verification update**: `npm run verify` now runs `typecheck + build + node --test scripts/*.test.mjs` and passes. `git diff --check` passes; the only runtime build warning is the default JWT secret warning when `JWT_SECRET` is unset. The earlier large chunk warning was removed by chunk splitting and highlight.js core imports.
+
+**Provider/key hardening**: `src/lib/server/providers.ts` centralizes provider lookup, masked-key detection, model allow-list checks, and base URL normalization. OpenAI-compatible chat/model proxy routes now accept only `providerId` + payload, fetch provider credentials server-side, enforce user ownership, apply request timeouts, and classify upstream auth/rate-limit/server failures for clearer UI errors.
+
+**Knowledge base retry/status**: `kb_documents` now stores `source_type`, `source_data`, and `processed_at` for retryable processing. Upload processing marks `processing/done/error`, clears stale chunks before retry, cleans residual chunks after failure, and exposes `/api/knowledge-bases/[id]/documents/[docId]/retry`. `KnowledgeBaseDocuments.svelte` polls while work is pending/processing and shows retry for failed docs.
+
+**Performance**: SettingsModal is lazy-loaded from `(app)/+layout.svelte`. `vite.config.ts` splits vendor chunks, and `Messages.svelte` imports `highlight.js/lib/core` with explicit language registration instead of the full bundle.
+
+**Types/tests**: shared chat interfaces live in `src/lib/types/chat.ts`; `scripts/core-utils.test.mjs` covers private URL detection, safe JSON fallback, and chunk overlap behavior.
 
 **OpenAI-compatible API proxy**: Added `/api/openai-compatible/chat` and `/api/openai-compatible/models`. `src/lib/chat/openai.ts` now sends third-party chat, title generation, and model-list requests through same-origin authenticated server routes instead of browser-direct provider URLs. This fixes CORS/network-surface `Failed to fetch` errors in the in-app browser.
 
