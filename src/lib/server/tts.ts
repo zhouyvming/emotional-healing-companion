@@ -3,7 +3,6 @@ import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import type { RowDataPacket } from "mysql2/promise";
 import { pool } from "./db";
@@ -33,12 +32,11 @@ export interface TtsVoiceSummary extends TtsVoicePreset {
 
 export interface TtsAudioResult {
 	buffer: Buffer;
-	mime: "audio/mpeg";
+	mime: "audio/wav";
 }
 
 const SHERPA_ENGINE = "sherpa-onnx" as const;
 const DEFAULT_VOICE_ID = "sherpa-onnx-zh-baker-female";
-const TTS_TIMEOUT_MS = Number(process.env.TTS_TIMEOUT_MS ?? 120000);
 
 const MODEL_ROOT = process.env.SHERPA_ONNX_TTS_MODEL_DIR || path.join(process.cwd(), "tools", "sherpa-onnx");
 const MATCHA_DIR = path.join(MODEL_ROOT, "matcha-icefall-zh-baker");
@@ -57,7 +55,7 @@ export const TTS_PRESETS: TtsVoicePreset[] = [
 		sourceUrl: "https://github.com/k2-fsa/sherpa-onnx",
 		sizeBytes: 129_508_635,
 		tags: ["中文", "女声", "离线", "sherpa-onnx"],
-		notes: "内置离线中文 TTS；模型文件位于 tools/sherpa-onnx，不写入 MySQL。"
+		notes: "内置离线中文 TTS；模型文件位于 tools/sherpa-onnx，输出 WAV，无需 ffmpeg。"
 	}
 ];
 
@@ -65,7 +63,7 @@ let ttsInstance: any | null = null;
 
 const defaultVoiceSummary = (): TtsVoiceSummary => ({
 	...TTS_PRESETS[0],
-	sampleMime: "audio/mpeg",
+	sampleMime: "audio/wav",
 	createdAt: "",
 	updatedAt: ""
 });
@@ -166,12 +164,10 @@ function getTtsInstance() {
 	return ttsInstance;
 }
 
+const TTS_ALLOWED_CHARS = /[^一-鿿a-zA-Z0-9\s　-〿＀-￯㐀-䶿.,!?;:'"()\-、。，！？；：“”‘’（）—…《》]/g;
+
 function sanitizeTtsText(raw: string): string {
-	return raw
-		.replace(/[\uD800-\uDFFF]/g, "")
-		.replace(/[^\u4e00-\u9fff\u3000-\u303f\uff00-\uffef\u3400-\u4dbfa-zA-Z0-9\s\u3002\uff0c\uff01\uff1f\uff1b\uff1a\u3001\u201c\u201d\u2018\u2019\uff08\uff09\u2014\u2026\u300a\u300b\u002d\u002e\u002c\u0021\u003f\u003b\u003a\u0027\u0028\u0029\u000a]/g, "")
-		.trim()
-		.slice(0, 500);
+	return raw.replace(/[\uD800-\uDFFF]/g, "").replace(TTS_ALLOWED_CHARS, "").trim().slice(0, 500);
 }
 
 export async function synthesizeSpeech(
@@ -196,77 +192,9 @@ export async function synthesizeSpeech(
 			silenceScale: 0.2
 		});
 		tts.save(wavPath, audio);
-		const mp3 = await convertWavToMp3(wavPath, Number(input.volume || 1));
-		return { buffer: mp3, mime: "audio/mpeg" };
+		const buffer = await fs.readFile(wavPath);
+		return { buffer, mime: "audio/wav" };
 	} finally {
 		fs.unlink(wavPath).catch(() => {});
-	}
-}
-
-function findFfmpeg(): string {
-	if (process.env.FFMPEG_BIN && existsSync(process.env.FFMPEG_BIN)) {
-		return process.env.FFMPEG_BIN;
-	}
-	const bundled = path.join(process.cwd(), "tools", "ffmpeg", "ffmpeg.exe");
-	if (existsSync(bundled)) return bundled;
-
-	const { execSync } = require("node:child_process");
-	try {
-		const which = process.platform === "win32" ? "where ffmpeg 2>NUL" : "which ffmpeg 2>/dev/null";
-		const stdout = execSync(which, { encoding: "utf8", timeout: 5000, shell: true });
-		const found = stdout.split(/\r?\n/).map(function(l) { return l.trim(); }).find(function(l) { return existsSync(l); });
-		if (found) return found;
-	} catch (_) {}
-	throw new Error("未找到 ffmpeg，无法输出 MP3。请将 ffmpeg 加入 PATH 或设置 FFMPEG_BIN 环境变量。");
-}
-
-async function convertWavToMp3(wavPath: string, volume: number): Promise<Buffer> {
-	const ffmpegBin = findFfmpeg();
-	const mp3Path = path.join(os.tmpdir(), `tts-${crypto.randomUUID()}.mp3`);
-	const volumeArg = Math.max(0, Math.min(1, volume));
-
-	await new Promise<void>((resolve, reject) => {
-		const child = spawn(
-			ffmpegBin,
-			[
-				"-y",
-				"-loglevel",
-				"error",
-				"-i",
-				wavPath,
-				"-filter:a",
-				`volume=${volumeArg}`,
-				"-codec:a",
-				"libmp3lame",
-				"-b:a",
-				"96k",
-				mp3Path
-			],
-			{ windowsHide: true }
-		);
-		let stderr = "";
-		const timer = setTimeout(() => {
-			child.kill();
-			reject(new Error("MP3 转码超时"));
-		}, TTS_TIMEOUT_MS);
-
-		child.stderr.on("data", (chunk) => {
-			stderr += chunk.toString();
-		});
-		child.on("error", (error) => {
-			clearTimeout(timer);
-			reject(error);
-		});
-		child.on("close", (code) => {
-			clearTimeout(timer);
-			if (code === 0) resolve();
-			else reject(new Error(stderr.trim() || `ffmpeg 退出码 ${code}`));
-		});
-	});
-
-	try {
-		return await fs.readFile(mp3Path);
-	} finally {
-		fs.unlink(mp3Path).catch(() => {});
 	}
 }
