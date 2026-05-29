@@ -12,7 +12,7 @@ interface User extends RowDataPacket {
 	system_avatar: string | null;
 }
 
-export async function PUT({ request }) {
+export async function PUT({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const body = await request.json();

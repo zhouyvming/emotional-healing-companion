@@ -11,7 +11,7 @@ interface MoodRow extends RowDataPacket {
 	score: number;
 }
 
-export async function GET({ request }) {
+export async function GET({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const [rows] = await pool.query<MoodRow[]>(
@@ -29,7 +29,7 @@ export async function GET({ request }) {
 	}
 }
 
-export async function POST({ request }) {
+export async function POST({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const { date, mood, score } = await request.json();

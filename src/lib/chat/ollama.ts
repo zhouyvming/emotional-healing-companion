@@ -149,7 +149,7 @@ interface ChatContext {
 	settings: Record<string, any>;
 	db: any;
 	chats: Writable<any[]>;
-	chatId: Writable<string>;
+	chatId: string;
 	isNewChat: boolean;
 	notifyUpdate: () => void;
 	uploadingFiles?: UploadedFile[];
@@ -307,47 +307,19 @@ export function createChatHandlers(ctx: () => ChatContext) {
 				: {})
 		}));
 
-		// 注入情绪感知 system prompt（提前构建，用于上下文压缩计算）
-		let systemPrompt = settings.systemPrompt ?? "";
-		if (settings.emotionSensing !== false) {
-			systemPrompt = systemPrompt
-				? `${systemPrompt}\n\n${getEmotionPrompt(userPrompt)}`
-				: getEmotionPrompt(userPrompt);
-		}
-
-		systemPrompt = systemPrompt
-			? `${systemPrompt}\n\n请使用Markdown格式回复，适当使用标题、列表、加粗、代码块等格式让回复更清晰易读。`
-			: "请使用Markdown格式回复，适当使用标题、列表、加粗、代码块等格式让回复更清晰易读。";
-
-		// 上下文自动压缩：超出 num_ctx 时截断最早的消息
-		const contextLimit = settings.num_ctx ?? 200000;
-		let totalChars = apiMessages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
-		if (systemPrompt) totalChars += systemPrompt.length;
-		const estimatedTokens = Math.ceil(totalChars / 2);
-		if (estimatedTokens > contextLimit) {
-			let keepFrom = 0;
-			let runningChars = 0;
-			for (let i = apiMessages.length - 1; i >= 0; i--) {
-				runningChars += apiMessages[i].content?.length || 0;
-				if (Math.ceil(runningChars / 2) > contextLimit * 0.85) {
-					keepFrom = i + 1;
-					break;
-				}
-			}
-			const truncated = apiMessages.length - keepFrom;
-			if (truncated > 0 && keepFrom < apiMessages.length) {
-				const systemMsgIndex = apiMessages.findIndex((m) => m.role === "system");
-				apiMessages = apiMessages.slice(keepFrom);
-				const summaryNote = {
-					role: "system" as const,
-					content: `[对话上下文已压缩：早期 ${truncated} 条消息已省略，以下是最近的对话内容]`
-				};
-				if (systemMsgIndex >= 0) {
-					apiMessages[0].content = summaryNote.content + "\n\n" + apiMessages[0].content;
-				} else {
-					apiMessages.unshift(summaryNote);
-				}
-			}
+		const systemPrompt = buildSystemPrompt(settings.systemPrompt, settings.emotionSensing);
+		const { messages: compressed, truncated } = compressContext(
+			apiMessages,
+			systemPrompt.length,
+			settings.num_ctx ?? 200000,
+			(m) => m.content?.length || 0
+		);
+		if (truncated > 0) {
+			apiMessages = compressed;
+			apiMessages.unshift({
+				role: "system",
+				content: `[对话上下文已压缩：早期 ${truncated} 条消息已省略，以下是最近的对话内容]`
+			});
 		}
 
 		const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/chat`, {
@@ -375,7 +347,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			return null;
 		});
 
-		if (res && res.ok) {
+		if (res && res.ok && res.body) {
 			const reader = res.body
 				.pipeThrough(new TextDecoderStream())
 				.pipeThrough(splitStream("\n"))
@@ -472,7 +444,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		}
 
 		c().stopRef.value = false;
-		c().abortRefs.splice(abortIndex, 1);
+		c().abortRefs?.splice(abortIndex, 1);
 		await tick();
 		if (c().autoScroll) {
 			window.scrollTo({ top: document.body.scrollHeight });

@@ -16,7 +16,7 @@ interface ChatRow extends RowDataPacket {
 	timestamp: string;
 }
 
-export async function GET({ url, request }) {
+export async function GET({ url, request }: { url: URL; request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const limit = parseInt(url.searchParams.get("limit") ?? "100") || 100;
@@ -41,7 +41,7 @@ export async function GET({ url, request }) {
 	}
 }
 
-export async function POST({ request }) {
+export async function POST({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const chat = await request.json();
@@ -75,7 +75,7 @@ export async function POST({ request }) {
 	}
 }
 
-export async function DELETE({ request }) {
+export async function DELETE({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 
@@ -89,4 +89,3 @@ export async function DELETE({ request }) {
 		return json({ error: "删除失败" }, { status: 500 });
 	}
 }
-

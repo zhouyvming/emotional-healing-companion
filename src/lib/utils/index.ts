@@ -103,11 +103,12 @@ export const removeMessageBranch = (
 	}
 };
 
-export const safeJsonParse = <T>(val: string | object, fallback: T): T => {
+export const safeJsonParse = <T = any>(val: string | object | null | undefined, fallback?: T): T => {
+	if (val == null) return fallback as T;
 	if (typeof val === "object") return val as unknown as T;
 	try {
 		return JSON.parse(val) as T;
 	} catch {
-		return fallback;
+		return fallback as T;
 	}
 };

@@ -11,7 +11,7 @@ const dataToBuffer = (data: string) => {
 
 const trimText = (text: string) => text.replace(/\r\n/g, "\n").trim().slice(0, MAX_TEXT_LENGTH);
 
-export async function POST({ request }) {
+export async function POST({ request }: { request: Request }) {
 	try {
 		requireAuth(request);
 		const { name, type = "", data } = await request.json();

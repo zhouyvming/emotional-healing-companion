@@ -2,6 +2,7 @@ import toast from "svelte-french-toast";
 import type { Writable } from "svelte/store";
 import { datetimeNow } from "$lib/utils";
 import { buildSystemPrompt, compressContext } from "$lib/chat/prompts";
+import { getToken } from "$lib/client/http";
 
 export interface ApiProvider {
 	id: string;
@@ -13,10 +14,7 @@ export interface ApiProvider {
 
 type OpenAIContent =
 	| string
-	| (
-			| { type: "text"; text: string }
-			| { type: "image_url"; image_url: { url: string } }
-	  )[];
+	| ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[];
 
 interface OpenAIMessage {
 	role: string;
@@ -33,7 +31,8 @@ interface ChatContext {
 	settings: Record<string, any>;
 	db: any;
 	chats: Writable<any[]>;
-	chatId: Writable<string>;
+	chatId: string;
+	title: string;
 	notifyUpdate: () => void;
 	kbId?: string;
 	getKbId?: () => string;
@@ -101,12 +100,14 @@ export function getThirdPartyModels(): any[] {
 
 // 从 OpenAI 兼容 API 获取模型列表
 export async function fetchModels(baseUrl: string, apiKey: string): Promise<string[]> {
-	const url = baseUrl.replace(/\/+$/, "") + "/models";
-	const res = await fetch(url, {
-		headers: {
-			Authorization: `Bearer ${apiKey}`,
-			"Content-Type": "application/json"
-		}
+	const token = getToken();
+	const headers: Record<string, string> = { "Content-Type": "application/json" };
+	if (token) headers.Authorization = `Bearer ${token}`;
+
+	const res = await fetch("/api/openai-compatible/models", {
+		method: "POST",
+		headers,
+		body: JSON.stringify({ baseUrl, apiKey })
 	});
 	if (!res.ok) {
 		const err = await res.json().catch(() => ({}));
@@ -122,17 +123,17 @@ export async function fetchModels(baseUrl: string, apiKey: string): Promise<stri
 
 // OpenAI 兼容流式聊天
 export async function sendPromptOpenAI(
-  provider: ApiProvider,
-  model: string,
-  userPrompt: string,
-  parentId: string | null,
-  _chatId: string,
-  ctx: ChatContext,
-  onTitleSet: (t: string) => void,
-  titleGuard: { generated: boolean } = { generated: false },
-  getMessages: () => any[] = () => ctx.messages,
-  getAutoScroll: () => boolean = () => ctx.autoScroll,
-  getTitle: () => string = () => ctx.title
+	provider: ApiProvider,
+	model: string,
+	userPrompt: string,
+	parentId: string | null,
+	_chatId: string,
+	ctx: ChatContext,
+	onTitleSet: (t: string) => void,
+	titleGuard: { generated: boolean } = { generated: false },
+	getMessages: () => any[] = () => ctx.messages,
+	getAutoScroll: () => boolean = () => ctx.autoScroll,
+	getTitle: () => string = () => ctx.title
 ) {
 	const { settings, db, history, title, selectedModels, autoScroll, notifyUpdate } = ctx;
 	const uuid = await import("uuid");
@@ -209,25 +210,26 @@ export async function sendPromptOpenAI(
 
 	try {
 		const baseUrl = provider.baseUrl.replace(/\/+$/, "");
-		const res = await fetch(`${baseUrl}/chat/completions`, {
+		const token = getToken();
+		const headers: Record<string, string> = { "Content-Type": "application/json" };
+		if (token) headers.Authorization = `Bearer ${token}`;
+		const payload = {
+			model,
+			messages: [
+				...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+				...apiMessages
+			] as any[],
+			stream: true,
+			temperature: settings.temperature ?? undefined,
+			top_p: settings.top_p ?? undefined,
+			max_tokens: settings.max_tokens ?? undefined,
+			seed: settings.seed ?? undefined,
+			stop: settings.stop || undefined
+		};
+		const res = await fetch("/api/openai-compatible/chat", {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${provider.apiKey}`,
-				"Content-Type": "application/json"
-			},
-			body: JSON.stringify({
-				model,
-				messages: [
-					...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-					...apiMessages
-				] as any[],
-				stream: true,
-				temperature: settings.temperature ?? undefined,
-				top_p: settings.top_p ?? undefined,
-				max_tokens: settings.max_tokens ?? undefined,
-				seed: settings.seed ?? undefined,
-				stop: settings.stop || undefined
-			}),
+			headers,
+			body: JSON.stringify({ baseUrl, apiKey: provider.apiKey, payload }),
 			signal: controller.signal
 		});
 
@@ -329,9 +331,9 @@ export async function sendPromptOpenAI(
 	// 生成标题
 	const latestMessages = getMessages();
 	const needTitle = latestMessages.length === 2 || !getTitle() || getTitle() === "New Chat";
-	if (needTitle && latestMessages.at(1)?.content !== '' && !titleGuard.generated) {
+	if (needTitle && latestMessages.at(1)?.content !== "" && !titleGuard.generated) {
 		titleGuard.generated = true;
-		window.history.replaceState(window.history.state, '', `/chat/${_chatId}`);
+		window.history.replaceState(window.history.state, "", `/chat/${_chatId}`);
 		if (!curSettings.privacyMode) {
 			await generateOpenAITitle(provider, model, userPrompt, _chatId, onTitleSet, settings, ctx);
 		}
@@ -355,22 +357,26 @@ async function generateOpenAITitle(
 		}
 		try {
 			const baseUrl = provider.baseUrl.replace(/\/+$/, "");
-			const res = await fetch(`${baseUrl}/chat/completions`, {
+			const token = getToken();
+			const headers: Record<string, string> = { "Content-Type": "application/json" };
+			if (token) headers.Authorization = `Bearer ${token}`;
+			const res = await fetch("/api/openai-compatible/chat", {
 				method: "POST",
-				headers: {
-					Authorization: `Bearer ${provider.apiKey}`,
-					"Content-Type": "application/json"
-				},
+				headers,
 				body: JSON.stringify({
-					model,
-					messages: [
-						{
-							role: "user",
-							content: `请根据以下对话内容生成一个简洁的标题（5个词以内）。\n语言规则：检测用户输入语言，标题使用相同语言。只回复标题文本。\n\n用户输入：${userPrompt}`
-						}
-					],
-					max_tokens: 20,
-					temperature: 0.3
+					baseUrl,
+					apiKey: provider.apiKey,
+					payload: {
+						model,
+						messages: [
+							{
+								role: "user",
+								content: `请根据以下对话内容生成一个简洁的标题（5个词以内）。\n语言规则：检测用户输入语言，标题使用相同语言。只回复标题文本。\n\n用户输入：${userPrompt}`
+							}
+						],
+						max_tokens: 20,
+						temperature: 0.3
+					}
 				})
 			});
 			if (!res.ok) throw new Error();

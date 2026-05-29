@@ -8,7 +8,7 @@ interface UserRow extends RowDataPacket {
 	settings: string | null;
 }
 
-export async function GET({ request }) {
+export async function GET({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const [rows] = await pool.execute<UserRow[]>(
@@ -27,7 +27,7 @@ export async function GET({ request }) {
 	}
 }
 
-export async function PUT({ request }) {
+export async function PUT({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const { settings } = await request.json();

@@ -1,9 +1,10 @@
 import { goto } from "$app/navigation";
+import type { LayoutLoad } from "./$types";
 
 export const ssr = false;
 export const trailingSlash = "ignore";
 
-export async function load({ url }) {
+export const load: LayoutLoad = async ({ url }) => {
 	const publicPaths = ["/login", "/register"];
 	const userStr = localStorage.getItem("user");
 
@@ -34,4 +35,4 @@ export async function load({ url }) {
 	return {
 		user: userStr ? JSON.parse(userStr) : null
 	};
-}
+};

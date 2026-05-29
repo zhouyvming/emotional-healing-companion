@@ -13,7 +13,7 @@ interface ProviderRow extends RowDataPacket {
 	models: string;
 }
 
-export async function GET({ request }) {
+export async function GET({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const [rows] = await pool.query<ProviderRow[]>(
@@ -38,7 +38,7 @@ export async function GET({ request }) {
 	}
 }
 
-export async function POST({ request }) {
+export async function POST({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const { providers } = await request.json();
@@ -73,4 +73,3 @@ export async function POST({ request }) {
 		return json({ error: "保存失败" }, { status: 500 });
 	}
 }
-

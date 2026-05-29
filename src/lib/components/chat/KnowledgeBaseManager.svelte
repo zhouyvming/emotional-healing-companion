@@ -88,17 +88,17 @@
 		{:else}
 			{#each kbList as kb}
 				<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden">
-					<button
-						class="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition text-left"
-						on:click={() => selectedKbId = selectedKbId === kb.id ? "" : kb.id}
-					>
-						<div class="flex-1 min-w-0">
+					<div class="flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+						<button
+							class="flex-1 min-w-0 p-3 text-left"
+							on:click={() => selectedKbId = selectedKbId === kb.id ? "" : kb.id}
+						>
 							<div class="text-sm font-medium">📚 {kb.name}</div>
 							<div class="text-xs text-gray-400 mt-0.5">
 								切片大小 {kb.chunk_size} 字符
 							</div>
-						</div>
-						<div class="flex items-center gap-1" on:click|stopPropagation>
+						</button>
+						<div class="flex items-center gap-1 pr-3">
 							<button
 								class="px-2 py-1 text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-500 rounded transition"
 								on:click={() => deleteKb(kb.id)}
@@ -107,7 +107,7 @@
 								{deleting[kb.id] ? "删除中" : "删除"}
 							</button>
 						</div>
-					</button>
+					</div>
 
 					{#if selectedKbId === kb.id}
 						<div class="border-t border-gray-100 dark:border-gray-700 p-3">

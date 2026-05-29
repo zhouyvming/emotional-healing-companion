@@ -2,16 +2,22 @@
 
 基于 Ollama 的本地大语言模型情感支持聊天机器人，支持接入第三方 API 模型，提供温暖、私密的交流体验。
 
+## 最新状态（2026-05-29）
+
+- 当前代码已通过 `npx tsc --noEmit` 和 `npm run build`。
+- 第三方 OpenAI 兼容 API 已改为同源后端代理，避免浏览器直连 provider URL 时因为 CORS 出现 `Failed to fetch`。
+- 知识库管理面板修复了 Svelte 无障碍警告，展开/删除操作现在使用键盘可访问的按钮。
+
 ## 技术栈
 
-| 层面     | 技术                                                       |
-| -------- | ---------------------------------------------------------- |
-| 前端框架 | SvelteKit 1.x + Svelte 4（SPA 模式，`ssr: false`）         |
-| UI       | Tailwind CSS（粉色主题，深色/浅色模式切换）                |
-| 数据库   | MySQL 8（`mysql2/promise`），`localhost:3307`              |
-| AI 服务  | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等） |
-| 认证     | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7 天有效期）   |
-| 安全     | DOMPurify HTML 净化、注册速率限制、SSRF/Open Redirect 防护 |
+| 层面     | 技术                                                                 |
+| -------- | -------------------------------------------------------------------- |
+| 前端框架 | SvelteKit 1.x + Svelte 4（SPA 模式，`ssr: false`）                   |
+| UI       | Tailwind CSS（粉色主题，深色/浅色模式切换）                          |
+| 数据库   | MySQL 8（`mysql2/promise`），`localhost:3307`                        |
+| AI 服务  | Ollama 本地模型 + OpenAI 兼容 API（DeepSeek / 通义千问等）           |
+| 认证     | bcryptjs 密码哈希 + 自定义 HMAC-SHA256 JWT（7 天有效期）             |
+| 安全     | DOMPurify HTML 净化、注册速率限制、SSRF/Open Redirect 防护           |
 | 知识库   | RAG 检索增强生成：Ollama Embedding + MySQL 向量存储 + 余弦相似度检索 |
 
 ## 功能
@@ -20,6 +26,7 @@
 
 - 流式响应（SSE 解析，完成后批量保存）
 - 支持 **Ollama 本地模型** + **OpenAI 兼容 API**（DeepSeek / 通义千问 / OpenAI 等）
+- 第三方 OpenAI 兼容 API 通过 `/api/openai-compatible/*` 后端代理转发，降低 CORS 和浏览器网络策略导致的失败
 - 多模型顺序对话（多个模型各自产生独立回复分支）
 - 树形消息结构，支持对话分支
 - 自动生成对话标题（语言自适应）
@@ -40,7 +47,7 @@
 
 **用户系统**
 
-- 注册/登录（bcryptjs 加密，密码最短 6 位，注册速率限制 5次/分钟）
+- 注册/登录（bcryptjs 加密，密码最短 6 位，注册速率限制 5 次/分钟）
 - 全部 API 路由受 JWT 认证中间件保护
 - 个人资料管理（头像上传、用户名、邮箱、密码修改）
 - 用户名变更时自动同步聊天记录、API 提供商、情绪记录、建议反馈归属 + 签发新 token
@@ -74,12 +81,14 @@
 - **知识库（RAG）**：上传文档到知识库 → Ollama 本地 Embedding → 对话时向量检索 Top-K 片段注入 Prompt
 
 > **使用知识库功能必须安装 Ollama 并拉取嵌入模型，例如：**
+>
 > ```bash
 > ollama pull nomic-embed-text       # 推荐，274MB，768维，中英文兼容
 > ollama pull bge-m3                 # BGE-M3，1.2GB，1024维，多语言
 > ollama pull multilingual-e5-large  # 多语言 E5，560MB，1024维
 > ollama pull mxbai-embed-large      # 335MB，1024维，英文为主
 > ```
+>
 > 创建知识库后可在数据库 `knowledge_bases.embedding_model` 字段指定使用的模型。
 
 ## 接入第三方 API 模型
@@ -93,6 +102,8 @@
 4. 在聊天页模型选择器中即可选择第三方模型（显示为 `提供商名/模型ID`）
 
 第三方模型发送本次请求输入 + 用户设定的 system prompt + Markdown 格式指令。若开启联网搜索，请求输入会附加搜索结果块但不写入历史；图片输入仅对可能支持视觉的模型使用 OpenAI vision content，其余模型降级为文本提示。
+
+聊天流、自动标题生成和模型列表刷新都会先请求本项目同源 API，再由服务端携带 provider API key 转发到上游 OpenAI-compatible 服务，因此浏览器不需要直接访问第三方 `baseUrl`。
 
 ## 新机子上手全流程
 
@@ -146,14 +157,14 @@ npm run dev
 
 ### 5. 环境变量配置（可选）
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `MYSQL_HOST` | `localhost` | MySQL 主机 |
-| `MYSQL_PORT` | `3307` | MySQL 端口 |
-| `MYSQL_USER` | `root` | MySQL 用户名 |
-| `MYSQL_PASSWORD` | (空) | MySQL 密码 |
-| `MYSQL_DATABASE` | `webui_chat` | 数据库名 |
-| `JWT_SECRET` | (内置默认值) | JWT 签名密钥 |
+| 变量             | 默认值       | 说明         |
+| ---------------- | ------------ | ------------ |
+| `MYSQL_HOST`     | `localhost`  | MySQL 主机   |
+| `MYSQL_PORT`     | `3307`       | MySQL 端口   |
+| `MYSQL_USER`     | `root`       | MySQL 用户名 |
+| `MYSQL_PASSWORD` | (空)         | MySQL 密码   |
+| `MYSQL_DATABASE` | `webui_chat` | 数据库名     |
+| `JWT_SECRET`     | (内置默认值) | JWT 签名密钥 |
 
 ### 生产构建
 
@@ -208,7 +219,9 @@ src/
 │   │   └── profile/+page.svelte          # 个人资料页
 │   ├── advice_table/+page.svelte         # 建议反馈页
 │   ├── hooks.server.ts                  # HTTP 安全头（CSP/X-Frame-Options等）
-│   ├── api/                              # 19 个 API 端点
+│   ├── api/                              # 21 个 API 端点
+│   │   ├── openai-compatible/chat/+server.ts    # 第三方 OpenAI-compatible 聊天流同源代理
+│   │   ├── openai-compatible/models/+server.ts  # 第三方 OpenAI-compatible 模型列表同源代理
 │   └── .well-known/[...path]/            # Chrome DevTools 静默路由
 └── static/                               # 默认头像、字体、manifest.json
 ```

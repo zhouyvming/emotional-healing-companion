@@ -18,6 +18,13 @@ npm run fmt       # Prettier 2 格式化（通过 npx -p 运行，非本地安�
 
 SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。品牌名"情感疗愈伴侣"——粉色主题的中文情感支持聊天机器人，支持 **Ollama 本地模型** + **第三方 OpenAI 兼容 API**（OpenAI / DeepSeek / 通义千问等），具备 **RAG 知识库**功能（文档上传 → 向量检索 → 对话注入）。
 
+## 最新状态（2026-05-29）
+
+- `npx tsc --noEmit` 通过；`npm run build` 通过。
+- 第三方 OpenAI 兼容模型已改为同源后端代理：聊天/标题生成走 `/api/openai-compatible/chat`，模型列表走 `/api/openai-compatible/models`，避免浏览器直连 provider URL 时出现 CORS 导致的 `Failed to fetch`。
+- `KnowledgeBaseManager.svelte` 的展开/删除交互已改为真实按钮，修复 Svelte a11y click/keyboard/role 警告。
+- `vite.config.ts` 的 generated tsconfig patch 使用 `ignoreDeprecations: "5.0"`；路由 handler 类型、`safeJsonParse()`、`word-extractor` 类型声明、GBK 解码均已清理到可通过 typecheck。
+
 ## 项目启动与依赖
 
 完整部署流程见 [README.md](./README.md)。关键外部依赖：
@@ -51,6 +58,8 @@ src/routes/
     ├── feedback_table/+server.ts           # POST 提交反馈
     ├── fetch-url/+server.ts               # POST 抓取网页文本（redirect: manual 防 SSRF 重定向，1MB 上限）
     ├── providers/+server.ts               # GET(按用户列表)/POST(事务式全量保存) API 提供商配置（跨浏览器同步）
+    ├── openai-compatible/chat/+server.ts  # POST 同源代理 OpenAI-compatible /chat/completions（流式透传，避免 CORS）
+    ├── openai-compatible/models/+server.ts # POST 同源代理 OpenAI-compatible /models（刷新第三方模型列表）
     ├── web-search/+server.ts              # POST 联网搜索（Bing/百度/DDG 多引擎，isPrivateUrl 防 SSRF）
     ├── knowledge-bases/+server.ts         # GET(列表)/POST(创建) 知识库
     ├── knowledge-bases/[id]/+server.ts    # DELETE 级联删除
@@ -99,31 +108,31 @@ src/routes/
 
 ## 状态管理 (`src/lib/stores/index.ts`)
 
-| Store          | 类型                                                     | 用途                                                                                                                    |
-| -------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `info`         | `{}`                                                     | Ollama 服务信息（版本号）                                                                                               |
-| `db`           | `undefined \| object`                                    | MySQL API 包装实例                                                                                                      |
-| `chatId`       | `string`                                                 | 当前对话 UUID                                                                                                           |
-| `chats`        | `[]`                                                     | `{id, title, timestamp}` 列表，侧边栏数据源                                                                             |
-| `models`       | `[]`                                                     | 合并后的所有可用模型（Ollama 本地 + 第三方 API），ModelSelector 数据源                                                  |
-| `user`         | `{id, username, email, avatar?, system_avatar?} \| null` | 当前登录用户                                                                                                            |
-| `settings`     | `Settings`                                               | 应用设置（含 API_BASE_URL、theme、fontSize、systemName、systemPrompt、proactiveGreeting、privacyMode 等），类型已完善，持久化到 localStorage      |
-| `showSettings` | `boolean`                                                | 设置弹窗开关                                                                                                            |
-| `moodHistory`  | `{date, mood, score}[]`                                  | 情绪追踪数据                                                                                                            |
+| Store          | 类型                                                     | 用途                                                                                                                                         |
+| -------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `info`         | `{}`                                                     | Ollama 服务信息（版本号）                                                                                                                    |
+| `db`           | `undefined \| object`                                    | MySQL API 包装实例                                                                                                                           |
+| `chatId`       | `string`                                                 | 当前对话 UUID                                                                                                                                |
+| `chats`        | `[]`                                                     | `{id, title, timestamp}` 列表，侧边栏数据源                                                                                                  |
+| `models`       | `[]`                                                     | 合并后的所有可用模型（Ollama 本地 + 第三方 API），ModelSelector 数据源                                                                       |
+| `user`         | `{id, username, email, avatar?, system_avatar?} \| null` | 当前登录用户                                                                                                                                 |
+| `settings`     | `Settings`                                               | 应用设置（含 API_BASE_URL、theme、fontSize、systemName、systemPrompt、proactiveGreeting、privacyMode 等），类型已完善，持久化到 localStorage |
+| `showSettings` | `boolean`                                                | 设置弹窗开关                                                                                                                                 |
+| `moodHistory`  | `{date, mood, score}[]`                                  | 情绪追踪数据                                                                                                                                 |
 
 ## 共享模块
 
-| 文件                     | 内容                                                                                                                                                                                                                          |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/chat/prompts.ts` | `buildSystemPrompt`(情绪感知+Markdown)、`compressContext`(上下文压缩)，被 ollama.ts/openai.ts 共享 |
-| `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama，AbortController 真正取消）、`sendPrompt`（顺序路由 Ollama/OpenAI，非并发）、`submitPrompt`（文件提取 + 联网搜索结果注入到本次请求）、`generateChatTitle`、`stopResponse`（abortRefs 数组 + stopRef）、`regenerateResponse`、`editMessage`、`deleteMessage`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。 |
-| `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式，120s 超时 + 60s stream 读取超时）、`findProvider`、`getThirdPartyModels`、`fetchModels`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。第三方模型接收本次请求输入 + system prompt；图片对可能支持视觉的模型使用 OpenAI vision content，否则降级为文本说明。                          |
-| `src/lib/client/fileParser.ts` | 前端上传文件解析协调：图片跳过解析，txt/md/csv/doc/docx/pdf/xls/xlsx/pptx 调用 `/api/parse-file`，维护 `parseStatus`/`parseError` 并显示上传、完成、解析中的 toast。 |
-| `src/lib/server/auth.ts` | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                            |
-| `src/lib/server/db.ts`   | MySQL 连接池 + 9 张表 DDL + 列迁移。支持环境变量配置                                                                                                                               |
-| `src/lib/client/http.ts` | `authFetch`（自动附加 JWT Bearer，401 清除登录态并跳转，Content-Type 仅未设置时覆盖）、`getToken`、`getCurrentUser`                                                                                                            |
-| `src/lib/utils/index.ts` | `splitStream`、`safeJsonParse`(JSON 解析兜底)（SSE 流式解析，\r\n 归一化）、`convertMessagesToHistory`（消息数组 → 树形结构）、`datetimeNow()`、`isPrivateUrl()`（共享 SSRF 检查）、`removeMessageBranch()`（消息树递归删除 + currentId 防悬挂）                   |
-| `src/lib/server/knowledge-base.ts` | `chunkText`(固定大小切片+overlap)、`cosineSimilarity`(余弦相似度)、`getOllamaEmbedding`(调用 Ollama /api/embeddings)、`queryKnowledgeBase`(Embed 查询 → Top-K)、`processDocument`(文本提取→切片→embed→入库)、`parseByExtension`(文件解析，与 /api/parse-file 共享实现) |
+| 文件                               | 内容                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/chat/prompts.ts`          | `buildSystemPrompt`(情绪感知+Markdown)、`compressContext`(上下文压缩)，被 ollama.ts/openai.ts 共享                                                                                                                                                                                                                                                                                                                            |
+| `src/lib/chat/ollama.ts`           | `sendPromptOllama`（流式 Ollama，AbortController 真正取消）、`sendPrompt`（顺序路由 Ollama/OpenAI，非并发）、`submitPrompt`（文件提取 + 联网搜索结果注入到本次请求）、`generateChatTitle`、`stopResponse`（abortRefs 数组 + stopRef）、`regenerateResponse`、`editMessage`、`deleteMessage`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。                                                    |
+| `src/lib/chat/openai.ts`           | `sendPromptOpenAI`（OpenAI 兼容流式，120s 超时 + 60s stream 读取超时，通过 `/api/openai-compatible/chat` 同源代理转发）、`findProvider`、`getThirdPartyModels`、`fetchModels`（通过 `/api/openai-compatible/models` 转发）。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。第三方模型接收本次请求输入 + system prompt；图片对可能支持视觉的模型使用 OpenAI vision content，否则降级为文本说明。 |
+| `src/lib/client/fileParser.ts`     | 前端上传文件解析协调：图片跳过解析，txt/md/csv/doc/docx/pdf/xls/xlsx/pptx 调用 `/api/parse-file`，维护 `parseStatus`/`parseError` 并显示上传、完成、解析中的 toast。                                                                                                                                                                                                                                                          |
+| `src/lib/server/auth.ts`           | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                                                                                                                                                                                                                            |
+| `src/lib/server/db.ts`             | MySQL 连接池 + 9 张表 DDL + 列迁移。支持环境变量配置                                                                                                                                                                                                                                                                                                                                                                          |
+| `src/lib/client/http.ts`           | `authFetch`（自动附加 JWT Bearer，401 清除登录态并跳转，Content-Type 仅未设置时覆盖）、`getToken`、`getCurrentUser`                                                                                                                                                                                                                                                                                                           |
+| `src/lib/utils/index.ts`           | `splitStream`、`safeJsonParse`(JSON 解析兜底)（SSE 流式解析，\r\n 归一化）、`convertMessagesToHistory`（消息数组 → 树形结构）、`datetimeNow()`、`isPrivateUrl()`（共享 SSRF 检查）、`removeMessageBranch()`（消息树递归删除 + currentId 防悬挂）                                                                                                                                                                              |
+| `src/lib/server/knowledge-base.ts` | `chunkText`(固定大小切片+overlap)、`cosineSimilarity`(余弦相似度)、`getOllamaEmbedding`(调用 Ollama /api/embeddings)、`queryKnowledgeBase`(Embed 查询 → Top-K)、`processDocument`(文本提取 → 切片 →embed→ 入库)、`parseByExtension`(文件解析，与 /api/parse-file 共享实现)                                                                                                                                                    |
 
 ## 响应式核心机制：notifyUpdate
 
@@ -167,6 +176,7 @@ src/routes/
 ```
 
 - `findProvider()` 通过模型名前缀匹配（`提供商名/模型ID` 格式）自动路由
+- 前端不再直接请求第三方 `baseUrl`。模型列表、聊天流、标题生成都经由受 `requireAuth()` 保护的 `/api/openai-compatible/*` 后端代理，再由服务端携带 provider API key 转发到上游，避免浏览器 CORS `Failed to fetch`
 - 第三方模型发送**本次请求输入** + 用户设定的 system prompt；联网搜索结果如果启用会随本次请求输入附加，但不写入历史
 - 第三方模型图片输入：可能支持视觉的模型使用 OpenAI `image_url` content；其他模型降级为文本提示，避免非视觉 API 报错
 
@@ -176,15 +186,15 @@ src/routes/
 
 ## 核心组件
 
-| 组件                     | 位置           | 关键特性                                                                                                                                                                                    |
-| ------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Messages.svelte**      | chat/          | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮**、TTS 朗读（onDestroy 取消）。用户消息左对齐（头像在左，气泡 w-fit 无 break-words），时间戳行用 flex spacer（`<div class="w-10">`）对齐气泡左边缘。 |
-| **MessageInput.svelte**  | chat/          | 固定底部、自动伸缩（max 200px）、发送/停止按钮、语音输入（onDestroy 中止）、文件/图片上传（粘贴/拖拽/选择，10MB 限制，Office/PDF 解析状态展示）、Enter 发送/Shift+Enter 换行、**visualViewport 移动端键盘适配**                    |
-| **ModelSelector.svelte** | chat/          | `<select>` 下拉、自动选中首个可用模型（第三方优先）、设为默认模型持久化（设置面板）。紧凑模式不再自动保存选中变更。                                                                                                     |
-| **SettingsModal.svelte** | chat/          | 8 标签页：常规（外观+连接+系统头像）、知识库（创建/上传文档）、偏好与人设（7 项开关含情绪感知+AI名称+system prompt）、模型与API（拉取/列表/删除/设为默认+第三方提供商管理+添加表单折叠）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K** 全部参数显示滑块默认值）、关于 |
-| **Sidebar.svelte**       | layout/        | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏。导出功能已移至个人主页。              |
-| **Navbar.svelte**        | layout/        | 对话标题（可重命名）、新对话按钮、删除确认                                                                                                                                                  |
-| **Modal.svelte**         | common/        | 通用弹窗容器（点击背景关闭）                                                                                                                                                                |
+| 组件                     | 位置    | 关键特性                                                                                                                                                                                                                                                                                                                     |
+| ------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Messages.svelte**      | chat/   | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮**、TTS 朗读（onDestroy 取消）。用户消息左对齐（头像在左，气泡 w-fit 无 break-words），时间戳行用 flex spacer（`<div class="w-10">`）对齐气泡左边缘。 |
+| **MessageInput.svelte**  | chat/   | 固定底部、自动伸缩（max 200px）、发送/停止按钮、语音输入（onDestroy 中止）、文件/图片上传（粘贴/拖拽/选择，10MB 限制，Office/PDF 解析状态展示）、Enter 发送/Shift+Enter 换行、**visualViewport 移动端键盘适配**                                                                                                              |
+| **ModelSelector.svelte** | chat/   | `<select>` 下拉、自动选中首个可用模型（第三方优先）、设为默认模型持久化（设置面板）。紧凑模式不再自动保存选中变更。                                                                                                                                                                                                          |
+| **SettingsModal.svelte** | chat/   | 8 标签页：常规（外观+连接+系统头像）、知识库（创建/上传文档）、偏好与人设（7 项开关含情绪感知+AI 名称+system prompt）、模型与 API（拉取/列表/删除/设为默认+第三方提供商管理+添加表单折叠）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K** 全部参数显示滑块默认值）、关于                                        |
+| **Sidebar.svelte**       | layout/ | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏。导出功能已移至个人主页。                                                                                                                           |
+| **Navbar.svelte**        | layout/ | 对话标题（可重命名）、新对话按钮、删除确认                                                                                                                                                                                                                                                                                   |
+| **Modal.svelte**         | common/ | 通用弹窗容器（点击背景关闭）                                                                                                                                                                                                                                                                                                 |
 
 ## 样式与主题
 
@@ -197,6 +207,7 @@ Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 中同
 ## 停止响应机制（AbortController）
 
 两层机制：
+
 1. `stopRef`：流式循环每轮检查
 2. `abortRefs`：每个模型独立 index，`stopResponse()` 遍历全部 abort。完成后 splice 自身索引，不影响其他模型。
 
@@ -206,19 +217,19 @@ Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 中同
 - **SSRF**：`fetch-url` 用 `redirect: manual` 防重定向绕过；`isPrivateUrl()` 共享于 `fetch-url` 和 `web-search`
 - **XSS**：DOMPurify 净化所有 `{@html}` 渲染的 AI 输出
 - **TOCTOU**：`chats/[id]` PUT 语句含 `AND username = ?`
-- **速率限制**：注册 + 登录 5次/分钟/IP（内存 Map）
+- **速率限制**：注册 + 登录 5 次/分钟/IP（内存 Map）
 - **密码**：最短 6 位，前端和服务端注册/改密接口均校验
 - **参数化查询**：所有 SQL 用 `?` 占位符
 
 ## 关键依赖
 
-| 包                                  | 用途                                           |
-| ----------------------------------- | ---------------------------------------------- |
-| `bcryptjs`                          | 密码哈希（纯 JS）                              |
-| `mysql2/promise`                    | MySQL 连接池 + 参数化查询                      |
-| `marked` + `highlight.js` + `kaTeX` | Markdown 渲染 + 代码高亮 + 数学公式            |
-| `dompurify`                         | HTML 净化（替代正则 XSS 防护）                 |
-| `svelte-french-toast`               | Toast 通知（v1.x，无 `toast.info`）            |
-| `tippy.js`                          | 消息 info tooltip（token/s 等流式指标）        |
-| `uuid`                              | 消息 ID / 会话 ID 生成                         |
-| `idb`                               | IndexedDB 操作（仅用于旧数据迁移）             |
+| 包                                  | 用途                                    |
+| ----------------------------------- | --------------------------------------- |
+| `bcryptjs`                          | 密码哈希（纯 JS）                       |
+| `mysql2/promise`                    | MySQL 连接池 + 参数化查询               |
+| `marked` + `highlight.js` + `kaTeX` | Markdown 渲染 + 代码高亮 + 数学公式     |
+| `dompurify`                         | HTML 净化（替代正则 XSS 防护）          |
+| `svelte-french-toast`               | Toast 通知（v1.x，无 `toast.info`）     |
+| `tippy.js`                          | 消息 info tooltip（token/s 等流式指标） |
+| `uuid`                              | 消息 ID / 会话 ID 生成                  |
+| `idb`                               | IndexedDB 操作（仅用于旧数据迁移）      |

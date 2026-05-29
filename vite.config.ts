@@ -13,7 +13,7 @@ export default defineConfig({
 					let c = fs.readFileSync(p, "utf8");
 					c = c.replace(/"importsNotUsedAsValues":\s*"[^"]*",?\s*/g, "");
 					c = c.replace(/"preserveValueImports":\s*true,?\s*/g, "");
-					c = c.replace(/"ignoreDeprecations":\s*"[^"]*"/, '"ignoreDeprecations": "6.0"');
+					c = c.replace(/"ignoreDeprecations":\s*"[^"]*"/, '"ignoreDeprecations": "5.0"');
 					fs.writeFileSync(p, c);
 				}
 			}

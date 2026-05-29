@@ -31,7 +31,7 @@ function checkRateLimit(ip: string): boolean {
 	return true;
 }
 
-export async function POST({ request }) {
+export async function POST({ request }: { request: Request }) {
 	const { action, username, password, email } = await request.json();
 	const ip = request.headers.get("x-forwarded-for") || "unknown";
 

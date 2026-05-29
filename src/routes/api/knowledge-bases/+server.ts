@@ -13,7 +13,7 @@ interface KbRow extends RowDataPacket {
 	created_at: string;
 }
 
-export async function GET({ request }) {
+export async function GET({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const [rows] = await pool.execute<KbRow[]>(
@@ -37,7 +37,7 @@ export async function GET({ request }) {
 	}
 }
 
-export async function POST({ request }) {
+export async function POST({ request }: { request: Request }) {
 	try {
 		const auth = requireAuth(request);
 		const { name, chunk_size, embedding_model } = await request.json();

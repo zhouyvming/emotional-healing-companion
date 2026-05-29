@@ -37,7 +37,7 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 
 ## Chat engine architecture
 
-**Message routing**: Ollama models → `sendPromptOllama` (streaming SSE via `/api/chat`), third-party OpenAI-compatible → `sendPromptOpenAI` (streaming via `/chat/completions`). Models processed **sequentially** (not `Promise.all`) to avoid history corruption.
+**Message routing**: Ollama models → `sendPromptOllama` (streaming SSE via Ollama `/api/chat`), third-party OpenAI-compatible → `sendPromptOpenAI` (same-origin streaming proxy `/api/openai-compatible/chat`). Models processed **sequentially** (not `Promise.all`) to avoid history corruption.
 
 **Context compression**: Before sending to any model, total character count is estimated (chars/2 ≈ tokens). If exceeding `num_ctx * 0.85` (default 200K), oldest messages are truncated. A system note `[对话上下文已压缩：早期 N 条消息已省略]` is inserted. Local history is NOT modified.
 
@@ -58,6 +58,8 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_providers` table for cross-browser support). Models named as `提供商名/模型ID` (provider-name/model-id). `sendPrompt` auto-routes: Ollama models → `sendPromptOllama`, third-party → `sendPromptOpenAI` via `findProvider()` matching by model name prefix.
 
 **Provider sync**: `(app)/+layout.svelte` runs `syncProviders()` on load — fetches providers from `/api/providers` and writes to localStorage. SettingsModal saves to both localStorage and API simultaneously. `/api/providers` POST uses a transaction around delete+insert to avoid losing providers on partial failure.
+
+**OpenAI-compatible proxy**: browser code MUST NOT call third-party `baseUrl` directly for chat/model list requests. Use `/api/openai-compatible/chat` and `/api/openai-compatible/models`, both protected by `requireAuth()`. The server route forwards to `${baseUrl}/chat/completions` or `${baseUrl}/models` with the provider API key, avoiding browser CORS `Failed to fetch` failures.
 
 **Default model**: New sessions default to first third-party model if any exist, then fall back to first Ollama model (`ModelSelector.svelte`). User can manually set a default via the settings panel "设为默认" button, which persists to `localStorage.settings.models` and takes priority over auto-selection. The compact model selector in the chat input no longer auto-saves on change.
 
@@ -82,6 +84,14 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 - Implementation plan: `.claude/plans/`
 
 ## Recent changes (2026-05-29)
+
+**Current verification status**: `npx tsc --noEmit` passes, and `npm run build` passes. Remaining known build warnings are the default JWT secret warning in dev and the existing large chunk warning.
+
+**OpenAI-compatible API proxy**: Added `/api/openai-compatible/chat` and `/api/openai-compatible/models`. `src/lib/chat/openai.ts` now sends third-party chat, title generation, and model-list requests through same-origin authenticated server routes instead of browser-direct provider URLs. This fixes CORS/network-surface `Failed to fetch` errors in the in-app browser.
+
+**TypeScript/build cleanup**: `vite.config.ts` now patches SvelteKit's generated `ignoreDeprecations` to `5.0`; route handlers have explicit request/url typings; `safeJsonParse()` supports an omitted fallback; `src/word-extractor.d.ts` declares the `.doc` parser package; GBK web-search decoding uses `TextDecoder("gbk")`.
+
+**Accessibility**: `KnowledgeBaseManager.svelte` no longer uses a visible clickable `<div>` for expansion. The row uses real buttons for keyboard-accessible expand/collapse and delete controls, clearing the Svelte a11y warning.
 
 **Security hardening**: API keys encrypted in database, login rate limiting added, HTTP security headers (CSP/X-Frame-Options/X-Content-Type-Options), JWT secret default triggers runtime warning, `viewport` meta no longer restricts zoom.
 

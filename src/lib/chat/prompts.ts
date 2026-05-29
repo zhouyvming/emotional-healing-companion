@@ -18,10 +18,7 @@ export function buildSystemPrompt(
 	if (emotionSensing !== false) {
 		prompt = `${prompt}\n\n${EMOTION_GUIDANCE}`;
 	}
-	prompt = userSystemPrompt
-		? `${prompt}\n\n${MARKDOWN_INSTRUCTION}`
-		: MARKDOWN_INSTRUCTION;
-	return prompt;
+	return `${prompt}\n\n${MARKDOWN_INSTRUCTION}`;
 }
 
 /**

@@ -14,8 +14,8 @@ async function fetchHtml(url: string, headers: Record<string, string>, timeoutMs
 		const charset = charsetMatch ? charsetMatch[1].toLowerCase() : "";
 		if (charset === "gbk" || charset === "gb2312" || charset === "gb18030") {
 			try {
-				const buf = Buffer.from(await res.arrayBuffer());
-				return buf.toString("gbk");
+				const buf = await res.arrayBuffer();
+				return new TextDecoder("gbk").decode(buf);
 			} catch {
 				return res.text();
 			}
@@ -135,7 +135,7 @@ const ENGINES: Record<string, EngineConfig> = {
 	}
 };
 
-export async function POST({ request }) {
+export async function POST({ request }: { request: Request }) {
 	try {
 		requireAuth(request);
 		const { query, engine, customUrl } = await request.json();

@@ -2,7 +2,7 @@ import { json } from "@sveltejs/kit";
 import { requireAuth, AuthError } from "$lib/server/auth";
 import { isPrivateUrl } from "$lib/utils";
 
-export async function POST({ request }) {
+export async function POST({ request }: { request: Request }) {
 	try {
 		requireAuth(request);
 		const { url } = await request.json();
