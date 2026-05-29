@@ -12,7 +12,7 @@ No test suite. All verification is manual.
 
 ## Architecture gotchas
 
-**SPA mode** (`ssr: false` in `src/routes/+layout.js:3`). Auth is client-side only: JWT stored in `localStorage.user`, route guard checks it in `+layout.js` load function. No server-side session.
+**SPA mode** (`ssr: false` in `src/routes/+layout.ts:3`). Auth is client-side only: JWT stored in `localStorage.user`, route guard checks it in `+layout.ts` load function. No server-side session.
 
 **notifyUpdate pattern** — The single most important design quirk. Chat logic runs in `src/lib/chat/ollama.ts` / `openai.ts`, outside Svelte component scope. Mutations to `history` objects are invisible to Svelte's compiler. Components use `let updateCounter = 0` + `$: updateCounter, (() => { rebuild })();` and pass `c().notifyUpdate()` into the chat modules. Whenever you mutate history/stream responses, you MUST call `c().notifyUpdate()`. Also: use `c().messages` (not a destructured snapshot) for logic that needs latest data; use `currentCtx.autoScroll` (not the captured value) inside streaming loops.
 
@@ -24,7 +24,7 @@ MySQL 8 on `localhost:3307` (override via `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`
 
 Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})` — this means migration DDL silently fails on existing columns. When adding a column, add it as a new `pool.execute(ALTER TABLE ...).catch(() => {})` block. Never remove or modify existing migration blocks.
 
-**timestamp column**: migrated from `BIGINT` (ms) to `DATETIME` (`YYYY-MM-DD HH:MM:SS`). New code MUST use `datetimeNow()` from `src/lib/utils/index.ts`, not epoch milliseconds.
+**timestamp column**: migrated from `BIGINT` (ms) to `DATETIME` (ISO 8601 `YYYY-MM-DDTHH:MM:SS`). New code MUST use `datetimeNow()` from `src/lib/utils/index.ts`, not epoch milliseconds.
 
 **Legacy passwords**: may be plaintext if not yet migrated via `scripts/migrate-passwords.ts`.
 
@@ -65,13 +65,16 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 
 - JWT secret overridable via `JWT_SECRET` env var. All API routes use `requireAuth()`.
 - Client-side `authFetch` auto-attaches Bearer token and redirects to `/login` on 401.
-- Registration rate-limited: 5 per minute per IP (in-memory Map).
+- Registration + login rate-limited: 5 per minute per IP (in-memory Map).
 - Password minimum 6 characters, enforced by both UI and server routes (`/api/auth`, `/api/user/profile`).
 - Open Redirect protection: rejects `//evil.com` protocol-relative URLs.
 - XSS: DOMPurify sanitizes all AI output before `{@html}` rendering.
 - SSRF: `fetch-url` uses `redirect: manual`, `web-search` checks custom URLs via shared `isPrivateUrl()`.
 - TOCTOU: `chats/[id]` PUT statement includes `AND username = ?`.
 - Username changes sync ownership across `chats`, `api_providers`, `mood_history`, `advice_table`, and `feedback_table`, then issue a fresh token.
+- **API key encryption**: `api_providers.api_key` is encrypted with AES-256-GCM (key derived from JWT_SECRET) before storage. `encryptApiKey()`/`decryptApiKey()` in `auth.ts`.
+- **HTTP security headers**: `src/hooks.server.ts` sets `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` on all responses.
+- **datetimeNow()** produces ISO 8601 format for native Safari/edge browser compatibility.
 
 ## References
 
@@ -79,6 +82,12 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 - Implementation plan: `.claude/plans/`
 
 ## Recent changes (2026-05-29)
+
+**Security hardening**: API keys encrypted in database, login rate limiting added, HTTP security headers (CSP/X-Frame-Options/X-Content-Type-Options), JWT secret default triggers runtime warning, `viewport` meta no longer restricts zoom.
+
+**Code deduplication**: `src/lib/chat/prompts.ts` shared module — `buildSystemPrompt()` (emotion sensing + Markdown instruction) and `compressContext()` (token-aware truncation) used by both ollama.ts and openai.ts. `safeJsonParse()` consolidated from 4 route-level copies into `src/lib/utils/index.ts`. `parseByExtension()` exported from knowledge-base.ts, reused by `/api/parse-file`.
+
+**UX**: Loading spinner on chat page when `loaded=false`, empty-state guidance in KnowledgeBaseDocuments and KnowledgeBaseSelector, `+layout.js` → `+layout.ts` for type safety.
 
 **Layout**: User messages now left-aligned (avatar on left, `items-start`/`justify-start`). Avatars enlarged to `w-10 h-10` (40px). Bubble has `w-fit` (content-width, no stretching) and NO `break-words` (was causing premature line wraps in Chinese text).
 

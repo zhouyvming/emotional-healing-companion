@@ -29,7 +29,7 @@ SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。品牌名"情�
 
 ```
 src/routes/
-├── +layout.js                              # 路由守卫（JWT token 检查，未登录跳转 /login）
+├── +layout.ts                              # 路由守卫（JWT token 检查，未登录跳转 /login）
 ├── +layout.svelte                          # 根布局（全局 CSS + Toast 挂载）
 ├── +error.svelte                           # 错误页面
 ├── login/+page.svelte                      # 登录页（密码可见性切换，防协议相对 URL Open Redirect）
@@ -80,12 +80,12 @@ src/routes/
 | `chats` | `id`(UUID PK), `username`, `title`, `models`(JSON), `options`(JSON), `messages`(JSON), `history`(JSON), `system`(TEXT), `timestamp`(DATETIME, `YYYY-MM-DD HH:MM:SS`) |
 | `feedback_table` | `id`, `username`, `content`, `created_at`(TIMESTAMP) |
 | `advice_table` | `id`, `username`, `content`, `created_at`(TIMESTAMP) |
-| `api_providers` | `id`(VARCHAR 36 PK), `username`, `name`, `base_url`(TEXT), `api_key`(TEXT), `models`(JSON), `created_at`(TIMESTAMP) |
+| `api_providers` | `id`(VARCHAR 36 PK), `username`, `name`, `base_url`(TEXT), `api_key`(TEXT, AES-256-GCM 加密), `models`(JSON), `created_at`(TIMESTAMP) |
 | `knowledge_bases` | `id`(VARCHAR 36 PK), `username`, `name`, `embedding_model`(默认 nomic-embed-text), `chunk_size`(默认 500), `created_at`(TIMESTAMP) |
 | `kb_documents` | `id`(VARCHAR 36 PK), `kb_id`, `filename`, `status`(pending/processing/done/error), `chunk_count`, `error_message`(TEXT), `created_at`(TIMESTAMP) |
 | `kb_chunks` | `id`(VARCHAR 36 PK), `doc_id`, `kb_id`, `content`(TEXT), `chunk_index`, `embedding`(JSON 浮点数组), `created_at`(TIMESTAMP) |
 
-**timestamp 迁移**：2026-05 从 `BIGINT` 毫秒时间戳迁移为 `DATETIME`。`db.ts` 中 `UPDATE FROM_UNIXTIME` 自动转换已有数据。**新代码必须使用 `datetimeNow()`（`YYYY-MM-DD HH:MM:SS` 格式），禁止使用 epoch 毫秒。**
+**timestamp 迁移**：2026-05 从 `BIGINT` 毫秒时间戳迁移为 `DATETIME`。`db.ts` 中 `UPDATE FROM_UNIXTIME` 自动转换已有数据。**新代码必须使用 `datetimeNow()`（ISO 8601 格式 `YYYY-MM-DDTHH:MM:SS`），禁止使用 epoch 毫秒。**
 
 **迁移模式**：DDL 迁移使用 `pool.execute(ALTER TABLE ...).catch(() => {})` 模式——已有列会静默失败。添加新列时追加一个新的 `.catch(() => {})` 块，**绝不修改或删除已有迁移块**。
 
@@ -115,13 +115,14 @@ src/routes/
 
 | 文件                     | 内容                                                                                                                                                                                                                          |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/chat/prompts.ts` | `buildSystemPrompt`(情绪感知+Markdown)、`compressContext`(上下文压缩)，被 ollama.ts/openai.ts 共享 |
 | `src/lib/chat/ollama.ts` | `sendPromptOllama`（流式 Ollama，AbortController 真正取消）、`sendPrompt`（顺序路由 Ollama/OpenAI，非并发）、`submitPrompt`（文件提取 + 联网搜索结果注入到本次请求）、`generateChatTitle`、`stopResponse`（abortRefs 数组 + stopRef）、`regenerateResponse`、`editMessage`、`deleteMessage`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。 |
 | `src/lib/chat/openai.ts` | `sendPromptOpenAI`（OpenAI 兼容流式，120s 超时 + 60s stream 读取超时）、`findProvider`、`getThirdPartyModels`、`fetchModels`。system prompt 含情绪感知指引 + **硬编码 Markdown 格式输出指令**（始终生效）。第三方模型接收本次请求输入 + system prompt；图片对可能支持视觉的模型使用 OpenAI vision content，否则降级为文本说明。                          |
 | `src/lib/client/fileParser.ts` | 前端上传文件解析协调：图片跳过解析，txt/md/csv/doc/docx/pdf/xls/xlsx/pptx 调用 `/api/parse-file`，维护 `parseStatus`/`parseError` 并显示上传、完成、解析中的 toast。 |
 | `src/lib/server/auth.ts` | bcryptjs 哈希、JWT 签发/验证、`requireAuth` 中间件                                                                                                                                                                            |
-| `src/lib/server/db.ts`   | MySQL 连接池 + 4 张表 DDL + 列迁移（avatar/system_avatar/timestamp DATETIME）。支持环境变量配置                                                                                                                               |
+| `src/lib/server/db.ts`   | MySQL 连接池 + 9 张表 DDL + 列迁移。支持环境变量配置                                                                                                                               |
 | `src/lib/client/http.ts` | `authFetch`（自动附加 JWT Bearer，401 清除登录态并跳转，Content-Type 仅未设置时覆盖）、`getToken`、`getCurrentUser`                                                                                                            |
-| `src/lib/utils/index.ts` | `splitStream`（SSE 流式解析，\r\n 归一化）、`convertMessagesToHistory`（消息数组 → 树形结构）、`datetimeNow()`、`isPrivateUrl()`（共享 SSRF 检查）、`removeMessageBranch()`（消息树递归删除 + currentId 防悬挂）                   |
+| `src/lib/utils/index.ts` | `splitStream`、`safeJsonParse`(JSON 解析兜底)（SSE 流式解析，\r\n 归一化）、`convertMessagesToHistory`（消息数组 → 树形结构）、`datetimeNow()`、`isPrivateUrl()`（共享 SSRF 检查）、`removeMessageBranch()`（消息树递归删除 + currentId 防悬挂）                   |
 | `src/lib/server/knowledge-base.ts` | `chunkText`(固定大小切片+overlap)、`cosineSimilarity`(余弦相似度)、`getOllamaEmbedding`(调用 Ollama /api/embeddings)、`queryKnowledgeBase`(Embed 查询 → Top-K)、`processDocument`(文本提取→切片→embed→入库)、`parseByExtension`(文件解析，与 /api/parse-file 共享实现) |
 
 ## 响应式核心机制：notifyUpdate
@@ -180,7 +181,7 @@ src/routes/
 | **Messages.svelte**      | chat/          | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮**、TTS 朗读（onDestroy 取消）。用户消息左对齐（头像在左，气泡 w-fit 无 break-words），时间戳行用 flex spacer（`<div class="w-10">`）对齐气泡左边缘。 |
 | **MessageInput.svelte**  | chat/          | 固定底部、自动伸缩（max 200px）、发送/停止按钮、语音输入（onDestroy 中止）、文件/图片上传（粘贴/拖拽/选择，10MB 限制，Office/PDF 解析状态展示）、Enter 发送/Shift+Enter 换行、**visualViewport 移动端键盘适配**                    |
 | **ModelSelector.svelte** | chat/          | `<select>` 下拉、自动选中首个可用模型（第三方优先）、设为默认模型持久化（设置面板）。紧凑模式不再自动保存选中变更。                                                                                                     |
-| **SettingsModal.svelte** | chat/          | 7 标签页：常规（外观+连接+系统头像）、偏好与人设（7 项开关含情绪感知+AI名称+system prompt）、模型与API（拉取/列表/删除/设为默认+第三方提供商管理+添加表单折叠）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K** 全部参数显示滑块默认值）、关于 |
+| **SettingsModal.svelte** | chat/          | 8 标签页：常规（外观+连接+系统头像）、知识库（创建/上传文档）、偏好与人设（7 项开关含情绪感知+AI名称+system prompt）、模型与API（拉取/列表/删除/设为默认+第三方提供商管理+添加表单折叠）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K** 全部参数显示滑块默认值）、关于 |
 | **Sidebar.svelte**       | layout/        | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏。导出功能已移至个人主页。              |
 | **Navbar.svelte**        | layout/        | 对话标题（可重命名）、新对话按钮、删除确认                                                                                                                                                  |
 | **Modal.svelte**         | common/        | 通用弹窗容器（点击背景关闭）                                                                                                                                                                |
@@ -205,7 +206,7 @@ Tailwind CSS，`class` 策略暗色模式。主题初始化在 `app.html` 中同
 - **SSRF**：`fetch-url` 用 `redirect: manual` 防重定向绕过；`isPrivateUrl()` 共享于 `fetch-url` 和 `web-search`
 - **XSS**：DOMPurify 净化所有 `{@html}` 渲染的 AI 输出
 - **TOCTOU**：`chats/[id]` PUT 语句含 `AND username = ?`
-- **速率限制**：注册 5次/分钟/IP（内存 Map）
+- **速率限制**：注册 + 登录 5次/分钟/IP（内存 Map）
 - **密码**：最短 6 位，前端和服务端注册/改密接口均校验
 - **参数化查询**：所有 SQL 用 `?` 占位符
 

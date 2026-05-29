@@ -173,13 +173,14 @@ src/
 │   │   ├── ollama.ts                     # 核心聊天逻辑（Ollama 流式、搜索注入、消息路由、文件处理、标题生成）
 │   │   └── openai.ts                     # OpenAI 兼容 API（流式聊天、多模态降级、模型获取、标题生成）
 │   ├── client/
+│   ├── client/
 │   │   ├── http.ts                       # 客户端 HTTP（authFetch 自动附加 JWT）
 │   │   └── fileParser.ts                 # 文件上传解析协调（状态管理 + 发送前补齐）
-│   │   ├── server/
-│   │   │   ├── auth.ts                   # 服务端认证（bcryptjs + JWT）
-│   │   │   ├── db.ts                     # MySQL 连接池 + 表初始化（9张表，环境变量配置）
-│   │   │   └── knowledge-base.ts         # 知识库引擎（切片/Embedding/余弦相似度/检索）
-│   │   ├── stores/index.ts              # 10 个 Svelte writable stores（类型完善）
+│   ├── server/
+│   │   ├── auth.ts                       # 服务端认证（bcryptjs + JWT + API Key 加密）
+│   │   ├── db.ts                         # MySQL 连接池 + 表初始化（9张表）
+│   │   └── knowledge-base.ts             # 知识库引擎（切片/Embedding/余弦相似度/检索/文件解析）
+│   ├── stores/index.ts                   # 10 个 Svelte writable stores（类型完善）
 │   │   ├── components/
 │   │   │   ├── chat/
 │   │   │   │   ├── Messages.svelte       # 消息渲染（DOMPurify/marked/highlight.js/KaTeX/TTS/编辑删除）
@@ -196,7 +197,7 @@ src/
 │   │   └── common/Modal.svelte           # 通用弹窗
 │   └── utils/index.ts                    # splitStream/convertMessagesToHistory/datetimeNow/isPrivateUrl/removeMessageBranch
 ├── routes/
-│   ├── +layout.js                        # 路由守卫（JWT + 访客白名单）
+│   ├── +layout.ts                        # 路由守卫（JWT + 访客白名单）
 │   ├── +layout.svelte                    # 根布局（全局 CSS + Toast）
 │   ├── +error.svelte                     # 错误页面
 │   ├── login/register/                   # 登录/注册（Open Redirect 防护）
@@ -206,7 +207,8 @@ src/
 │   │   ├── chat/[id]/+page.svelte        # 对话详情页
 │   │   └── profile/+page.svelte          # 个人资料页
 │   ├── advice_table/+page.svelte         # 建议反馈页
-│   ├── api/                              # 17 个认证 API 路由（含 providers + knowledge-bases）
+│   ├── hooks.server.ts                  # HTTP 安全头（CSP/X-Frame-Options等）
+│   ├── api/                              # 19 个 API 端点
 │   └── .well-known/[...path]/            # Chrome DevTools 静默路由
 └── static/                               # 默认头像、字体、manifest.json
 ```
