@@ -13,7 +13,6 @@
 	import KnowledgeBaseManager from "./KnowledgeBaseManager.svelte";
 	import { getThirdPartyModels, fetchLocalOpenAIModels, fetchModels } from "$lib/chat/openai";
 	import { authFetch } from "$lib/client/http";
-	import { createTtsPlayback, type TtsPlayback } from "$lib/client/tts-player";
 
 	export let show = false;
 
@@ -55,20 +54,8 @@
 	let systemAvatarInput: HTMLInputElement;
 	let systemAvatarPreview = "";
 	let systemAvatarChanged = false;
-	let ttsEnabled = false;
-	let ttsEngine: "emotivoice" = "emotivoice";
-	let ttsVoiceId = "";
 	let ttsRate = 1;
 	let ttsVolume = 1;
-	let ttsVoices: {
-		id: string;
-		displayName: string;
-		description: string;
-		speaker: number;
-		stylePrompt: string;
-	}[] = [];
-	let previewingVoice = "";
-	let ttsPreviewAudio: TtsPlayback | null = null;
 
 	// Model management
 	let pullModelName = "";
@@ -239,73 +226,11 @@
 		return bytes + " B";
 	};
 
-	const loadTtsVoices = async () => {
-		try {
-			const res = await authFetch("/api/tts/voices");
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data.error || "加载内置音色失败");
-			}
-			const data = await res.json();
-			ttsVoices = data.voices ?? [];
-			if (!ttsVoiceId && ttsVoices.length > 0) {
-				ttsVoiceId = ttsVoices[0].id;
-			}
-		} catch (error: any) {
-			toast.error(error.message || "加载内置音色失败");
-		}
-	};
-
-	const stopTtsPreview = () => {
-		if (ttsPreviewAudio) {
-			ttsPreviewAudio.stop();
-			ttsPreviewAudio = null;
-		}
-		previewingVoice = "";
-	};
-
 	const saveTtsSettings = async () => {
 		await saveSettings({
-			ttsEnabled,
-			ttsEngine,
-			ttsVoiceId,
 			ttsRate: Number(ttsRate),
 			ttsVolume: Number(ttsVolume)
 		});
-	};
-
-	const previewTtsVoice = async (voiceId = ttsVoiceId) => {
-		if (!voiceId) {
-			toast.error("请先选择音色");
-			return;
-		}
-		stopTtsPreview();
-		previewingVoice = voiceId;
-		try {
-			ttsEnabled = true;
-			await saveTtsSettings();
-			const res = await authFetch("/api/tts/speak", {
-				method: "POST",
-				body: JSON.stringify({
-					voiceId,
-					text: "你好，我是你的情感疗愈伴侣。愿我的声音能温柔地陪伴你。",
-					rate: ttsRate,
-					volume: ttsVolume
-				})
-			});
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data.error || "试听失败");
-			}
-			ttsPreviewAudio = await createTtsPlayback(await res.blob(), {
-				volume: ttsVolume,
-				onEnded: stopTtsPreview
-			});
-			await ttsPreviewAudio.play();
-		} catch (error: any) {
-			stopTtsPreview();
-			toast.error(error.message || "试听失败");
-		}
 	};
 
 	// Advanced
@@ -461,9 +386,6 @@
 			topicDirectSend,
 			systemPrompt,
 			systemName,
-			ttsEnabled,
-			ttsEngine,
-			ttsVoiceId,
 			ttsRate,
 			ttsVolume,
 			requestFormat: requestFormat !== "" ? requestFormat : undefined
@@ -565,13 +487,9 @@
 		localOpenAIBaseUrl = stored.localOpenAIBaseUrl ?? LOCAL_OPENAI_API_BASE_URL;
 		localOpenAIApiKey = stored.localOpenAIApiKey ?? "";
 		localOpenAIName = stored.localOpenAIName ?? "本地兼容";
-		ttsEnabled = stored.ttsEnabled ?? false;
-		ttsEngine = "emotivoice";
-		ttsVoiceId = stored.ttsVoiceId ?? "";
 		ttsRate = stored.ttsRate ?? 1;
 		ttsVolume = stored.ttsVolume ?? 1;
 		requestFormat = stored.requestFormat ?? "";
-		loadTtsVoices();
 
 		if (stored.seed !== undefined && stored.seed !== "") options.seed = stored.seed;
 		for (const key of Object.keys(options)) {
@@ -582,7 +500,6 @@
 		editingProviderIndex = null;
 		return () => {
 			window.removeEventListener("keydown", handleKeydown);
-			stopTtsPreview();
 		};
 	});
 </script>
@@ -1119,67 +1036,12 @@
 							<div
 								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-3"
 							>
-								<label class="flex items-center justify-between gap-3">
-									<div>
-										<span class="text-sm">启用内置开源 TTS</span>
-										<div class="text-xs text-gray-400">
-											使用本地 EmotiVoice worker，音频由项目内服务生成
-										</div>
-									</div>
-									<input
-										type="checkbox"
-										class="w-4 h-4 rounded accent-pink-500"
-										bind:checked={ttsEnabled}
-										on:change={saveTtsSettings}
-									/>
-								</label>
-
-								<div class="grid gap-3 md:grid-cols-2">
-									<div>
-										<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">AI 音色</div>
-										<select
-											class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
-											bind:value={ttsVoiceId}
-											on:change={saveTtsSettings}
-										>
-											<option value="">未选择</option>
-											{#each ttsVoices as voice}
-												<option value={voice.id}>
-													{voice.displayName} · speaker {voice.speaker}
-												</option>
-											{/each}
-										</select>
-									</div>
-									<div class="flex items-end gap-2">
-										<button
-											type="button"
-											class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm transition disabled:opacity-50"
-											disabled={!ttsVoiceId || previewingVoice !== ""}
-											on:click={() => previewTtsVoice()}
-										>
-											{previewingVoice ? "试听中..." : "试听"}
-										</button>
-										<button
-											type="button"
-											class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm transition"
-											on:click={() => loadTtsVoices()}
-										>
-											刷新音色
-										</button>
+								<div>
+									<div class="text-sm dark:text-gray-200">使用浏览器语音朗读</div>
+									<div class="text-xs text-gray-400 mt-1">
+										点击聊天消息的“朗读”按钮时，直接调用当前浏览器提供的中文语音能力。
 									</div>
 								</div>
-
-								{#if ttsVoiceId}
-									{@const selectedTtsVoice = ttsVoices.find((voice) => voice.id === ttsVoiceId)}
-									{#if selectedTtsVoice}
-										<div class="rounded-md border border-pink-100 dark:border-pink-900/40 bg-pink-50/60 dark:bg-pink-950/20 p-2">
-											<div class="text-sm dark:text-gray-200">{selectedTtsVoice.description}</div>
-											<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-												风格：{selectedTtsVoice.stylePrompt}
-											</div>
-										</div>
-									{/if}
-								{/if}
 
 								<div class="grid gap-3 md:grid-cols-2">
 									<label>
@@ -1210,13 +1072,6 @@
 											on:change={saveTtsSettings}
 										/>
 									</label>
-								</div>
-
-								<div class="rounded-md border border-gray-100 dark:border-gray-700 p-2">
-									<div class="text-sm dark:text-gray-200">模型目录：tools/tts-models/emotivoice</div>
-									<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-										如果试听失败，请先运行 npm run tts:download 和 npm run tts:serve。
-									</div>
 								</div>
 							</div>
 						</div>

@@ -20,12 +20,7 @@
 	import DOMPurify from "dompurify";
 	import ModelSelector from "./ModelSelector.svelte";
 	import KnowledgeBaseSelector from "./KnowledgeBaseSelector.svelte";
-	import { authFetch } from "$lib/client/http";
-	import {
-		createBrowserTtsPlayback,
-		createTtsPlayback,
-		type TtsPlayback
-	} from "$lib/client/tts-player";
+	import { createBrowserTtsPlayback, type TtsPlayback } from "$lib/client/tts-player";
 	import {
 		ensureFilesParsed,
 		isImageFile,
@@ -256,30 +251,8 @@
 		}
 		speakingMessageId = message.id;
 		try {
-			if (!$settings.ttsEnabled) {
-				currentTtsAudio = await createBrowserTtsPlayback(plainText, {
-					rate: $settings.ttsRate ?? 1,
-					volume: $settings.ttsVolume ?? 1,
-					onEnded: stopTtsAudio
-				});
-				await currentTtsAudio.play();
-				return;
-			}
-
-			const res = await authFetch("/api/tts/speak", {
-				method: "POST",
-				body: JSON.stringify({
-					text: plainText,
-					voiceId: $settings.ttsVoiceId,
-					rate: $settings.ttsRate ?? 1,
-					volume: $settings.ttsVolume ?? 1
-				})
-			});
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data.error || "语音生成失败");
-			}
-			currentTtsAudio = await createTtsPlayback(await res.blob(), {
+			currentTtsAudio = await createBrowserTtsPlayback(plainText, {
+				rate: $settings.ttsRate ?? 1,
 				volume: $settings.ttsVolume ?? 1,
 				onEnded: stopTtsAudio
 			});

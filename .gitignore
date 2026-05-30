@@ -12,8 +12,6 @@ vite.config.ts.timestamp-*
 tools/piper/
 tools/piper-*/
 tools/piper_windows_amd64.zip
-tools/tts-models/emotivoice/repo/
-tools/tts-models/emotivoice/models/
 __pycache__/
 *.pyc
 g2pW/

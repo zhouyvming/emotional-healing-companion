@@ -8,9 +8,6 @@ npm run build     # Vite build → build/ (adapter-node, run with `node build`)
 npm run typecheck # TypeScript check via `tsc --noEmit`
 npm run test      # Node test runner for scripts/*.test.mjs
 npm run verify    # typecheck + build + test
-npm run tts:download # download EmotiVoice source + outputs/SimBERT models under tools/tts-models/emotivoice
-npm run tts:serve    # start full local TTS chain: upstream 127.0.0.1:8000 + worker 127.0.0.1:8510
-npm run dev:tts      # run TTS worker + Vite dev server
 npm run fmt       # Prettier 2 via npx -p (NOT local install)
 ```
 
@@ -34,7 +31,7 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 
 **Legacy passwords**: may be plaintext if not yet migrated via `scripts/migrate-passwords.ts`.
 
-**TTS storage**: `tts_voices` is intentionally dropped at startup. Built-in TTS uses fixed EmotiVoice presets from code/`tools/tts-models/emotivoice/voices.json`; model files live under `tools/tts-models/emotivoice/` and are gitignored.
+**TTS**: message read-aloud is browser-only through `speechSynthesis` in `src/lib/client/tts-player.ts`. There is no project-bundled voice model, model directory, server-side speech route, or TTS voice table. Settings only keep `ttsRate` and `ttsVolume`.
 
 ## Library quirks
 
@@ -63,7 +60,7 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 
 **Message tree utilities**: `removeMessageBranch()` in `src/lib/utils/index.ts` handles recursive deletion with dangling `currentId` protection.
 
-**TTS routing**: `/api/tts/voices`, `/api/tts/health`, and `/api/tts/speak` require auth. They expose only fixed EmotiVoice `voiceId`s and proxy synthesis to the local worker at `EMOTIVOICE_WORKER_URL` (default `http://127.0.0.1:8510`). Current presets include 温柔陪伴, 可爱元气, and 细腻共情. `npm run tts:serve` starts both the EmotiVoice OpenAI-compatible upstream on `127.0.0.1:8000` and the project worker on `127.0.0.1:8510`; install Python deps from `tools/tts-worker/requirements.txt`, `tools/tts-models/emotivoice/repo/requirements.txt`, and `tools/tts-models/emotivoice/repo/requirements.openaiapi.txt`. Do not accept arbitrary model paths, speaker files, or external URLs from the client. When `settings.ttsEnabled` is false, chat message read-aloud uses browser `speechSynthesis` via `src/lib/client/tts-player.ts` instead of calling `/api/tts/speak`.
+**TTS routing**: no server-side TTS routing exists. `Messages.svelte` always creates browser playback through `createBrowserTtsPlayback()`, strips message HTML to text, limits it to 2000 characters, and uses `settings.ttsRate` / `settings.ttsVolume`.
 
 ## Third-party API models
 
@@ -98,9 +95,9 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 
 ## Recent changes (2026-05-30)
 
-**Current verification status**: `npm run typecheck` passes, `npm run build` passes, and `/api/tts/voices` returns the 3 fixed EmotiVoice presets. The only expected build warning is the default JWT secret warning when `JWT_SECRET` is unset.
+**Current verification status**: after browser-only TTS removal, `npm run verify` passes. The only expected build warning is the default JWT secret warning when `JWT_SECRET` is unset.
 
-**TTS fallback/current state**: Built-in TTS remains local EmotiVoice only, with fixed presets 温柔陪伴, 可爱元气, and 细腻共情. The temporary fourth preset was removed. If a user clicks “朗读” without enabling built-in TTS, `Messages.svelte` now uses browser `speechSynthesis`. Yating TTS was evaluated but not integrated because its official API requires an API Key.
+**TTS current state**: project-bundled speech synthesis was removed. Chat message read-aloud now always uses browser `speechSynthesis`; the settings panel only exposes rate and volume.
 
 ## Recent changes (2026-05-29)
 

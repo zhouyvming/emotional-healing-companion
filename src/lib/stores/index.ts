@@ -39,9 +39,6 @@ interface Settings {
 	localOpenAIBaseUrl?: string;
 	localOpenAIApiKey?: string;
 	localOpenAIName?: string;
-	ttsEnabled?: boolean;
-	ttsEngine?: "emotivoice";
-	ttsVoiceId?: string;
 	ttsRate?: number;
 	ttsVolume?: number;
 	seed?: number;

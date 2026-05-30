@@ -5,7 +5,7 @@
 ## 最新状态（2026-05-30）
 
 - 当前代码已通过 `npm run verify`（`typecheck + build + node --test`）和 `git diff --check`。
-- TTS 当前保持本地 EmotiVoice 方案，内置 3 个中文友好女声音色；聊天朗读在未启用内置 TTS 时会自动 fallback 到浏览器 `speechSynthesis`。已调研雅婷 Yating TTS，因其官方 API 必须使用 API Key，暂不接入。
+- TTS 已切回浏览器原生 `speechSynthesis`，不再包含项目内置语音模型、下载脚本或服务端语音合成路由；朗读只保留语速和音量设置。
 - 本地模型调用现支持 Ollama 与本地 OpenAI-compatible 后端，可接入 vLLM、llama.cpp server、LM Studio。
 - 本地 OpenAI-compatible 后端会拒绝当前应用自身地址，避免误填 `http://localhost:8080/v1` 时把 `/v1/models` 打回 SvelteKit 导致 404；llama.cpp 预设改为 `http://localhost:8081/v1`。
 - 第三方 OpenAI 兼容 API 已改为同源后端代理，前端只提交 `providerId`，API Key 与 base URL 由服务端按登录用户读取并转发，避免浏览器直连 provider URL 时因为 CORS 出现 `Failed to fetch`。
@@ -45,7 +45,7 @@
 - 上下文自动压缩（默认 200K tokens，超出自动截断早期消息）
 - 复制消息 / Markdown 复制 / 重新生成 / 停止响应（AbortController）
 - 消息编辑 + 删除（与日期同行显示）
-- AI 回复朗读（启用内置 TTS 时使用 EmotiVoice，本地未启用时自动使用浏览器 `speechSynthesis`）
+- AI 回复朗读（使用浏览器原生 `speechSynthesis`，可调语速和音量）
 - 对话置顶：侧边栏图钉按钮，持久化置顶状态
 - 键盘快捷键：Enter 发送 / Ctrl+Enter 发送 / Ctrl+N 新建对话 / Escape 关闭设置弹窗
 - 情绪感知（AI 自动感知并回应用户情绪状态）
@@ -124,25 +124,9 @@
 
 本地兼容后端只允许本机或内网地址，且不能填写当前应用自己的地址。聊天流、标题生成和模型列表刷新都会通过 `/api/local-openai/chat`、`/api/local-openai/models` 代理到本地服务。
 
-## 本地 TTS
+## 浏览器 TTS
 
-项目使用 EmotiVoice 作为内置开源 TTS 方案。模型文件放在 `tools/tts-models/emotivoice/`，该目录下的大模型文件不提交到 GitHub。
-
-```bash
-npm run tts:download  # 下载 EmotiVoice 源码、outputs 权重和 SimBERT 模型
-npm run tts:serve     # 启动完整 TTS 链路：上游 8000 + 项目 worker 8510
-npm run dev:tts       # 同时启动 TTS worker 和 Web 服务
-```
-
-首次运行前需要安装 Python 依赖：
-
-```bash
-python -m pip install -r tools/tts-worker/requirements.txt
-python -m pip install -r tools/tts-models/emotivoice/repo/requirements.txt
-python -m pip install -r tools/tts-models/emotivoice/repo/requirements.openaiapi.txt
-```
-
-设置面板提供 3 个固定女声音色：温柔陪伴、可爱元气、细腻共情。SvelteKit 的 `/api/tts/*` 路由只接受这些内置 `voiceId`，并代理到本地 TTS worker；数据库不再存放 TTS 音色 blob，启动时会删除旧的 `tts_voices` 表。若用户没有启用内置 TTS，聊天消息的“朗读”按钮会直接调用浏览器 `speechSynthesis`。
+聊天消息的“朗读”按钮直接调用浏览器原生 `speechSynthesis`。项目不再内置语音模型、Python 依赖、模型下载脚本或服务端语音合成路由；设置面板只保留语速和音量，实际音色由用户当前浏览器和操作系统提供。
 
 ## 新机子上手全流程
 

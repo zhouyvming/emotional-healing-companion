@@ -175,8 +175,3 @@ pool
 )`
 	)
 	.catch((err) => console.error("kb_chunks table init error:", err));
-
-// TTS voices are now fixed local EmotiVoice presets. Drop the legacy blob table.
-pool.execute(`DROP TABLE IF EXISTS tts_voices`).catch((err) => {
-	console.error("tts_voices table drop error:", err);
-});
