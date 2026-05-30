@@ -1,6 +1,6 @@
 # 情感疗愈伴侣 (Emotional Healing Companion)
 
-基于本地LLM（支持 LM Studio、vLLM、llama.cpp）的情感支持聊天机器人。
+基于本地LLM（支持 Ollama、LM Studio、vLLM、llama.cpp）的情感支持聊天机器人。
 项目优先支持本地私有化使用。
 同时支持接入第三方 API 模型。
 只为提供温暖、私密的交流体验。
