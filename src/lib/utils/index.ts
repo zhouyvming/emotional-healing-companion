@@ -21,7 +21,15 @@ export const isPrivateUrl = (urlString: string): boolean => {
 	}
 };
 
-export const datetimeNow = () => new Date().toISOString().replace(/\.\d{3}Z$/, "");
+const padDatePart = (value: number) => String(value).padStart(2, "0");
+
+export const localDateString = (date = new Date()) =>
+	`${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+
+export const datetimeNow = (date = new Date()) =>
+	`${localDateString(date)}T${padDatePart(date.getHours())}:${padDatePart(
+		date.getMinutes()
+	)}:${padDatePart(date.getSeconds())}`;
 
 export const splitStream = (splitOn: string) => {
 	let buffer = "";

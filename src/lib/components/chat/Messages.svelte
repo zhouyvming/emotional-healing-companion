@@ -14,6 +14,7 @@
 	import "katex/dist/katex.min.css";
 
 	import { user, settings, moodHistory } from "$lib/stores";
+	import { localDateString } from "$lib/utils";
 	import { tick, onDestroy } from "svelte";
 	import { copyToClipboard } from "$lib/chat/ollama";
 	import toast from "svelte-french-toast";
@@ -408,7 +409,7 @@
 					class="text-xl hover:scale-125 transition-transform p-1"
 					title={mood.label}
 					on:click={async () => {
-						const date = new Date().toISOString().slice(0, 10);
+						const date = localDateString();
 						toast.success(`已记录心情：${mood.emoji} ${mood.label}`);
 						const entry = { date, mood: mood.label, score: mood.score };
 						moodHistory.update((h) => [...h.filter((e) => e.date !== date), entry]);
