@@ -1,4 +1,7 @@
 import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import crypto from "node:crypto";
 import path from "node:path";
 import { createRequire } from "node:module";
 import type { RowDataPacket } from "mysql2/promise";
@@ -52,7 +55,7 @@ export const TTS_PRESETS: TtsVoicePreset[] = [
 		sourceUrl: "https://github.com/k2-fsa/sherpa-onnx",
 		sizeBytes: 129_508_635,
 		tags: ["中文", "女声", "离线", "sherpa-onnx"],
-		notes: "内置离线中文 TTS；模型文件位于 tools/sherpa-onnx，浏览器兼容 PCM16 WAV。"
+		notes: "内置离线中文 TTS；模型文件位于 tools/sherpa-onnx。"
 	}
 ];
 
@@ -161,45 +164,11 @@ function getTtsInstance() {
 	return ttsInstance;
 }
 
-/** Float32 PCM samples → browser-compatible PCM16 WAV Buffer */
-function encodeWav(samples: Float32Array, sampleRate: number, volume: number): Buffer {
-	const vol = Math.max(0, Math.min(1, volume));
-	const numSamples = samples.length;
-	const dataLen = numSamples * 2; // 16-bit = 2 bytes per sample
-	const buf = Buffer.alloc(44 + dataLen);
-
-	// RIFF header
-	buf.write("RIFF", 0);
-	buf.writeUInt32LE(36 + dataLen, 4);
-	buf.write("WAVE", 8);
-
-	// fmt chunk (PCM, 1 channel, 16-bit)
-	buf.write("fmt ", 12);
-	buf.writeUInt32LE(16, 16);           // chunk size
-	buf.writeUInt16LE(1, 20);            // PCM format
-	buf.writeUInt16LE(1, 22);            // mono
-	buf.writeUInt32LE(sampleRate, 24);   // sample rate
-	buf.writeUInt32LE(sampleRate * 2, 28); // byte rate
-	buf.writeUInt16LE(2, 32);            // block align
-	buf.writeUInt16LE(16, 34);           // bits per sample
-
-	// data chunk
-	buf.write("data", 36);
-	buf.writeUInt32LE(dataLen, 40);
-
-	for (let i = 0; i < numSamples; i++) {
-		const s = Math.max(-1, Math.min(1, samples[i] * vol));
-		buf.writeInt16LE(s < 0 ? Math.max(-32768, Math.ceil(s * 32767)) : Math.min(32767, Math.floor(s * 32767)), 44 + i * 2);
-	}
-
-	return buf;
-}
-
 function sanitizeTtsText(raw: string): string {
 	return raw
-		.replace(/<[^>]*>/g, "")           // strip HTML tags
-		.replace(/[\uD800-\uDFFF]/g, "")   // strip surrogate pairs
-		.replace(/\s+/g, " ")              // collapse whitespace
+		.replace(/<[^>]*>/g, "")
+		.replace(/[\uD800-\uDFFF]/g, "")
+		.replace(/\s+/g, " ")
 		.trim()
 		.slice(0, 500);
 }
@@ -224,6 +193,19 @@ export async function synthesizeSpeech(
 		silenceScale: 0.2
 	});
 
-	const wav = encodeWav(audio.samples, audio.sampleRate, Number(input.volume ?? 1));
-	return { buffer: wav, mime: "audio/wav" };
+	const vol = Number(input.volume ?? 1);
+	if (vol !== 1) {
+		for (let i = 0; i < audio.samples.length; i++) {
+			audio.samples[i] = Math.max(-1, Math.min(1, audio.samples[i] * vol));
+		}
+	}
+
+	const wavPath = path.join(os.tmpdir(), `tts-${crypto.randomUUID()}.wav`);
+	try {
+		tts.save(wavPath, audio);
+		const buffer = await fs.readFile(wavPath);
+		return { buffer, mime: "audio/wav" };
+	} finally {
+		fs.unlink(wavPath).catch(() => {});
+	}
 }
