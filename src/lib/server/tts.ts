@@ -1,7 +1,7 @@
+import crypto from "node:crypto";
 import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
-import crypto from "node:crypto";
 import path from "node:path";
 import { createRequire } from "node:module";
 import type { RowDataPacket } from "mysql2/promise";
@@ -164,13 +164,11 @@ function getTtsInstance() {
 	return ttsInstance;
 }
 
+// 原始白名单 sanitizer，与原版 tts.ts 一致，避免模型词表外字符导致 WASM 崩溃
+const TTS_CHAR_FILTER = /[^一-鿿　-〿＀-￯㐀-䶿a-zA-Z0-9\s。，！？；：、""''（）—…《》\-.,!?;:'()\n]/g;
+
 function sanitizeTtsText(raw: string): string {
-	return raw
-		.replace(/<[^>]*>/g, "")
-		.replace(/[\uD800-\uDFFF]/g, "")
-		.replace(/\s+/g, " ")
-		.trim()
-		.slice(0, 500);
+	return raw.replace(/[\uD800-\uDFFF]/g, "").replace(TTS_CHAR_FILTER, "").trim().slice(0, 500);
 }
 
 export async function synthesizeSpeech(
@@ -186,22 +184,14 @@ export async function synthesizeSpeech(
 		throw new Error("当前仅支持内置 sherpa-onnx 中文离线音色。");
 	}
 
-	const tts = getTtsInstance();
-	const audio = tts.generateWithConfig(text, {
-		sid: 0,
-		speed: Math.max(0.6, Math.min(1.6, Number(input.rate || 1))),
-		silenceScale: 0.2
-	});
-
-	const vol = Number(input.volume ?? 1);
-	if (vol !== 1) {
-		for (let i = 0; i < audio.samples.length; i++) {
-			audio.samples[i] = Math.max(-1, Math.min(1, audio.samples[i] * vol));
-		}
-	}
-
 	const wavPath = path.join(os.tmpdir(), `tts-${crypto.randomUUID()}.wav`);
 	try {
+		const tts = getTtsInstance();
+		const audio = tts.generateWithConfig(text, {
+			sid: 0,
+			speed: Math.max(0.6, Math.min(1.6, Number(input.rate || 1))),
+			silenceScale: 0.2
+		});
 		tts.save(wavPath, audio);
 		const buffer = await fs.readFile(wavPath);
 		return { buffer, mime: "audio/wav" };
