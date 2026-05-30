@@ -1,6 +1,9 @@
-# Emotional Healing Companion
+# 情感疗愈伴侣 (Emotional Healing Companion)
 
-一个基于本地模型和 OpenAI-compatible API 的情感陪伴聊天应用。项目优先支持本地私有化使用，同时可以接入第三方模型、知识库、文件解析和联网搜索。
+基于本地LLM（支持 LM Studio、vLLM、llama.cpp）的情感支持聊天机器人。
+项目优先支持本地私有化使用。
+同时支持接入第三方 API 模型。
+只为提供温暖、私密的交流体验。
 
 ## 最新状态（2026-05-30）
 
@@ -10,7 +13,7 @@
 
 ## 功能概览
 
-- 多模型聊天：Ollama、本地 OpenAI-compatible 后端、第三方 OpenAI-compatible API
+- 多模型聊天：Ollama、本地 OpenAI兼容后端、第三方 OpenAI兼容 API
 - 流式回复：支持停止响应、重新生成、消息编辑、分支对话
 - 文件解析：支持 `txt/md/csv/doc/docx/pdf/xls/xlsx/pptx`
 - 知识库 RAG：文档上传、切片、Embedding、相似度检索、失败重试
@@ -25,7 +28,7 @@
 | 前端 | SvelteKit 1.x、Svelte 4、Tailwind CSS |
 | 后端 | SvelteKit API routes、Node.js |
 | 数据库 | MySQL 8、mysql2 |
-| 模型 | Ollama、本地/第三方 OpenAI-compatible API |
+| 模型 | Ollama、本地/第三方 OpenAI兼容 API |
 | 文档解析 | mammoth、pdf-parse、xlsx、word-extractor、jszip |
 | 安全 | bcryptjs、HMAC-SHA256 JWT、AES-256-GCM、DOMPurify |
 
@@ -39,8 +42,8 @@ flowchart LR
   Routes --> Auth["认证与权限<br/>JWT / bcryptjs"]
   Routes --> MySQL["MySQL 8<br/>用户 / 会话 / Provider / 知识库"]
   Routes --> Parser["文件解析<br/>docx / pdf / xlsx / pptx"]
-  Routes --> Providers["第三方 OpenAI-compatible 代理"]
-  Routes --> LocalProxy["本地 OpenAI-compatible 代理"]
+  Routes --> Providers["第三方 OpenAI兼容代理"]
+  Routes --> LocalProxy["本地 OpenAI兼容代理"]
   Routes --> Ollama["Ollama<br/>聊天模型 / Embedding"]
   Routes --> Search["联网搜索"]
 
@@ -153,7 +156,7 @@ http://localhost:11434/api
 
 可以在设置面板中修改 Ollama 地址、拉取模型、删除模型、设置默认模型。
 
-### 本地 OpenAI-compatible 后端
+### 本地 OpenAI兼容后端
 
 支持 LM Studio、vLLM、llama.cpp server 等本地服务。常用地址：
 
@@ -219,7 +222,7 @@ npm run fmt       # Prettier 格式化
 ```text
 src/
   lib/
-    chat/              # Ollama / OpenAI-compatible 聊天逻辑
+    chat/              # Ollama / OpenAI兼容聊天逻辑
     client/            # 浏览器端 HTTP、文件解析工具
     components/        # 聊天、设置、布局组件
     server/            # 认证、数据库、Provider、知识库逻辑
