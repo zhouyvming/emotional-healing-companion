@@ -175,30 +175,3 @@ pool
 )`
 	)
 	.catch((err) => console.error("kb_chunks table init error:", err));
-
-pool
-	.execute(
-		`CREATE TABLE IF NOT EXISTS tts_voices (
-  id VARCHAR(36) PRIMARY KEY,
-  username VARCHAR(255) NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  display_name VARCHAR(255) NOT NULL,
-  engine VARCHAR(50) NOT NULL DEFAULT 'piper',
-  locale VARCHAR(50) NOT NULL DEFAULT 'zh_CN',
-  gender VARCHAR(50) DEFAULT '',
-  quality VARCHAR(50) DEFAULT '',
-  license VARCHAR(255) DEFAULT '',
-  source_url TEXT,
-  model_blob LONGBLOB NOT NULL,
-  config_json LONGTEXT NOT NULL,
-  sample_blob LONGBLOB,
-  sample_mime VARCHAR(100) DEFAULT '',
-  tags JSON,
-  size_bytes BIGINT DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_tts_voices_username (username),
-  INDEX idx_tts_voices_engine (engine)
-)`
-	)
-	.catch((err) => console.error("tts_voices table init error:", err));

@@ -55,24 +55,12 @@
 	let systemAvatarPreview = "";
 	let systemAvatarChanged = false;
 	let ttsEnabled = false;
-	let ttsEngine: "sherpa-onnx" = "sherpa-onnx";
-	let ttsVoiceId = "";
+	let ttsEngine: "browser" = "browser";
+	let ttsVoiceURI = "";
 	let ttsRate = 1;
 	let ttsVolume = 1;
-	const builtInDefaultTtsVoiceName = "matcha-icefall-zh-baker";
-	let ttsVoices: {
-		id: string;
-		name: string;
-		displayName: string;
-		license: string;
-		locale: string;
-		gender: string;
-		quality: string;
-		tags: string[];
-		sizeBytes: number;
-	}[] = [];
-	let previewingVoice = "";
-	let ttsPreviewAudio: HTMLAudioElement | null = null;
+	let ttsVoices: SpeechSynthesisVoice[] = [];
+	let previewingVoice = false;
 
 	// Model management
 	let pullModelName = "";
@@ -243,95 +231,45 @@
 		return bytes + " B";
 	};
 
-	const loadTtsVoices = async () => {
-		try {
-			const res = await authFetch("/api/tts/voices");
-			if (res.ok) {
-				const data = await res.json();
-				ttsVoices = data.voices ?? [];
-				const builtInDefault = ttsVoices.find((voice) => voice.name === builtInDefaultTtsVoiceName);
-				if (builtInDefault && ttsVoiceId !== builtInDefault.id) {
-					ttsVoiceId = builtInDefault.id;
-					ttsEnabled = true;
-					const updated = {
-						...$settings,
-						ttsEnabled: true,
-						ttsEngine,
-						ttsVoiceId,
-						ttsRate,
-						ttsVolume
-					};
-					settings.set(updated);
-					localStorage.setItem("settings", JSON.stringify(updated));
-				}
-			}
-		} catch (error: any) {
-			toast.error(error.message || "加载内置音色失败");
-		}
-	};
-
-	const playAudioBlob = async (blob: Blob, volume = 1) => {
-		if (ttsPreviewAudio) {
-			ttsPreviewAudio.pause();
-			URL.revokeObjectURL(ttsPreviewAudio.src);
-		}
-		const url = URL.createObjectURL(blob);
-		ttsPreviewAudio = new Audio(url);
-		ttsPreviewAudio.volume = Math.max(0, Math.min(1, volume));
-		await new Promise<void>((resolve, reject) => {
-			const audio = ttsPreviewAudio;
-			if (!audio) {
-				reject(new Error("音频初始化失败"));
-				return;
-			}
-			const cleanup = () => {
-				audio.oncanplaythrough = null;
-				audio.onerror = null;
-			};
-			audio.oncanplaythrough = async () => {
-				try {
-					await audio.play();
-					cleanup();
-					resolve();
-				} catch (error) {
-					cleanup();
-					reject(error);
-				}
-			};
-			audio.onerror = () => {
-				cleanup();
-				reject(new Error("当前浏览器无法播放该音频格式"));
-			};
-			audio.onended = () => URL.revokeObjectURL(url);
-			audio.load();
-		});
-	};
-
-	const previewTtsVoice = async (voiceId = ttsVoiceId) => {
-		if (!voiceId) {
-			toast.error("请先选择音色");
+	const loadTtsVoices = () => {
+		if (!("speechSynthesis" in window)) {
+			ttsVoices = [];
 			return;
 		}
-		previewingVoice = voiceId;
+		ttsVoices = window.speechSynthesis.getVoices();
+	};
+
+	const stopBrowserTtsPreview = () => {
+		if ("speechSynthesis" in window) {
+			window.speechSynthesis.cancel();
+		}
+		previewingVoice = false;
+	};
+
+	const previewTtsVoice = () => {
+		if (!("speechSynthesis" in window)) {
+			toast.error("当前浏览器不支持语音朗读");
+			return;
+		}
+		stopBrowserTtsPreview();
+		previewingVoice = true;
 		try {
-			const res = await authFetch("/api/tts/speak", {
-				method: "POST",
-				body: JSON.stringify({
-					voiceId,
-					text: "你好，我是你的情感疗愈伴侣。愿我的声音能温柔地陪伴你。",
-					rate: ttsRate,
-					volume: ttsVolume
-				})
-			});
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data.error || "试听失败");
-			}
-			await playAudioBlob(await res.blob(), ttsVolume);
+			const utterance = new SpeechSynthesisUtterance(
+				"你好，我是你的情感疗愈伴侣。愿我的声音能温柔地陪伴你。"
+			);
+			const selectedVoice =
+				ttsVoices.find((voice) => voice.voiceURI === ttsVoiceURI) ??
+				ttsVoices.find((voice) => voice.lang?.toLowerCase().startsWith("zh"));
+			if (selectedVoice) utterance.voice = selectedVoice;
+			utterance.lang = selectedVoice?.lang || "zh-CN";
+			utterance.rate = Math.max(0.5, Math.min(2, ttsRate));
+			utterance.volume = Math.max(0, Math.min(1, ttsVolume));
+			utterance.onend = () => (previewingVoice = false);
+			utterance.onerror = () => (previewingVoice = false);
+			window.speechSynthesis.speak(utterance);
 		} catch (error: any) {
+			previewingVoice = false;
 			toast.error(error.message || "试听失败");
-		} finally {
-			previewingVoice = "";
 		}
 	};
 
@@ -490,7 +428,7 @@
 			systemName,
 			ttsEnabled,
 			ttsEngine,
-			ttsVoiceId,
+			ttsVoiceURI,
 			ttsRate,
 			ttsVolume,
 			requestFormat: requestFormat !== "" ? requestFormat : undefined
@@ -593,12 +531,13 @@
 		localOpenAIApiKey = stored.localOpenAIApiKey ?? "";
 		localOpenAIName = stored.localOpenAIName ?? "本地兼容";
 		ttsEnabled = stored.ttsEnabled ?? false;
-		ttsEngine = "sherpa-onnx";
-		ttsVoiceId = stored.ttsVoiceId ?? "";
+		ttsEngine = "browser";
+		ttsVoiceURI = stored.ttsVoiceURI ?? "";
 		ttsRate = stored.ttsRate ?? 1;
 		ttsVolume = stored.ttsVolume ?? 1;
 		requestFormat = stored.requestFormat ?? "";
 		loadTtsVoices();
+		window.speechSynthesis?.addEventListener("voiceschanged", loadTtsVoices);
 
 		if (stored.seed !== undefined && stored.seed !== "") options.seed = stored.seed;
 		for (const key of Object.keys(options)) {
@@ -609,10 +548,8 @@
 		editingProviderIndex = null;
 		return () => {
 			window.removeEventListener("keydown", handleKeydown);
-			if (ttsPreviewAudio) {
-				ttsPreviewAudio.pause();
-				URL.revokeObjectURL(ttsPreviewAudio.src);
-			}
+			window.speechSynthesis?.removeEventListener("voiceschanged", loadTtsVoices);
+			stopBrowserTtsPreview();
 		};
 	});
 </script>
@@ -1151,9 +1088,9 @@
 							>
 								<label class="flex items-center justify-between gap-3">
 									<div>
-										<span class="text-sm">启用 sherpa-onnx 离线朗读</span>
+										<span class="text-sm">启用浏览器语音朗读</span>
 										<div class="text-xs text-gray-400">
-											模型文件在本地 tools/sherpa-onnx，播放时离线生成 MP3
+											使用浏览器内置 speechSynthesis，不再依赖服务端 TTS 模型
 										</div>
 									</div>
 									<input
@@ -1168,12 +1105,12 @@
 										<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">AI 音色</div>
 										<select
 											class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
-											bind:value={ttsVoiceId}
+											bind:value={ttsVoiceURI}
 										>
-											<option value="">未选择</option>
+											<option value="">自动选择中文音色</option>
 											{#each ttsVoices as voice}
-												<option value={voice.id}>
-													{voice.displayName} · {voice.locale} · {voice.license || "Unknown"}
+												<option value={voice.voiceURI}>
+													{voice.name} · {voice.lang} · {voice.localService ? "本地" : "在线"}
 												</option>
 											{/each}
 										</select>
@@ -1182,7 +1119,7 @@
 										<button
 											type="button"
 											class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm transition disabled:opacity-50"
-											disabled={!ttsVoiceId || previewingVoice !== ""}
+											disabled={previewingVoice}
 											on:click={() => previewTtsVoice()}
 										>
 											{previewingVoice ? "试听中..." : "试听"}
@@ -1192,7 +1129,7 @@
 											class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm transition"
 											on:click={() => loadTtsVoices()}
 										>
-											刷新
+											刷新音色
 										</button>
 									</div>
 								</div>
@@ -1227,9 +1164,9 @@
 								</div>
 
 								<div class="rounded-md border border-gray-100 dark:border-gray-700 p-2">
-									<div class="text-sm dark:text-gray-200">内置默认音色：中文女声</div>
+									<div class="text-sm dark:text-gray-200">默认策略：优先选择中文浏览器音色</div>
 									<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-										系统使用 sherpa-onnx 本地模型；无需导入音色，朗读接口统一返回 MP3。
+										实际可用音色由当前浏览器和操作系统决定；Chrome/Edge 通常可提供中文语音。
 									</div>
 								</div>
 							</div>

@@ -12,7 +12,6 @@ vite.config.ts.timestamp-*
 tools/piper/
 tools/piper-*/
 tools/piper_windows_amd64.zip
-tools/sherpa-onnx/
 g2pW/
 系统后期优化改进.md
 系统后期优化改进2.md

@@ -40,8 +40,8 @@ interface Settings {
 	localOpenAIApiKey?: string;
 	localOpenAIName?: string;
 	ttsEnabled?: boolean;
-	ttsEngine?: "sherpa-onnx";
-	ttsVoiceId?: string;
+	ttsEngine?: "browser";
+	ttsVoiceURI?: string;
 	ttsRate?: number;
 	ttsVolume?: number;
 	seed?: number;

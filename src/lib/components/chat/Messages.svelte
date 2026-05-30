@@ -20,7 +20,6 @@
 	import DOMPurify from "dompurify";
 	import ModelSelector from "./ModelSelector.svelte";
 	import KnowledgeBaseSelector from "./KnowledgeBaseSelector.svelte";
-	import { authFetch } from "$lib/client/http";
 	import {
 		ensureFilesParsed,
 		isImageFile,
@@ -106,7 +105,6 @@
 	export let kbId = "";
 	let editingMessageId: string | null = null;
 	let editContent = "";
-	let currentTtsAudio: HTMLAudioElement | null = null;
 	let speakingMessageId = "";
 
 	const suggestedTopics = [
@@ -229,10 +227,8 @@
 	const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, purifyConfig);
 
 	const stopTtsAudio = () => {
-		if (currentTtsAudio) {
-			currentTtsAudio.pause();
-			URL.revokeObjectURL(currentTtsAudio.src);
-			currentTtsAudio = null;
+		if ("speechSynthesis" in window) {
+			window.speechSynthesis.cancel();
 		}
 		speakingMessageId = "";
 	};
@@ -243,8 +239,12 @@
 			return;
 		}
 		stopTtsAudio();
-		if (!$settings.ttsEnabled || !$settings.ttsVoiceId) {
-			toast.error("请先在设置中启用离线朗读音色");
+		if (!$settings.ttsEnabled) {
+			toast.error("请先在设置中启用浏览器朗读");
+			return;
+		}
+		if (!("speechSynthesis" in window)) {
+			toast.error("当前浏览器不支持语音朗读");
 			return;
 		}
 		const div = document.createElement("div");
@@ -256,25 +256,19 @@
 		}
 		speakingMessageId = message.id;
 		try {
-			const res = await authFetch("/api/tts/speak", {
-				method: "POST",
-				body: JSON.stringify({
-					text: plainText,
-					voiceId: $settings.ttsVoiceId,
-					rate: $settings.ttsRate ?? 1,
-					volume: $settings.ttsVolume ?? 1
-				})
-			});
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data.error || "语音生成失败");
-			}
-			const url = URL.createObjectURL(await res.blob());
-			currentTtsAudio = new Audio(url);
-			currentTtsAudio.volume = Math.max(0, Math.min(1, $settings.ttsVolume ?? 1));
-			currentTtsAudio.onended = stopTtsAudio;
-			currentTtsAudio.onerror = stopTtsAudio;
-			await currentTtsAudio.play();
+			const utterance = new SpeechSynthesisUtterance(plainText);
+			const voiceURI = $settings.ttsVoiceURI;
+			const voices = window.speechSynthesis.getVoices();
+			const selectedVoice =
+				voices.find((voice) => voice.voiceURI === voiceURI) ??
+				voices.find((voice) => voice.lang?.toLowerCase().startsWith("zh"));
+			if (selectedVoice) utterance.voice = selectedVoice;
+			utterance.lang = selectedVoice?.lang || "zh-CN";
+			utterance.rate = Math.max(0.5, Math.min(2, $settings.ttsRate ?? 1));
+			utterance.volume = Math.max(0, Math.min(1, $settings.ttsVolume ?? 1));
+			utterance.onend = stopTtsAudio;
+			utterance.onerror = stopTtsAudio;
+			window.speechSynthesis.speak(utterance);
 		} catch (error: any) {
 			stopTtsAudio();
 			toast.error(error.message || "语音播放失败");

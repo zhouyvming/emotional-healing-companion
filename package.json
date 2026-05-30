@@ -43,7 +43,6 @@
 		"marked": "^9.1.0",
 		"mysql2": "^3.13.0",
 		"pdf-parse": "^2.4.5",
-		"sherpa-onnx": "^1.13.2",
 		"svelte-french-toast": "^1.2.0",
 		"tippy.js": "^6.3.7",
 		"uuid": "^9.0.1",
