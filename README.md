@@ -2,9 +2,10 @@
 
 基于 Ollama 的本地大语言模型情感支持聊天机器人，支持接入第三方 API 模型，提供温暖、私密的交流体验。
 
-## 最新状态（2026-05-29）
+## 最新状态（2026-05-30）
 
 - 当前代码已通过 `npm run verify`（`typecheck + build + node --test`）和 `git diff --check`。
+- TTS 当前保持本地 EmotiVoice 方案，内置 3 个中文友好女声音色；聊天朗读在未启用内置 TTS 时会自动 fallback 到浏览器 `speechSynthesis`。已调研雅婷 Yating TTS，因其官方 API 必须使用 API Key，暂不接入。
 - 本地模型调用现支持 Ollama 与本地 OpenAI-compatible 后端，可接入 vLLM、llama.cpp server、LM Studio。
 - 本地 OpenAI-compatible 后端会拒绝当前应用自身地址，避免误填 `http://localhost:8080/v1` 时把 `/v1/models` 打回 SvelteKit 导致 404；llama.cpp 预设改为 `http://localhost:8081/v1`。
 - 第三方 OpenAI 兼容 API 已改为同源后端代理，前端只提交 `providerId`，API Key 与 base URL 由服务端按登录用户读取并转发，避免浏览器直连 provider URL 时因为 CORS 出现 `Failed to fetch`。
@@ -44,7 +45,7 @@
 - 上下文自动压缩（默认 200K tokens，超出自动截断早期消息）
 - 复制消息 / Markdown 复制 / 重新生成 / 停止响应（AbortController）
 - 消息编辑 + 删除（与日期同行显示）
-- AI 回复朗读（EmotiVoice 本地开源 TTS，内置 3 个中文友好女声音色）
+- AI 回复朗读（启用内置 TTS 时使用 EmotiVoice，本地未启用时自动使用浏览器 `speechSynthesis`）
 - 对话置顶：侧边栏图钉按钮，持久化置顶状态
 - 键盘快捷键：Enter 发送 / Ctrl+Enter 发送 / Ctrl+N 新建对话 / Escape 关闭设置弹窗
 - 情绪感知（AI 自动感知并回应用户情绪状态）
@@ -141,7 +142,7 @@ python -m pip install -r tools/tts-models/emotivoice/repo/requirements.txt
 python -m pip install -r tools/tts-models/emotivoice/repo/requirements.openaiapi.txt
 ```
 
-设置面板提供 3 个固定女声音色：温柔陪伴、可爱元气、细腻共情。SvelteKit 的 `/api/tts/*` 路由只接受这些内置 `voiceId`，并代理到本地 TTS worker；数据库不再存放 TTS 音色 blob，启动时会删除旧的 `tts_voices` 表。
+设置面板提供 3 个固定女声音色：温柔陪伴、可爱元气、细腻共情。SvelteKit 的 `/api/tts/*` 路由只接受这些内置 `voiceId`，并代理到本地 TTS worker；数据库不再存放 TTS 音色 blob，启动时会删除旧的 `tts_voices` 表。若用户没有启用内置 TTS，聊天消息的“朗读”按钮会直接调用浏览器 `speechSynthesis`。
 
 ## 新机子上手全流程
 

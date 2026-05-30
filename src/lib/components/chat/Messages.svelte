@@ -21,7 +21,11 @@
 	import ModelSelector from "./ModelSelector.svelte";
 	import KnowledgeBaseSelector from "./KnowledgeBaseSelector.svelte";
 	import { authFetch } from "$lib/client/http";
-	import { createTtsPlayback, type TtsPlayback } from "$lib/client/tts-player";
+	import {
+		createBrowserTtsPlayback,
+		createTtsPlayback,
+		type TtsPlayback
+	} from "$lib/client/tts-player";
 	import {
 		ensureFilesParsed,
 		isImageFile,
@@ -243,10 +247,6 @@
 			return;
 		}
 		stopTtsAudio();
-		if (!$settings.ttsEnabled) {
-			toast.error("请先在设置中启用内置 TTS");
-			return;
-		}
 		const div = document.createElement("div");
 		div.innerHTML = message.content;
 		const plainText = (div.textContent || "").trim().slice(0, 2000);
@@ -256,6 +256,16 @@
 		}
 		speakingMessageId = message.id;
 		try {
+			if (!$settings.ttsEnabled) {
+				currentTtsAudio = await createBrowserTtsPlayback(plainText, {
+					rate: $settings.ttsRate ?? 1,
+					volume: $settings.ttsVolume ?? 1,
+					onEnded: stopTtsAudio
+				});
+				await currentTtsAudio.play();
+				return;
+			}
+
 			const res = await authFetch("/api/tts/speak", {
 				method: "POST",
 				body: JSON.stringify({

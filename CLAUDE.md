@@ -21,9 +21,10 @@ npm run fmt       # Prettier 2 格式化（通过 npx -p 运行，非本地安�
 
 SvelteKit 1.x + Svelte 4 应用，SPA 模式（`ssr: false`）。品牌名"情感疗愈伴侣"——粉色主题的中文情感支持聊天机器人，支持 **Ollama 本地模型** + **本地 OpenAI-compatible 后端**（vLLM / llama.cpp / LM Studio）+ **第三方 OpenAI 兼容 API**（OpenAI / DeepSeek / 通义千问等），具备 **RAG 知识库**功能（文档上传 → 向量检索 → 对话注入）。
 
-## 最新状态（2026-05-29）
+## 最新状态（2026-05-30）
 
 - `npm run verify` 通过（`typecheck + build + node --test`）；`git diff --check` 通过。当前构建只剩未设置 `JWT_SECRET` 时的默认 secret 警告。
+- TTS 当前保持本地 EmotiVoice 方案，内置固定音色为温柔陪伴、可爱元气、细腻共情。聊天消息“朗读”在未启用内置 TTS 时会 fallback 到浏览器 `speechSynthesis`。曾调研雅婷 Yating TTS，但其官方 API 需要 API Key，暂不接入。
 - 第三方 OpenAI 兼容模型已改为同源后端代理：聊天/标题生成走 `/api/openai-compatible/chat`，模型列表走 `/api/openai-compatible/models`。前端只传 `providerId`，服务端按当前登录用户读取 provider、解密 API Key、校验模型列表并转发，避免浏览器直连 provider URL 时出现 CORS 导致的 `Failed to fetch`。
 - 本地模型后端新增 OpenAI-compatible 模式：支持 vLLM、llama.cpp server、LM Studio，聊天/标题生成走 `/api/local-openai/chat`，模型列表走 `/api/local-openai/models`，模型名显示为 `local/<model-id>`。
 - 本地 OpenAI-compatible 代理会拒绝当前应用自身 origin，避免误填 `http://localhost:8080/v1` 时把 `/v1/models` 打回 SvelteKit 导致 404；llama.cpp 预设为 `http://localhost:8081/v1`。
@@ -218,20 +219,22 @@ src/routes/
 
 | 组件                              | 位置    | 关键特性                                                                                                                                                                                                                                                                                                                     |
 | --------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Messages.svelte**               | chat/   | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮**、EmotiVoice TTS 朗读（通过 `/api/tts/speak` 生成 WAV，onDestroy 取消）。用户消息左对齐（头像在左，气泡 w-fit 无 break-words），时间戳行用 flex spacer（`<div class="w-10">`）对齐气泡左边缘。 |
+| **Messages.svelte**               | chat/   | Markdown（`marked` + DOMPurify 净化）、代码高亮（`highlight.js`）、LaTeX（`KaTeX`）、复制+MD 复制、tippy.js tooltip、分支导航、图片缩略图+附件标签、**消息编辑+删除按钮**、TTS 朗读（启用内置 TTS 时通过 `/api/tts/speak` 生成 WAV，未启用时 fallback 到浏览器 `speechSynthesis`，onDestroy 取消）。用户消息左对齐（头像在左，气泡 w-fit 无 break-words），时间戳行用 flex spacer（`<div class="w-10">`）对齐气泡左边缘。 |
 | **MessageInput.svelte**           | chat/   | 固定底部、自动伸缩（max 200px）、发送/停止按钮、语音输入（onDestroy 中止）、文件/图片上传（粘贴/拖拽/选择，10MB 限制，Office/PDF 解析状态展示）、Enter 发送/Shift+Enter 换行、**visualViewport 移动端键盘适配**                                                                                                              |
 | **ModelSelector.svelte**          | chat/   | `<select>` 下拉、自动选中首个可用模型（第三方优先）、设为默认模型持久化（设置面板）。紧凑模式不再自动保存选中变更。                                                                                                                                                                                                          |
 | **SettingsModal.svelte**          | chat/   | 8 标签页：常规（外观+连接+系统头像）、知识库（创建/上传文档）、偏好与人设（7 项开关含情绪感知+AI 名称+system prompt）、模型与 API（拉取/列表/删除/设为默认+第三方提供商管理+添加表单折叠）、高级（seed/temperature/**num_ctx 默认 200K 范围 512-200K** 全部参数显示滑块默认值）、关于                                        |
+| **KnowledgeBaseDocuments.svelte** | chat/   | 知识库文档列表、上传状态展示、pending/processing 自动轮询、error 状态重试、删除文档                                                                                                                                                                                                                                          |
+| **Sidebar.svelte**                | layout/ | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏。导出功能已移至个人主页。                                                                                                                           |
+| **Navbar.svelte**                 | layout/ | 对话标题（可重命名）、新对话按钮、删除确认                                                                                                                                                                                                                                                                                   |
+| **Modal.svelte**                  | common/ | 通用弹窗容器（点击背景关闭）                                                                                                                                                                                                                                                                                                 |
 
 ### 本地 TTS
 
 EmotiVoice 模型文件位于 `tools/tts-models/emotivoice/`，其中 `repo/`、`models/outputs/`、`models/WangZeJun/` 均不进入 Git。`npm run tts:download` 会下载源码、outputs 权重和 SimBERT 模型，并把 `repo/outputs`、`repo/WangZeJun` 链接到模型目录。首次运行需安装 `tools/tts-worker/requirements.txt`、`tools/tts-models/emotivoice/repo/requirements.txt` 与 `tools/tts-models/emotivoice/repo/requirements.openaiapi.txt`。
 
-`npm run tts:serve` 会同时启动 EmotiVoice OpenAI-compatible upstream（默认 `http://127.0.0.1:8000`）和项目 worker（默认 `http://127.0.0.1:8510`）。SvelteKit 只调用 `/api/tts/*`；`/api/tts/speak` 再代理到 worker。数据库不再存放 TTS 音色，`tts_voices` 会在启动初始化中删除。
-| **KnowledgeBaseDocuments.svelte** | chat/   | 知识库文档列表、上传状态展示、pending/processing 自动轮询、error 状态重试、删除文档                                                                                                                                                                                                                                          |
-| **Sidebar.svelte**                | layout/ | 260px、新对话、搜索、按日期分组（可折叠）、对话置顶（pinnedChats）、删除、设置+用户入口、**退出登录（localStorage.removeItem + goto /login）**、移动端遮罩、启动时不闪屏。导出功能已移至个人主页。                                                                                                                           |
-| **Navbar.svelte**                 | layout/ | 对话标题（可重命名）、新对话按钮、删除确认                                                                                                                                                                                                                                                                                   |
-| **Modal.svelte**                  | common/ | 通用弹窗容器（点击背景关闭）                                                                                                                                                                                                                                                                                                 |
+`npm run tts:serve` 会同时启动 EmotiVoice OpenAI-compatible upstream（默认 `http://127.0.0.1:8000`）和项目 worker（默认 `http://127.0.0.1:8510`）。SvelteKit 只调用 `/api/tts/*`；`/api/tts/speak` 再代理到 worker。数据库不再存放 TTS 音色，`tts_voices` 会在启动初始化中删除。未启用内置 TTS 时，聊天消息朗读直接调用浏览器 `speechSynthesis`，不需要本地 TTS worker。
+
+内置 EmotiVoice 固定音色包括：温柔陪伴、可爱元气、细腻共情。
 
 ## 样式与主题
 

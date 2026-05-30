@@ -63,7 +63,7 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 
 **Message tree utilities**: `removeMessageBranch()` in `src/lib/utils/index.ts` handles recursive deletion with dangling `currentId` protection.
 
-**TTS routing**: `/api/tts/voices`, `/api/tts/health`, and `/api/tts/speak` require auth. They expose only three fixed EmotiVoice `voiceId`s and proxy synthesis to the local worker at `EMOTIVOICE_WORKER_URL` (default `http://127.0.0.1:8510`). `npm run tts:serve` starts both the EmotiVoice OpenAI-compatible upstream on `127.0.0.1:8000` and the project worker on `127.0.0.1:8510`; install Python deps from `tools/tts-worker/requirements.txt`, `tools/tts-models/emotivoice/repo/requirements.txt`, and `tools/tts-models/emotivoice/repo/requirements.openaiapi.txt`. Do not accept arbitrary model paths, speaker files, or external URLs from the client.
+**TTS routing**: `/api/tts/voices`, `/api/tts/health`, and `/api/tts/speak` require auth. They expose only fixed EmotiVoice `voiceId`s and proxy synthesis to the local worker at `EMOTIVOICE_WORKER_URL` (default `http://127.0.0.1:8510`). Current presets include 温柔陪伴, 可爱元气, and 细腻共情. `npm run tts:serve` starts both the EmotiVoice OpenAI-compatible upstream on `127.0.0.1:8000` and the project worker on `127.0.0.1:8510`; install Python deps from `tools/tts-worker/requirements.txt`, `tools/tts-models/emotivoice/repo/requirements.txt`, and `tools/tts-models/emotivoice/repo/requirements.openaiapi.txt`. Do not accept arbitrary model paths, speaker files, or external URLs from the client. When `settings.ttsEnabled` is false, chat message read-aloud uses browser `speechSynthesis` via `src/lib/client/tts-player.ts` instead of calling `/api/tts/speak`.
 
 ## Third-party API models
 
@@ -96,9 +96,13 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 - Full architecture docs: `CLAUDE.md`
 - Implementation plan: `.claude/plans/`
 
-## Recent changes (2026-05-29)
+## Recent changes (2026-05-30)
 
-**Current verification status**: `npx tsc --noEmit` passes, and `npm run build` passes. Remaining known build warnings are the default JWT secret warning in dev and the existing large chunk warning.
+**Current verification status**: `npm run typecheck` passes, `npm run build` passes, and `/api/tts/voices` returns the 3 fixed EmotiVoice presets. The only expected build warning is the default JWT secret warning when `JWT_SECRET` is unset.
+
+**TTS fallback/current state**: Built-in TTS remains local EmotiVoice only, with fixed presets 温柔陪伴, 可爱元气, and 细腻共情. The temporary fourth preset was removed. If a user clicks “朗读” without enabling built-in TTS, `Messages.svelte` now uses browser `speechSynthesis`. Yating TTS was evaluated but not integrated because its official API requires an API Key.
+
+## Recent changes (2026-05-29)
 
 **Verification update**: `npm run verify` now runs `typecheck + build + node --test scripts/*.test.mjs` and passes. `git diff --check` passes; the only runtime build warning is the default JWT secret warning when `JWT_SECRET` is unset. The earlier large chunk warning was removed by chunk splitting and highlight.js core imports.
 
