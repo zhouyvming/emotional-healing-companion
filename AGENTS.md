@@ -31,8 +31,6 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 
 **Legacy passwords**: may be plaintext if not yet migrated via `scripts/migrate-passwords.ts`.
 
-**TTS**: message read-aloud is browser-only through `speechSynthesis` in `src/lib/client/tts-player.ts`. There is no project-bundled voice model, model directory, server-side speech route, or TTS voice table. Settings only keep `ttsRate` and `ttsVolume`.
-
 ## Library quirks
 
 - `svelte-french-toast` v1.x has NO `toast.info()` — use the generic `toast()` function instead.
@@ -59,8 +57,6 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 **Abort mechanism**: `abortRefs` array (index-based, per-model) + `stopRef` boolean. `stopResponse()` sets `stopRef = true` and aborts all controllers in `abortRefs`.
 
 **Message tree utilities**: `removeMessageBranch()` in `src/lib/utils/index.ts` handles recursive deletion with dangling `currentId` protection.
-
-**TTS routing**: no server-side TTS routing exists. `Messages.svelte` always creates browser playback through `createBrowserTtsPlayback()`, strips message HTML to text, limits it to 2000 characters, and uses `settings.ttsRate` / `settings.ttsVolume`.
 
 ## Third-party API models
 
@@ -95,9 +91,9 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 
 ## Recent changes (2026-05-30)
 
-**Current verification status**: after browser-only TTS removal, `npm run verify` passes. The only expected build warning is the default JWT secret warning when `JWT_SECRET` is unset.
+**Current verification status**: the latest full code verification with `npm run verify` passes. The only expected build warning is the default JWT secret warning when `JWT_SECRET` is unset.
 
-**TTS current state**: project-bundled speech synthesis was removed. Chat message read-aloud now always uses browser `speechSynthesis`; the settings panel only exposes rate and volume.
+**Documentation update**: `README.md` was simplified and now includes Mermaid system architecture and core flow diagrams under the tech stack. The MySQL default connection note points to `src/lib/server/db.ts` and `MYSQL_*` env overrides. Third-party provider wording uses `Base URL（OpenAI兼容）`. This documentation-only update has passed `git diff --check`.
 
 ## Recent changes (2026-05-29)
 

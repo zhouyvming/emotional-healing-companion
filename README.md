@@ -1,6 +1,12 @@
 # Emotional Healing Companion
 
-一个基于本地模型和 OpenAI-compatible API 的情感陪伴聊天应用。项目优先支持本地私有化使用，同时可以接入第三方模型、知识库、文件解析、联网搜索和浏览器语音朗读。
+一个基于本地模型和 OpenAI-compatible API 的情感陪伴聊天应用。项目优先支持本地私有化使用，同时可以接入第三方模型、知识库、文件解析和联网搜索。
+
+## 最新状态（2026-05-30）
+
+- README 已完成精简重构，并在技术栈部分加入系统架构图和核心流程图。
+- MySQL 默认连接已标注配置文件 `src/lib/server/db.ts`，并说明可通过 `MYSQL_*` 环境变量覆盖。
+- 第三方 API 配置文案统一为 `Base URL（OpenAI兼容）`。
 
 ## 功能概览
 
@@ -9,7 +15,6 @@
 - 文件解析：支持 `txt/md/csv/doc/docx/pdf/xls/xlsx/pptx`
 - 知识库 RAG：文档上传、切片、Embedding、相似度检索、失败重试
 - 联网搜索：发送前注入搜索结果，不写入本地历史
-- 浏览器 TTS：使用浏览器原生 `speechSynthesis`，可调语速和音量
 - 用户系统：注册、登录、个人资料、聊天记录、设置同步
 - 安全处理：JWT、密码哈希、API Key 加密、DOMPurify、SSRF/Open Redirect 防护
 
@@ -24,6 +29,54 @@
 | 文档解析 | mammoth、pdf-parse、xlsx、word-extractor、jszip |
 | 安全 | bcryptjs、HMAC-SHA256 JWT、AES-256-GCM、DOMPurify |
 
+### 系统架构图
+
+```mermaid
+flowchart LR
+  Browser["浏览器 / Svelte SPA"] --> Routes["SvelteKit API Routes"]
+  Browser --> Storage["localStorage<br/>用户设置 / Token / 本地状态"]
+
+  Routes --> Auth["认证与权限<br/>JWT / bcryptjs"]
+  Routes --> MySQL["MySQL 8<br/>用户 / 会话 / Provider / 知识库"]
+  Routes --> Parser["文件解析<br/>docx / pdf / xlsx / pptx"]
+  Routes --> Providers["第三方 OpenAI-compatible 代理"]
+  Routes --> LocalProxy["本地 OpenAI-compatible 代理"]
+  Routes --> Ollama["Ollama<br/>聊天模型 / Embedding"]
+  Routes --> Search["联网搜索"]
+
+  Providers --> ThirdParty["第三方模型服务"]
+  LocalProxy --> LocalLLM["LM Studio / vLLM / llama.cpp"]
+  Ollama --> LocalModels["本地模型"]
+```
+
+### 核心流程图
+
+```mermaid
+flowchart TD
+  Start["用户输入消息 / 上传文件"] --> Parse{"是否包含文档附件？"}
+  Parse -- 是 --> ParseFile["调用 /api/parse-file<br/>解析为文本"]
+  Parse -- 否 --> BuildPrompt["组装本次请求 Prompt"]
+  ParseFile --> BuildPrompt
+
+  BuildPrompt --> WebSearch{"是否启用联网搜索？"}
+  WebSearch -- 是 --> SearchCtx["注入搜索结果<br/>不写入历史"]
+  WebSearch -- 否 --> Knowledge
+  SearchCtx --> Knowledge{"是否选择知识库？"}
+
+  Knowledge -- 是 --> Rag["Embedding 检索 Top-K 片段<br/>注入知识库上下文"]
+  Knowledge -- 否 --> RouteModel
+  Rag --> RouteModel{"选择的模型类型"}
+
+  RouteModel -- Ollama --> OllamaChat["sendPromptOllama"]
+  RouteModel -- 第三方 API --> OpenAIChat["/api/openai-compatible/chat"]
+  RouteModel -- 本地兼容后端 --> LocalChat["/api/local-openai/chat"]
+
+  OllamaChat --> Stream["流式回复到聊天界面"]
+  OpenAIChat --> Stream
+  LocalChat --> Stream
+  Stream --> Save["保存会话到 MySQL"]
+```
+
 ## 快速开始
 
 ### 1. 准备环境
@@ -32,7 +85,7 @@
 - MySQL 8
 - Ollama，可选但推荐
 
-MySQL 默认连接：
+MySQL 默认连接（配置文件：`src/lib/server/db.ts`，也可通过下方 `MYSQL_*` 环境变量覆盖）：
 
 ```text
 host: localhost
@@ -117,7 +170,7 @@ llama.cpp server: http://localhost:8081/v1
 在设置面板中添加 Provider：
 
 - 名称
-- OpenAI-compatible Base URL
+- Base URL（OpenAI兼容）
 - API Key
 - 模型列表
 
@@ -150,17 +203,6 @@ txt, md, csv, doc, docx, pdf, xls, xlsx, pptx
 
 图片会作为附件展示。非图片文档会先解析成文本，再随用户输入一起发送给模型；聊天历史只保存附件元信息，不保存完整解析文本。
 
-## 浏览器 TTS
-
-消息朗读使用浏览器原生 `speechSynthesis`。项目不包含本地 TTS 模型、Python worker 或服务端语音合成路由。
-
-可配置项：
-
-- 语速
-- 音量
-
-实际音色由用户当前浏览器和操作系统提供。
-
 ## 常用命令
 
 ```bash
@@ -178,7 +220,7 @@ npm run fmt       # Prettier 格式化
 src/
   lib/
     chat/              # Ollama / OpenAI-compatible 聊天逻辑
-    client/            # 浏览器端 HTTP、文件解析、TTS 工具
+    client/            # 浏览器端 HTTP、文件解析工具
     components/        # 聊天、设置、布局组件
     server/            # 认证、数据库、Provider、知识库逻辑
     stores/            # Svelte stores
