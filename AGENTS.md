@@ -8,6 +8,9 @@ npm run build     # Vite build → build/ (adapter-node, run with `node build`)
 npm run typecheck # TypeScript check via `tsc --noEmit`
 npm run test      # Node test runner for scripts/*.test.mjs
 npm run verify    # typecheck + build + test
+npm run tts:download # download EmotiVoice source + outputs/SimBERT models under tools/tts-models/emotivoice
+npm run tts:serve    # start full local TTS chain: upstream 127.0.0.1:8000 + worker 127.0.0.1:8510
+npm run dev:tts      # run TTS worker + Vite dev server
 npm run fmt       # Prettier 2 via npx -p (NOT local install)
 ```
 
@@ -30,6 +33,8 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 **timestamp column**: migrated from `BIGINT` (ms) to `DATETIME` (ISO 8601 `YYYY-MM-DDTHH:MM:SS`). New code MUST use `datetimeNow()` from `src/lib/utils/index.ts`, not epoch milliseconds.
 
 **Legacy passwords**: may be plaintext if not yet migrated via `scripts/migrate-passwords.ts`.
+
+**TTS storage**: `tts_voices` is intentionally dropped at startup. Built-in TTS uses fixed EmotiVoice presets from code/`tools/tts-models/emotivoice/voices.json`; model files live under `tools/tts-models/emotivoice/` and are gitignored.
 
 ## Library quirks
 
@@ -57,6 +62,8 @@ Tables are auto-created AND auto-migrated with `ALTER TABLE ... .catch(() => {})
 **Abort mechanism**: `abortRefs` array (index-based, per-model) + `stopRef` boolean. `stopResponse()` sets `stopRef = true` and aborts all controllers in `abortRefs`.
 
 **Message tree utilities**: `removeMessageBranch()` in `src/lib/utils/index.ts` handles recursive deletion with dangling `currentId` protection.
+
+**TTS routing**: `/api/tts/voices`, `/api/tts/health`, and `/api/tts/speak` require auth. They expose only three fixed EmotiVoice `voiceId`s and proxy synthesis to the local worker at `EMOTIVOICE_WORKER_URL` (default `http://127.0.0.1:8510`). `npm run tts:serve` starts both the EmotiVoice OpenAI-compatible upstream on `127.0.0.1:8000` and the project worker on `127.0.0.1:8510`; install Python deps from `tools/tts-worker/requirements.txt`, `tools/tts-models/emotivoice/repo/requirements.txt`, and `tools/tts-models/emotivoice/repo/requirements.openaiapi.txt`. Do not accept arbitrary model paths, speaker files, or external URLs from the client.
 
 ## Third-party API models
 

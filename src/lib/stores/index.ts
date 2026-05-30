@@ -40,8 +40,8 @@ interface Settings {
 	localOpenAIApiKey?: string;
 	localOpenAIName?: string;
 	ttsEnabled?: boolean;
-	ttsEngine?: "browser";
-	ttsVoiceURI?: string;
+	ttsEngine?: "emotivoice";
+	ttsVoiceId?: string;
 	ttsRate?: number;
 	ttsVolume?: number;
 	seed?: number;

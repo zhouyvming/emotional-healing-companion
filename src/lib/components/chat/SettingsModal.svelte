@@ -13,6 +13,7 @@
 	import KnowledgeBaseManager from "./KnowledgeBaseManager.svelte";
 	import { getThirdPartyModels, fetchLocalOpenAIModels, fetchModels } from "$lib/chat/openai";
 	import { authFetch } from "$lib/client/http";
+	import { createTtsPlayback, type TtsPlayback } from "$lib/client/tts-player";
 
 	export let show = false;
 
@@ -55,12 +56,19 @@
 	let systemAvatarPreview = "";
 	let systemAvatarChanged = false;
 	let ttsEnabled = false;
-	let ttsEngine: "browser" = "browser";
-	let ttsVoiceURI = "";
+	let ttsEngine: "emotivoice" = "emotivoice";
+	let ttsVoiceId = "";
 	let ttsRate = 1;
 	let ttsVolume = 1;
-	let ttsVoices: SpeechSynthesisVoice[] = [];
-	let previewingVoice = false;
+	let ttsVoices: {
+		id: string;
+		displayName: string;
+		description: string;
+		speaker: number;
+		stylePrompt: string;
+	}[] = [];
+	let previewingVoice = "";
+	let ttsPreviewAudio: TtsPlayback | null = null;
 
 	// Model management
 	let pullModelName = "";
@@ -231,44 +239,71 @@
 		return bytes + " B";
 	};
 
-	const loadTtsVoices = () => {
-		if (!("speechSynthesis" in window)) {
-			ttsVoices = [];
-			return;
-		}
-		ttsVoices = window.speechSynthesis.getVoices();
-	};
-
-	const stopBrowserTtsPreview = () => {
-		if ("speechSynthesis" in window) {
-			window.speechSynthesis.cancel();
-		}
-		previewingVoice = false;
-	};
-
-	const previewTtsVoice = () => {
-		if (!("speechSynthesis" in window)) {
-			toast.error("当前浏览器不支持语音朗读");
-			return;
-		}
-		stopBrowserTtsPreview();
-		previewingVoice = true;
+	const loadTtsVoices = async () => {
 		try {
-			const utterance = new SpeechSynthesisUtterance(
-				"你好，我是你的情感疗愈伴侣。愿我的声音能温柔地陪伴你。"
-			);
-			const selectedVoice =
-				ttsVoices.find((voice) => voice.voiceURI === ttsVoiceURI) ??
-				ttsVoices.find((voice) => voice.lang?.toLowerCase().startsWith("zh"));
-			if (selectedVoice) utterance.voice = selectedVoice;
-			utterance.lang = selectedVoice?.lang || "zh-CN";
-			utterance.rate = Math.max(0.5, Math.min(2, ttsRate));
-			utterance.volume = Math.max(0, Math.min(1, ttsVolume));
-			utterance.onend = () => (previewingVoice = false);
-			utterance.onerror = () => (previewingVoice = false);
-			window.speechSynthesis.speak(utterance);
+			const res = await authFetch("/api/tts/voices");
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				throw new Error(data.error || "加载内置音色失败");
+			}
+			const data = await res.json();
+			ttsVoices = data.voices ?? [];
+			if (!ttsVoiceId && ttsVoices.length > 0) {
+				ttsVoiceId = ttsVoices[0].id;
+			}
 		} catch (error: any) {
-			previewingVoice = false;
+			toast.error(error.message || "加载内置音色失败");
+		}
+	};
+
+	const stopTtsPreview = () => {
+		if (ttsPreviewAudio) {
+			ttsPreviewAudio.stop();
+			ttsPreviewAudio = null;
+		}
+		previewingVoice = "";
+	};
+
+	const saveTtsSettings = async () => {
+		await saveSettings({
+			ttsEnabled,
+			ttsEngine,
+			ttsVoiceId,
+			ttsRate: Number(ttsRate),
+			ttsVolume: Number(ttsVolume)
+		});
+	};
+
+	const previewTtsVoice = async (voiceId = ttsVoiceId) => {
+		if (!voiceId) {
+			toast.error("请先选择音色");
+			return;
+		}
+		stopTtsPreview();
+		previewingVoice = voiceId;
+		try {
+			ttsEnabled = true;
+			await saveTtsSettings();
+			const res = await authFetch("/api/tts/speak", {
+				method: "POST",
+				body: JSON.stringify({
+					voiceId,
+					text: "你好，我是你的情感疗愈伴侣。愿我的声音能温柔地陪伴你。",
+					rate: ttsRate,
+					volume: ttsVolume
+				})
+			});
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				throw new Error(data.error || "试听失败");
+			}
+			ttsPreviewAudio = await createTtsPlayback(await res.blob(), {
+				volume: ttsVolume,
+				onEnded: stopTtsPreview
+			});
+			await ttsPreviewAudio.play();
+		} catch (error: any) {
+			stopTtsPreview();
 			toast.error(error.message || "试听失败");
 		}
 	};
@@ -428,7 +463,7 @@
 			systemName,
 			ttsEnabled,
 			ttsEngine,
-			ttsVoiceURI,
+			ttsVoiceId,
 			ttsRate,
 			ttsVolume,
 			requestFormat: requestFormat !== "" ? requestFormat : undefined
@@ -531,13 +566,12 @@
 		localOpenAIApiKey = stored.localOpenAIApiKey ?? "";
 		localOpenAIName = stored.localOpenAIName ?? "本地兼容";
 		ttsEnabled = stored.ttsEnabled ?? false;
-		ttsEngine = "browser";
-		ttsVoiceURI = stored.ttsVoiceURI ?? "";
+		ttsEngine = "emotivoice";
+		ttsVoiceId = stored.ttsVoiceId ?? "";
 		ttsRate = stored.ttsRate ?? 1;
 		ttsVolume = stored.ttsVolume ?? 1;
 		requestFormat = stored.requestFormat ?? "";
 		loadTtsVoices();
-		window.speechSynthesis?.addEventListener("voiceschanged", loadTtsVoices);
 
 		if (stored.seed !== undefined && stored.seed !== "") options.seed = stored.seed;
 		for (const key of Object.keys(options)) {
@@ -548,8 +582,7 @@
 		editingProviderIndex = null;
 		return () => {
 			window.removeEventListener("keydown", handleKeydown);
-			window.speechSynthesis?.removeEventListener("voiceschanged", loadTtsVoices);
-			stopBrowserTtsPreview();
+			stopTtsPreview();
 		};
 	});
 </script>
@@ -1088,15 +1121,16 @@
 							>
 								<label class="flex items-center justify-between gap-3">
 									<div>
-										<span class="text-sm">启用浏览器语音朗读</span>
+										<span class="text-sm">启用内置开源 TTS</span>
 										<div class="text-xs text-gray-400">
-											使用浏览器内置 speechSynthesis，不再依赖服务端 TTS 模型
+											使用本地 EmotiVoice worker，音频由项目内服务生成
 										</div>
 									</div>
 									<input
 										type="checkbox"
 										class="w-4 h-4 rounded accent-pink-500"
 										bind:checked={ttsEnabled}
+										on:change={saveTtsSettings}
 									/>
 								</label>
 
@@ -1105,12 +1139,13 @@
 										<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">AI 音色</div>
 										<select
 											class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600"
-											bind:value={ttsVoiceURI}
+											bind:value={ttsVoiceId}
+											on:change={saveTtsSettings}
 										>
-											<option value="">自动选择中文音色</option>
+											<option value="">未选择</option>
 											{#each ttsVoices as voice}
-												<option value={voice.voiceURI}>
-													{voice.name} · {voice.lang} · {voice.localService ? "本地" : "在线"}
+												<option value={voice.id}>
+													{voice.displayName} · speaker {voice.speaker}
 												</option>
 											{/each}
 										</select>
@@ -1119,7 +1154,7 @@
 										<button
 											type="button"
 											class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm transition disabled:opacity-50"
-											disabled={previewingVoice}
+											disabled={!ttsVoiceId || previewingVoice !== ""}
 											on:click={() => previewTtsVoice()}
 										>
 											{previewingVoice ? "试听中..." : "试听"}
@@ -1134,6 +1169,18 @@
 									</div>
 								</div>
 
+								{#if ttsVoiceId}
+									{@const selectedTtsVoice = ttsVoices.find((voice) => voice.id === ttsVoiceId)}
+									{#if selectedTtsVoice}
+										<div class="rounded-md border border-pink-100 dark:border-pink-900/40 bg-pink-50/60 dark:bg-pink-950/20 p-2">
+											<div class="text-sm dark:text-gray-200">{selectedTtsVoice.description}</div>
+											<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+												风格：{selectedTtsVoice.stylePrompt}
+											</div>
+										</div>
+									{/if}
+								{/if}
+
 								<div class="grid gap-3 md:grid-cols-2">
 									<label>
 										<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -1146,6 +1193,7 @@
 											step="0.1"
 											class="w-full accent-pink-500"
 											bind:value={ttsRate}
+											on:change={saveTtsSettings}
 										/>
 									</label>
 									<label>
@@ -1159,14 +1207,15 @@
 											step="0.05"
 											class="w-full accent-pink-500"
 											bind:value={ttsVolume}
+											on:change={saveTtsSettings}
 										/>
 									</label>
 								</div>
 
 								<div class="rounded-md border border-gray-100 dark:border-gray-700 p-2">
-									<div class="text-sm dark:text-gray-200">默认策略：优先选择中文浏览器音色</div>
+									<div class="text-sm dark:text-gray-200">模型目录：tools/tts-models/emotivoice</div>
 									<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-										实际可用音色由当前浏览器和操作系统决定；Chrome/Edge 通常可提供中文语音。
+										如果试听失败，请先运行 npm run tts:download 和 npm run tts:serve。
 									</div>
 								</div>
 							</div>

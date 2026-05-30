@@ -1,0 +1,32 @@
+[
+	{
+		"id": "gentle_maria",
+		"displayName": "温柔陪伴",
+		"description": "柔和、舒缓，适合安慰与陪伴的女声。",
+		"speaker": 8051,
+		"stylePrompt": "温柔、舒缓、亲切、富有安慰感",
+		"gender": "female",
+		"locale": "zh_CN",
+		"engine": "emotivoice"
+	},
+	{
+		"id": "cute_cori",
+		"displayName": "可爱元气",
+		"description": "轻快、可爱，适合积极鼓励的女声。",
+		"speaker": 92,
+		"stylePrompt": "开心、可爱、轻快、富有活力",
+		"gender": "female",
+		"locale": "zh_CN",
+		"engine": "emotivoice"
+	},
+	{
+		"id": "soft_christabel",
+		"displayName": "细腻共情",
+		"description": "柔和、细腻，适合情绪表达和共情回应的女声。",
+		"speaker": 1088,
+		"stylePrompt": "柔和、细腻、共情、情绪丰富",
+		"gender": "female",
+		"locale": "zh_CN",
+		"engine": "emotivoice"
+	}
+]

@@ -20,6 +20,8 @@
 	import DOMPurify from "dompurify";
 	import ModelSelector from "./ModelSelector.svelte";
 	import KnowledgeBaseSelector from "./KnowledgeBaseSelector.svelte";
+	import { authFetch } from "$lib/client/http";
+	import { createTtsPlayback, type TtsPlayback } from "$lib/client/tts-player";
 	import {
 		ensureFilesParsed,
 		isImageFile,
@@ -105,6 +107,7 @@
 	export let kbId = "";
 	let editingMessageId: string | null = null;
 	let editContent = "";
+	let currentTtsAudio: TtsPlayback | null = null;
 	let speakingMessageId = "";
 
 	const suggestedTopics = [
@@ -227,8 +230,9 @@
 	const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, purifyConfig);
 
 	const stopTtsAudio = () => {
-		if ("speechSynthesis" in window) {
-			window.speechSynthesis.cancel();
+		if (currentTtsAudio) {
+			currentTtsAudio.stop();
+			currentTtsAudio = null;
 		}
 		speakingMessageId = "";
 	};
@@ -240,11 +244,7 @@
 		}
 		stopTtsAudio();
 		if (!$settings.ttsEnabled) {
-			toast.error("请先在设置中启用浏览器朗读");
-			return;
-		}
-		if (!("speechSynthesis" in window)) {
-			toast.error("当前浏览器不支持语音朗读");
+			toast.error("请先在设置中启用内置 TTS");
 			return;
 		}
 		const div = document.createElement("div");
@@ -256,19 +256,24 @@
 		}
 		speakingMessageId = message.id;
 		try {
-			const utterance = new SpeechSynthesisUtterance(plainText);
-			const voiceURI = $settings.ttsVoiceURI;
-			const voices = window.speechSynthesis.getVoices();
-			const selectedVoice =
-				voices.find((voice) => voice.voiceURI === voiceURI) ??
-				voices.find((voice) => voice.lang?.toLowerCase().startsWith("zh"));
-			if (selectedVoice) utterance.voice = selectedVoice;
-			utterance.lang = selectedVoice?.lang || "zh-CN";
-			utterance.rate = Math.max(0.5, Math.min(2, $settings.ttsRate ?? 1));
-			utterance.volume = Math.max(0, Math.min(1, $settings.ttsVolume ?? 1));
-			utterance.onend = stopTtsAudio;
-			utterance.onerror = stopTtsAudio;
-			window.speechSynthesis.speak(utterance);
+			const res = await authFetch("/api/tts/speak", {
+				method: "POST",
+				body: JSON.stringify({
+					text: plainText,
+					voiceId: $settings.ttsVoiceId,
+					rate: $settings.ttsRate ?? 1,
+					volume: $settings.ttsVolume ?? 1
+				})
+			});
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				throw new Error(data.error || "语音生成失败");
+			}
+			currentTtsAudio = await createTtsPlayback(await res.blob(), {
+				volume: $settings.ttsVolume ?? 1,
+				onEnded: stopTtsAudio
+			});
+			await currentTtsAudio.play();
 		} catch (error: any) {
 			stopTtsAudio();
 			toast.error(error.message || "语音播放失败");
@@ -781,10 +786,12 @@
 									复制
 								</button>
 								<button
-									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+									class="text-xs {speakingMessageId === message.id
+										? 'text-pink-500 dark:text-pink-400'
+										: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'} flex items-center gap-1"
 									on:click={() => speakMessage(message)}
 									aria-label={speakingMessageId === message.id ? "停止朗读" : "朗读"}
-									title="朗读"
+									title={speakingMessageId === message.id ? "停止朗读" : "朗读"}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -798,6 +805,7 @@
 											clip-rule="evenodd"
 										/>
 									</svg>
+									{speakingMessageId === message.id ? "停止" : "朗读"}
 								</button>
 								<button
 									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"

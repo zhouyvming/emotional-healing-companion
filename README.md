@@ -44,7 +44,7 @@
 - 上下文自动压缩（默认 200K tokens，超出自动截断早期消息）
 - 复制消息 / Markdown 复制 / 重新生成 / 停止响应（AbortController）
 - 消息编辑 + 删除（与日期同行显示）
-- AI 回复朗读（Web Speech TTS，中文语音合成）
+- AI 回复朗读（EmotiVoice 本地开源 TTS，内置 3 个中文友好女声音色）
 - 对话置顶：侧边栏图钉按钮，持久化置顶状态
 - 键盘快捷键：Enter 发送 / Ctrl+Enter 发送 / Ctrl+N 新建对话 / Escape 关闭设置弹窗
 - 情绪感知（AI 自动感知并回应用户情绪状态）
@@ -122,6 +122,26 @@
 4. 点击 **测试** 拉取模型列表，模型会以 `local/模型ID` 出现在聊天模型选择器中
 
 本地兼容后端只允许本机或内网地址，且不能填写当前应用自己的地址。聊天流、标题生成和模型列表刷新都会通过 `/api/local-openai/chat`、`/api/local-openai/models` 代理到本地服务。
+
+## 本地 TTS
+
+项目使用 EmotiVoice 作为内置开源 TTS 方案。模型文件放在 `tools/tts-models/emotivoice/`，该目录下的大模型文件不提交到 GitHub。
+
+```bash
+npm run tts:download  # 下载 EmotiVoice 源码、outputs 权重和 SimBERT 模型
+npm run tts:serve     # 启动完整 TTS 链路：上游 8000 + 项目 worker 8510
+npm run dev:tts       # 同时启动 TTS worker 和 Web 服务
+```
+
+首次运行前需要安装 Python 依赖：
+
+```bash
+python -m pip install -r tools/tts-worker/requirements.txt
+python -m pip install -r tools/tts-models/emotivoice/repo/requirements.txt
+python -m pip install -r tools/tts-models/emotivoice/repo/requirements.openaiapi.txt
+```
+
+设置面板提供 3 个固定女声音色：温柔陪伴、可爱元气、细腻共情。SvelteKit 的 `/api/tts/*` 路由只接受这些内置 `voiceId`，并代理到本地 TTS worker；数据库不再存放 TTS 音色 blob，启动时会删除旧的 `tts_voices` 表。
 
 ## 新机子上手全流程
 
