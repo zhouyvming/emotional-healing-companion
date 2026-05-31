@@ -2,6 +2,7 @@ import type { ChatSettings, UploadedFile } from "$lib/types/chat";
 
 export type AgentToolName =
 	| "current_time"
+	| "weather_lookup"
 	| "web_search"
 	| "fetch_url"
 	| "query_knowledge_base"

@@ -20,6 +20,15 @@ export const AGENT_TOOLS: {
 		parameters: {}
 	},
 	{
+		name: "weather_lookup",
+		description:
+			"Look up current weather and today's forecast for a city or place. Use this before web_search for weather, temperature, rain, wind, or forecast questions.",
+		parameters: {
+			location: "City or place name, for example: 广西贵港市, 北京, Shanghai.",
+			date: "Optional date hint such as today or tomorrow. Defaults to today."
+		}
+	},
+	{
 		name: "web_search",
 		description:
 			"Run a real-time public web search with recent-first ranking and source URLs. Use for current facts, news, prices, schedules, or claims that need verification.",
@@ -49,6 +58,12 @@ const TOOL_NAMES = new Set(AGENT_TOOLS.map((tool) => tool.name));
 
 export function isAgentToolName(value: unknown): value is AgentToolName {
 	return typeof value === "string" && TOOL_NAMES.has(value as AgentToolName);
+}
+
+export function isWeatherQuery(value: string) {
+	return /天气|气温|温度|下雨|降雨|降水|刮风|风力|预报|weather|temperature|forecast|rain|wind/i.test(
+		value
+	);
 }
 
 function stripCodeFence(value: string) {
@@ -157,6 +172,7 @@ Do not invent sources. Do not call unavailable tools. Prefer finishing when enou
 If a knowledge base is available, query_knowledge_base before public web tools. Use web_search only when the knowledge base has no relevant information or is insufficient for the user's question.
 If the user asks for current time/date/today/relative dates and the knowledge base does not answer it, call current_time before answering.
 For recent or time-sensitive public information, call web_search with the narrowest useful freshness window and prefer sources that include a published time.
+For weather, temperature, rain, wind, or forecast questions, call weather_lookup before web_search.
 If a tool result is missing, stale, contradictory, or too weak to answer reliably, call another read-only tool or refine the query before producing the final answer.
 
 Available tools:

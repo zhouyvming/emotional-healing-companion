@@ -5,6 +5,7 @@ const {
 	parseAgentAction,
 	compactToolContext,
 	buildAgentDecisionPrompt,
+	isWeatherQuery,
 	AGENT_MAX_TOOL_CONTEXT_CHARS
 } = await import("../src/lib/agent/core.ts");
 
@@ -65,4 +66,34 @@ test("parseAgentAction accepts current_time tool calls", () => {
 		arguments: {},
 		reason: undefined
 	});
+});
+
+test("parseAgentAction accepts weather_lookup tool calls", () => {
+	assert.deepEqual(
+		parseAgentAction(
+			'{"action":"tool_call","tool":"weather_lookup","arguments":{"location":"广西贵港市"}}'
+		),
+		{
+			action: "tool_call",
+			tool: "weather_lookup",
+			arguments: { location: "广西贵港市" },
+			reason: undefined
+		}
+	);
+});
+
+test("buildAgentDecisionPrompt exposes weather lookup tool", () => {
+	const prompt = buildAgentDecisionPrompt({
+		userPrompt: "今天广西贵港市的天气如何？",
+		observations: [],
+		hasKnowledgeBase: false,
+		hasUploadedFiles: false
+	});
+	assert.ok(prompt.includes("weather_lookup"));
+});
+
+test("isWeatherQuery detects Chinese weather questions", () => {
+	assert.equal(isWeatherQuery("今天广西贵港市的天气如何？"), true);
+	assert.equal(isWeatherQuery("帮我查一下北京气温"), true);
+	assert.equal(isWeatherQuery("总结这段代码"), false);
 });

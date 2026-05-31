@@ -3,6 +3,7 @@ import {
 	buildAgentDecisionPrompt,
 	buildAgentFinalPrompt,
 	createTraceStep,
+	isWeatherQuery,
 	parseAgentAction
 } from "$lib/agent/core";
 import { callAgentModel } from "$lib/agent/model";
@@ -63,6 +64,7 @@ async function decideAction(
 
 function actionTitle(action: AgentToolCallAction) {
 	if (action.tool === "current_time") return "获取当前时间";
+	if (action.tool === "weather_lookup") return "查询天气";
 	if (action.tool === "web_search") return "联网搜索";
 	if (action.tool === "fetch_url") return "读取网页";
 	if (action.tool === "query_knowledge_base") return "查询知识库";
@@ -128,7 +130,34 @@ export async function runAgent(context: AgentRunContext) {
 		steps = result.steps;
 	}
 
-	if (isCurrentTimeQuery(context.userPrompt)) {
+	if (isWeatherQuery(context.userPrompt)) {
+		const result = await runToolStep(
+			context,
+			steps,
+			observations,
+			{
+				action: "tool_call",
+				tool: "weather_lookup",
+				arguments: { location: context.userPrompt, date: "today" }
+			},
+			"用户问题涉及天气，Agent 先执行专用天气查询。"
+		);
+		steps = result.steps;
+		if (result.observation.error) {
+			const fallback = await runToolStep(
+				context,
+				steps,
+				observations,
+				{
+					action: "tool_call",
+					tool: "web_search",
+					arguments: { query: context.userPrompt, freshness: "day" }
+				},
+				"专用天气查询失败，改用实时联网搜索补充核验。"
+			);
+			steps = fallback.steps;
+		}
+	} else if (isCurrentTimeQuery(context.userPrompt)) {
 		const result = await runToolStep(
 			context,
 			steps,

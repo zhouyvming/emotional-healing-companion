@@ -44,6 +44,28 @@ async function fetchJsonWithTimeout(url: string, body: unknown, signal?: AbortSi
 	}
 }
 
+async function getJsonWithTimeout(url: string, signal?: AbortSignal) {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), AGENT_TOOL_TIMEOUT_MS);
+	const abort = () => controller.abort();
+	signal?.addEventListener("abort", abort, { once: true });
+	try {
+		const res = await fetch(url, {
+			method: "GET",
+			headers: authHeaders(),
+			signal: controller.signal
+		});
+		const data = await res.json().catch(() => ({}));
+		if (!res.ok) {
+			throw new Error(data.error || data.detail || `HTTP ${res.status}`);
+		}
+		return data;
+	} finally {
+		clearTimeout(timeout);
+		signal?.removeEventListener("abort", abort);
+	}
+}
+
 const asString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const asFreshness = (value: unknown) =>
 	value === "week" || value === "month" || value === "day" ? value : "day";
@@ -129,6 +151,24 @@ export async function executeAgentTool(
 							}\n摘要：${item.snippet || ""}\n链接：${item.url || ""}`
 					)
 					.join("\n\n"),
+				sources
+			};
+		}
+
+		if (action.tool === "weather_lookup") {
+			const location = asString(action.arguments?.location) || context.userPrompt;
+			if (location.length < 2) {
+				return errorObservation(action.tool, "天气查询地点太短");
+			}
+			const data = await getJsonWithTimeout(
+				`/api/weather?location=${encodeURIComponent(location)}`,
+				context.signal
+			);
+			const sources: AgentSource[] = Array.isArray(data.sources) ? data.sources : [];
+			return {
+				toolName: action.tool,
+				summary: String(data.summary || "已查询天气"),
+				content: String(data.content || ""),
 				sources
 			};
 		}
