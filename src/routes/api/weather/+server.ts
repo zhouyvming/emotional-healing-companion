@@ -1,5 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { requireAuth, AuthError } from "$lib/server/auth";
+import { cleanWeatherLocation, resolveChinaPlace } from "$lib/server/weather-geocode";
 
 interface GeocodeResult {
 	lat: string;
@@ -54,10 +55,7 @@ const LOCATION_ALIASES: Array<[RegExp, string]> = [
 ];
 
 function cleanLocation(value: string) {
-	return value
-		.replace(/今天|今日|现在|当前|实时|明天|天气|气温|温度|预报|如何|怎么样|怎么|查询|查一下|帮我|请|的|[?？。！，,]/g, " ")
-		.replace(/\s+/g, " ")
-		.trim();
+	return cleanWeatherLocation(value);
 }
 
 function weatherCodeText(code: number | undefined) {
@@ -94,6 +92,11 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> 
 
 async function geocode(location: string) {
 	const cleaned = cleanLocation(location) || location.trim();
+	const localChinaPlace = resolveChinaPlace(cleaned);
+	if (localChinaPlace) {
+		return localChinaPlace;
+	}
+
 	const candidates = [
 		cleaned,
 		...LOCATION_ALIASES.filter(([pattern]) => pattern.test(cleaned)).map(([, alias]) => alias)
