@@ -2,7 +2,8 @@ import { v4 as uuidv4 } from "uuid";
 import { tick } from "svelte";
 import { goto } from "$app/navigation";
 import toast from "svelte-french-toast";
-import { OLLAMA_API_BASE_URL } from "$lib/constants";
+import { normalizeOllamaApiBaseUrl } from "$lib/constants";
+import { getToken } from "$lib/client/http";
 import {
 	splitStream,
 	convertMessagesToHistory,
@@ -69,6 +70,13 @@ export function copyToClipboard(text: string) {
 		return;
 	}
 	navigator.clipboard.writeText(text).catch(() => {});
+}
+
+function ollamaHeaders(contentType = "application/json") {
+	const headers: Record<string, string> = { "Content-Type": contentType };
+	const token = getToken();
+	if (token) headers.Authorization = `Bearer ${token}`;
+	return headers;
 }
 
 async function buildWebSearchContext(userPrompt: string, settings: Record<string, any>) {
@@ -262,9 +270,9 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					onTitleSet(userPrompt.slice(0, 50));
 					return;
 				}
-				const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/generate`, {
+				const res = await fetch(`${normalizeOllamaApiBaseUrl(settings.API_BASE_URL)}/generate`, {
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
+					headers: ollamaHeaders(),
 					body: JSON.stringify({
 						model: modelForTitle,
 						prompt: `请根据以下对话内容生成一个简洁的标题（5个词以内）。
@@ -406,10 +414,10 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			});
 		}
 
-		const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/chat`, {
+		const res = await fetch(`${normalizeOllamaApiBaseUrl(settings.API_BASE_URL)}/chat`, {
 			method: "POST",
 			signal: abortController.signal,
-			headers: { "Content-Type": "text/event-stream" },
+			headers: ollamaHeaders(),
 			body: JSON.stringify({
 				model,
 				messages: apiMessages,

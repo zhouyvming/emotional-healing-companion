@@ -4,7 +4,8 @@
 		LOCAL_OPENAI_API_BASE_URL,
 		LOCAL_OPENAI_MODEL_PREFIX,
 		WEB_UI_VERSION,
-		OLLAMA_API_BASE_URL
+		normalizeOllamaApiBaseUrl,
+		toUserOllamaApiBaseUrl
 	} from "$lib/constants";
 	import toast from "svelte-french-toast";
 	import { onMount } from "svelte";
@@ -32,7 +33,7 @@
 	let selectedTab = "general";
 
 	// General
-	let API_BASE_URL = OLLAMA_API_BASE_URL;
+	let API_BASE_URL = "";
 	let localModelProvider: "ollama" | "openai-compatible" = "ollama";
 	let localOpenAIBaseUrl = LOCAL_OPENAI_API_BASE_URL;
 	let localOpenAIApiKey = "";
@@ -151,7 +152,7 @@
 		pulling = true;
 		pullProgress = `正在拉取 ${pullModelName.trim()}...`;
 		try {
-			const res = await fetch(`${$settings?.API_BASE_URL ?? OLLAMA_API_BASE_URL}/pull`, {
+			const res = await authFetch(`${normalizeOllamaApiBaseUrl($settings?.API_BASE_URL)}/pull`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name: pullModelName.trim(), stream: true })
@@ -191,7 +192,7 @@
 		deleting[modelName] = true;
 		deleting = { ...deleting };
 		try {
-			const res = await fetch(`${$settings?.API_BASE_URL ?? OLLAMA_API_BASE_URL}/delete`, {
+			const res = await authFetch(`${normalizeOllamaApiBaseUrl($settings?.API_BASE_URL)}/delete`, {
 				method: "DELETE",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name: modelName })
@@ -291,13 +292,11 @@
 			}
 			return;
 		}
-		if (API_BASE_URL === "") {
-			API_BASE_URL = OLLAMA_API_BASE_URL;
-		}
+		const apiBaseUrl = normalizeOllamaApiBaseUrl(API_BASE_URL);
 		try {
-			await getModels(API_BASE_URL);
+			await getModels(apiBaseUrl);
 			toast.success("服务器连接已验证");
-			saveSettings({ API_BASE_URL });
+			saveSettings({ API_BASE_URL: toUserOllamaApiBaseUrl(API_BASE_URL) });
 		} catch {
 			toast.error("服务器连接失败");
 		}
@@ -369,7 +368,7 @@
 
 	const saveAllSettings = async () => {
 		const updated: Record<string, any> = {
-			API_BASE_URL: API_BASE_URL === "" ? OLLAMA_API_BASE_URL : API_BASE_URL,
+			API_BASE_URL: toUserOllamaApiBaseUrl(API_BASE_URL),
 			localModelProvider,
 			localOpenAIBaseUrl,
 			localOpenAIApiKey,
@@ -438,7 +437,7 @@
 			const modelIds = await fetchLocalOpenAIModels(localOpenAIBaseUrl, localOpenAIApiKey);
 			return { models: localOpenAIModelsFromIds(modelIds) };
 		}
-		const res = await fetch(`${url || $settings?.API_BASE_URL || OLLAMA_API_BASE_URL}/tags`, {
+		const res = await authFetch(`${normalizeOllamaApiBaseUrl(url || $settings?.API_BASE_URL)}/tags`, {
 			method: "GET",
 			headers: {
 				Accept: "application/json",
@@ -484,7 +483,7 @@
 		emotionSensing = stored.emotionSensing ?? true;
 		const userData = JSON.parse(localStorage.getItem("user") ?? "{}");
 		systemAvatarPreview = userData.system_avatar ?? "";
-		API_BASE_URL = stored.API_BASE_URL ?? OLLAMA_API_BASE_URL;
+		API_BASE_URL = toUserOllamaApiBaseUrl(stored.API_BASE_URL);
 		localModelProvider = stored.localModelProvider ?? "ollama";
 		localOpenAIBaseUrl = stored.localOpenAIBaseUrl ?? LOCAL_OPENAI_API_BASE_URL;
 		localOpenAIApiKey = stored.localOpenAIApiKey ?? "";
@@ -748,7 +747,7 @@
 													class="w-full h-full object-cover"
 												/>
 											{:else}
-												<img src="/cat.png" alt="default" class="w-full h-full object-cover" />
+												<img src="/systemtouxiang2.png" alt="default" class="w-full h-full object-cover" />
 											{/if}
 										</div>
 										<div class="flex gap-2">
@@ -779,101 +778,6 @@
 							</div>
 						</div>
 
-						<!-- 连接 -->
-						<div>
-							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">连接</div>
-							<div
-								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-3"
-							>
-								<div>
-									<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">本地模型后端</div>
-									<select
-										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-										bind:value={localModelProvider}
-									>
-										<option value="ollama">Ollama</option>
-										<option value="openai-compatible"
-											>OpenAI 兼容（vLLM / llama.cpp / LM Studio）</option
-										>
-									</select>
-								</div>
-
-								{#if localModelProvider === "ollama"}
-									<div>
-										<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">Ollama API 地址</div>
-										<div class="flex gap-2">
-											<input
-												class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-												placeholder="http://localhost:11434/api"
-												bind:value={API_BASE_URL}
-											/>
-											<button
-												class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition text-sm"
-												on:click={checkOllamaConnection}
-											>
-												测试
-											</button>
-										</div>
-										<div class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-											默认: {OLLAMA_API_BASE_URL}
-										</div>
-									</div>
-								{:else}
-									<div class="space-y-2">
-										<div class="grid grid-cols-3 gap-2">
-											<button
-												class="py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition"
-												on:click={() => {
-													localOpenAIName = "LM Studio";
-													localOpenAIBaseUrl = "http://localhost:1234/v1";
-												}}>LM Studio</button
-											>
-											<button
-												class="py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition"
-												on:click={() => {
-													localOpenAIName = "vLLM";
-													localOpenAIBaseUrl = "http://localhost:8000/v1";
-												}}>vLLM</button
-											>
-											<button
-												class="py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition"
-												on:click={() => {
-													localOpenAIName = "llama.cpp";
-													localOpenAIBaseUrl = "http://localhost:8081/v1";
-												}}>llama.cpp</button
-											>
-										</div>
-										<div class="flex gap-2">
-											<input
-												class="w-32 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-												placeholder="显示名称"
-												bind:value={localOpenAIName}
-											/>
-											<input
-												class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-												placeholder="http://localhost:1234/v1"
-												bind:value={localOpenAIBaseUrl}
-											/>
-											<button
-												class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition text-sm"
-												on:click={checkOllamaConnection}
-											>
-												测试
-											</button>
-										</div>
-										<input
-											class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-											placeholder="API Key（可选，vLLM/LM Studio/llama.cpp 通常留空）"
-											bind:value={localOpenAIApiKey}
-										/>
-										<div class="text-xs text-gray-400 dark:text-gray-500">
-											仅允许本机或内网地址，不能使用当前应用端口。模型将以 {LOCAL_OPENAI_MODEL_PREFIX}模型ID
-											显示；llama.cpp 如默认占用 8080，请改用 8081 等端口。
-										</div>
-									</div>
-								{/if}
-							</div>
-						</div>
 					</div>
 				{/if}
 
@@ -1098,6 +1002,98 @@
 
 				{#if selectedTab === "models"}
 					<div class="flex flex-col space-y-4">
+						<!-- 连接 -->
+						<div>
+							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">连接</div>
+							<div
+								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-3"
+							>
+								<div>
+									<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">本地模型后端</div>
+									<select
+										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+										bind:value={localModelProvider}
+									>
+										<option value="ollama">Ollama</option>
+										<option value="openai-compatible"
+											>OpenAI 兼容（vLLM / llama.cpp / LM Studio）</option
+										>
+									</select>
+								</div>
+
+								{#if localModelProvider === "ollama"}
+									<div>
+										<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">Ollama API 地址</div>
+										<div class="flex gap-2">
+											<input
+												class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+												bind:value={API_BASE_URL}
+											/>
+											<button
+												class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition text-sm"
+												on:click={checkOllamaConnection}
+											>
+												测试
+											</button>
+										</div>
+									</div>
+								{:else}
+									<div class="space-y-2">
+										<div class="grid grid-cols-3 gap-2">
+											<button
+												class="py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition"
+												on:click={() => {
+													localOpenAIName = "LM Studio";
+													localOpenAIBaseUrl = "http://localhost:1234/v1";
+												}}>LM Studio</button
+											>
+											<button
+												class="py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition"
+												on:click={() => {
+													localOpenAIName = "vLLM";
+													localOpenAIBaseUrl = "http://localhost:8000/v1";
+												}}>vLLM</button
+											>
+											<button
+												class="py-1.5 rounded-md text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 transition"
+												on:click={() => {
+													localOpenAIName = "llama.cpp";
+													localOpenAIBaseUrl = "http://localhost:8081/v1";
+												}}>llama.cpp</button
+											>
+										</div>
+										<div class="flex gap-2">
+											<input
+												class="w-32 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+												placeholder="显示名称"
+												bind:value={localOpenAIName}
+											/>
+											<input
+												class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+												placeholder="http://localhost:1234/v1"
+												bind:value={localOpenAIBaseUrl}
+											/>
+											<button
+												class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition text-sm"
+												on:click={checkOllamaConnection}
+											>
+												测试
+											</button>
+										</div>
+										<input
+											class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+											placeholder="API Key（可选，vLLM/LM Studio/llama.cpp 通常留空）"
+											bind:value={localOpenAIApiKey}
+										/>
+										<div class="text-xs text-gray-400 dark:text-gray-500">
+											仅允许本机或内网地址，不能使用当前应用端口。模型将以 {LOCAL_OPENAI_MODEL_PREFIX}模型ID
+											显示；llama.cpp 如默认占用 8080，请改用 8081 等端口。
+										</div>
+									</div>
+								{/if}
+							</div>
+						</div>
+
 						{#if localModelProvider === "ollama"}
 							<div>
 								<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">

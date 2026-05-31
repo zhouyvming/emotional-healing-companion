@@ -735,7 +735,7 @@
 									class="w-10 h-10 rounded-full object-cover"
 								/>
 							{:else}
-								<img src="/cat.png" alt="小愈" class="w-10 h-10 rounded-full" />
+								<img src="/systemtouxiang2.png" alt="小愈" class="w-10 h-10 rounded-full" />
 							{/if}
 							<div
 								class="bg-gray-200 dark:bg-gray-700 rounded-lg py-2 px-4 max-w-[80%] break-words [&_p]:m-0 chat-assistant"

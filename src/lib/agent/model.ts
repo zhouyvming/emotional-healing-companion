@@ -1,4 +1,4 @@
-import { OLLAMA_API_BASE_URL } from "$lib/constants";
+import { normalizeOllamaApiBaseUrl } from "$lib/constants";
 import { getToken } from "$lib/client/http";
 import {
 	findProvider,
@@ -80,9 +80,9 @@ export async function callAgentModel(options: {
 		return String(data.choices?.[0]?.message?.content || "");
 	}
 
-	const res = await fetch(`${settings.API_BASE_URL ?? OLLAMA_API_BASE_URL}/chat`, {
+	const res = await fetch(`${normalizeOllamaApiBaseUrl(settings.API_BASE_URL)}/chat`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: authHeaders(),
 		signal,
 		body: JSON.stringify({
 			model,

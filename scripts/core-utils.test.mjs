@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+const {
+	OLLAMA_API_BASE_URL,
+	LEGACY_BROWSER_OLLAMA_API_BASE_URL,
+	normalizeOllamaApiBaseUrl,
+	toUserOllamaApiBaseUrl
+} = await import("../src/lib/constants.ts");
+
 function isPrivateUrl(urlString) {
 	try {
 		const u = new URL(urlString);
@@ -75,4 +82,19 @@ test("safeJsonParse returns fallback for invalid input", () => {
 test("chunkText produces overlapping chunks", () => {
 	const chunks = chunkText("abcdefghijklmnopqrstuvwxyz", 10, 2);
 	assert.deepEqual(chunks.slice(0, 3), ["abcdefghij", "ijklmnopqr", "qrstuvwxyz"]);
+});
+
+test("default Ollama API base is same-origin for cloud deployments", () => {
+	assert.equal(OLLAMA_API_BASE_URL, "/api/ollama");
+	assert.equal(normalizeOllamaApiBaseUrl(undefined), "/api/ollama");
+	assert.equal(normalizeOllamaApiBaseUrl(""), "/api/ollama");
+	assert.equal(normalizeOllamaApiBaseUrl(LEGACY_BROWSER_OLLAMA_API_BASE_URL), "/api/ollama");
+});
+
+test("default Ollama API base stays hidden from user settings", () => {
+	assert.equal(toUserOllamaApiBaseUrl(undefined), "");
+	assert.equal(toUserOllamaApiBaseUrl(""), "");
+	assert.equal(toUserOllamaApiBaseUrl(OLLAMA_API_BASE_URL), "");
+	assert.equal(toUserOllamaApiBaseUrl(LEGACY_BROWSER_OLLAMA_API_BASE_URL), "");
+	assert.equal(toUserOllamaApiBaseUrl(" http://server.internal:11434/api/ "), "http://server.internal:11434/api");
 });

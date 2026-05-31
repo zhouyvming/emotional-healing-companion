@@ -21,7 +21,7 @@
 	import {
 		LOCAL_OPENAI_API_BASE_URL,
 		LOCAL_OPENAI_MODEL_PREFIX,
-		OLLAMA_API_BASE_URL
+		normalizeOllamaApiBaseUrl
 	} from "$lib/constants";
 	import { fetchLocalOpenAIModels, getThirdPartyModels } from "$lib/chat/openai";
 	import { datetimeNow } from "$lib/utils";
@@ -53,6 +53,16 @@
 	};
 
 	const getLocalModelProvider = () => $settings?.localModelProvider ?? "ollama";
+
+	const ollamaHeaders = () => {
+		const headers: Record<string, string> = {
+			Accept: "application/json",
+			"Content-Type": "application/json"
+		};
+		const token = getToken();
+		if (token) headers["Authorization"] = `Bearer ${token}`;
+		return headers;
+	};
 
 	const migrateFromIndexedDB = async () => {
 		const MIGRATION_KEY = "chats_migrated_to_mysql";
@@ -121,12 +131,9 @@
 				return [];
 			}
 		}
-		const res = await fetch(`${$settings?.API_BASE_URL ?? OLLAMA_API_BASE_URL}/tags`, {
+		const res = await fetch(`${normalizeOllamaApiBaseUrl($settings?.API_BASE_URL)}/tags`, {
 			method: "GET",
-			headers: {
-				Accept: "application/json",
-				"Content-Type": "application/json"
-			}
+			headers: ollamaHeaders()
 		})
 			.then(async (res) => {
 				if (!res.ok) throw await res.json();
@@ -136,8 +143,7 @@
 				if ("detail" in error) {
 					connectionError = error.detail;
 				} else {
-					connectionError = "无法连接到 Ollama 服务，请检查服务是否启动或 API 地址是否正确";
-					toast.error("Server connection failed");
+					connectionError = "";
 				}
 				return null;
 			});
@@ -280,12 +286,9 @@
 		if (getLocalModelProvider() !== "ollama") {
 			return requiredOllamaVersion;
 		}
-		const res = await fetch(`${$settings?.API_BASE_URL ?? OLLAMA_API_BASE_URL}/version`, {
+		const res = await fetch(`${normalizeOllamaApiBaseUrl($settings?.API_BASE_URL)}/version`, {
 			method: "GET",
-			headers: {
-				Accept: "application/json",
-				"Content-Type": "application/json"
-			}
+			headers: ollamaHeaders()
 		})
 			.then(async (res) => {
 				if (!res.ok) throw await res.json();
@@ -295,8 +298,7 @@
 				if ("detail" in error) {
 					connectionError = error.detail;
 				} else {
-					connectionError = "无法连接到 Ollama 服务，请检查服务是否启动或 API 地址是否正确";
-					toast.error("Server connection failed");
+					connectionError = "";
 				}
 				return null;
 			});
@@ -371,7 +373,7 @@
 
 {#if loaded}
 	<div class="app relative">
-		{#if getLocalModelProvider() === "ollama" && ($info?.ollama?.version ?? "0").localeCompare( requiredOllamaVersion, undefined, { numeric: true, sensitivity: "case", caseFirst: "upper" } ) < 0}
+		{#if getLocalModelProvider() === "ollama" && ($info?.ollama?.version ?? "0") !== "0" && ($info?.ollama?.version ?? "0").localeCompare( requiredOllamaVersion, undefined, { numeric: true, sensitivity: "case", caseFirst: "upper" } ) < 0}
 			<div class="absolute w-full h-full flex z-50">
 				<div
 					class="absolute rounded-xl w-full h-full backdrop-blur bg-gray-900/60 flex justify-center"

@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { pool } from "$lib/server/db";
-import { OLLAMA_API_BASE_URL } from "$lib/constants";
+import { getServerOllamaApiBaseUrl } from "$lib/server/ollama";
 import type { RowDataPacket } from "mysql2/promise";
 
 interface ChunkRow extends RowDataPacket {
@@ -59,7 +59,7 @@ export async function getOllamaEmbedding(
 	baseUrl?: string,
 	signal?: AbortSignal
 ): Promise<number[]> {
-	const apiBase = (baseUrl || OLLAMA_API_BASE_URL).replace(/\/+$/, "");
+	const apiBase = (baseUrl || getServerOllamaApiBaseUrl()).replace(/\/+$/, "");
 	const res = await fetch(`${apiBase}/embeddings`, {
 		method: "POST",
 		signal,
