@@ -19,6 +19,7 @@
 	export let messages = [];
 	export let uploadingFiles: UploadingFile[] = [];
 	export let kbId = "";
+	export let agentMode = false;
 
 	// 语音输入
 	let recording = false;
@@ -298,8 +299,33 @@
 						/>
 
 						<div class="self-end mb-2 flex space-x-0.5 mr-2 items-center">
-							<KnowledgeBaseSelector bind:selectedKbId={kbId} />
-							<ModelSelector bind:selectedModels compact={true} />
+							{#if messages.length === 0}
+								<div
+									class="flex flex-shrink-0 items-center rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs"
+									title="切换聊天模式"
+								>
+									<button
+										type="button"
+										class="w-11 whitespace-nowrap py-1 transition {agentMode
+											? 'text-gray-500 dark:text-gray-400'
+											: 'bg-pink-500 text-white'}"
+										on:click={() => (agentMode = false)}
+									>
+										聊天
+									</button>
+									<button
+										type="button"
+										class="w-12 whitespace-nowrap py-1 transition {agentMode
+											? 'bg-pink-500 text-white'
+											: 'text-gray-500 dark:text-gray-400'}"
+										on:click={() => (agentMode = true)}
+									>
+										Agent
+									</button>
+								</div>
+								<KnowledgeBaseSelector bind:selectedKbId={kbId} />
+								<ModelSelector bind:selectedModels compact={true} />
+							{/if}
 							<!-- 语音输入按钮 -->
 							<button
 								type="button"

@@ -2,6 +2,11 @@ import toast from "svelte-french-toast";
 import type { Writable } from "svelte/store";
 import { datetimeNow } from "$lib/utils";
 import { buildSystemPrompt, compressContext } from "$lib/chat/prompts";
+import {
+	fetchRealtimeTimeContext,
+	formatRealtimeTimeContext,
+	isCurrentTimeQuery
+} from "$lib/chat/time";
 import { getToken } from "$lib/client/http";
 import type { ChatHistory, ChatMessage, ChatSettings } from "$lib/types/chat";
 import {
@@ -71,6 +76,19 @@ interface ChatContext {
 	kbId?: string;
 	getKbId?: () => string;
 	abortRefs?: AbortController[];
+}
+
+function buildSavedChatOptions(settings: ChatSettings, kbId: string | undefined) {
+	const { kbId: _savedKbId, chatMode: _savedChatMode, ...modelOptions } =
+		(settings.options as Record<string, unknown> | undefined) ?? {};
+	return {
+		temperature: settings.temperature ?? undefined,
+		top_p: settings.top_p ?? undefined,
+		max_tokens: settings.max_tokens ?? undefined,
+		kbId: kbId || undefined,
+		chatMode: "chat",
+		...modelOptions
+	};
 }
 
 function getAuthHeaders() {
@@ -194,26 +212,31 @@ export async function sendPromptOpenAI(
 	titleGuard: { generated: boolean } = { generated: false },
 	getMessages: () => ChatMessage[] = () => ctx.messages,
 	getAutoScroll: () => boolean = () => ctx.autoScroll,
-	getTitle: () => string = () => ctx.title
+	getTitle: () => string = () => ctx.title,
+	preparedResponseId?: string
 ) {
 	const { settings, db, history, selectedModels, notifyUpdate } = ctx;
 	const uuid = await import("uuid");
 	const { tick } = await import("svelte");
 
-	const responseMessageId = uuid.v4();
-	const responseMessage: any = {
-		parentId,
-		id: responseMessageId,
-		childrenIds: [],
-		role: "assistant",
-		content: "",
-		model: `${provider.name}/${model}`,
-		timestamp: datetimeNow()
-	};
+	const responseMessageId = preparedResponseId || uuid.v4();
+	const responseMessage: any =
+		preparedResponseId && history.messages[preparedResponseId]
+			? history.messages[preparedResponseId]
+			: {
+					parentId,
+					id: responseMessageId,
+					childrenIds: [],
+					role: "assistant",
+					content: "",
+					model: `${provider.name}/${model}`,
+					timestamp: datetimeNow()
+			  };
 
+	responseMessage.model = `${provider.name}/${model}`;
 	history.messages[responseMessageId] = responseMessage;
 	history.currentId = responseMessageId;
-	if (parentId !== null) {
+	if (!preparedResponseId && parentId !== null) {
 		history.messages[parentId].childrenIds = [
 			...history.messages[parentId].childrenIds,
 			responseMessageId
@@ -223,31 +246,52 @@ export async function sendPromptOpenAI(
 	await tick();
 	window.scrollTo({ top: document.body.scrollHeight });
 
+	let effectiveUserPrompt = userPrompt;
+	const isLocalProvider = provider.id === LOCAL_OPENAI_PROVIDER_ID;
+	const hasKnowledgeBaseContext = userPrompt.includes("以下是从知识库中检索到");
+	if (!isLocalProvider && !hasKnowledgeBaseContext && isCurrentTimeQuery(userPrompt)) {
+		try {
+			const timeContext = await fetchRealtimeTimeContext();
+			effectiveUserPrompt = `${userPrompt}\n\n${formatRealtimeTimeContext(timeContext)}\n\n请优先基于上述实时联网时间查询结果回答，不要使用模型内置知识猜测当前时间。`;
+		} catch (error: any) {
+			effectiveUserPrompt = `${userPrompt}\n\n[实时联网时间查询失败：${
+				error?.message || "未知错误"
+			}] 请明确说明当前无法可靠获取实时联网时间。`;
+		}
+	}
+
 	const supportsImages = isVisionModel(model);
-	let apiMessages: OpenAIMessage[] = getMessages().map((msg: any) => {
-		const contentText = msg.id === parentId && msg.role === "user" ? userPrompt : msg.content;
-		if (msg.images?.length) {
-			if (supportsImages) {
+	let apiMessages: OpenAIMessage[] = getMessages()
+		.filter((msg: any) => msg.id !== responseMessageId)
+		.map((msg: any) => {
+			const contentText =
+				msg.id === parentId && msg.role === "user" ? effectiveUserPrompt : msg.content;
+			if (msg.images?.length) {
+				if (supportsImages) {
+					return {
+						role: msg.role,
+						content: [
+							{ type: "text", text: contentText },
+							...msg.images.map((img: string) => ({
+								type: "image_url" as const,
+								image_url: { url: img.includes(",") ? img : `data:image/jpeg;base64,${img}` }
+							}))
+						]
+					};
+				}
 				return {
 					role: msg.role,
-					content: [
-						{ type: "text", text: contentText },
-						...msg.images.map((img: string) => ({
-							type: "image_url" as const,
-							image_url: { url: img.includes(",") ? img : `data:image/jpeg;base64,${img}` }
-						}))
-					]
+					content: `${contentText}\n\n[用户上传了 ${msg.images.length} 张图片，但当前第三方模型可能不支持视觉输入。]`
 				};
 			}
-			return {
-				role: msg.role,
-				content: `${contentText}\n\n[用户上传了 ${msg.images.length} 张图片，但当前第三方模型可能不支持视觉输入。]`
-			};
-		}
-		return { role: msg.role, content: contentText };
-	});
+			return { role: msg.role, content: contentText };
+		});
 
-	const systemPrompt = buildSystemPrompt(settings.systemPrompt, settings.emotionSensing);
+	const systemPrompt = buildSystemPrompt(
+		settings.systemPrompt,
+		settings.emotionSensing,
+		isLocalProvider
+	);
 	const { messages: compressed, truncated } = compressContext(
 		apiMessages,
 		systemPrompt.length,
@@ -282,7 +326,6 @@ export async function sendPromptOpenAI(
 			seed: settings.seed ?? undefined,
 			stop: settings.stop || undefined
 		};
-		const isLocalProvider = provider.id === LOCAL_OPENAI_PROVIDER_ID;
 		const res = await fetch(
 			isLocalProvider ? "/api/local-openai/chat" : "/api/openai-compatible/chat",
 			{
@@ -380,12 +423,7 @@ export async function sendPromptOpenAI(
 		await db.updateChatById(_chatId, {
 			title: getTitle() || "New Chat",
 			models: selectedModels,
-			options: {
-				temperature: curSettings.temperature ?? undefined,
-				top_p: curSettings.top_p ?? undefined,
-				max_tokens: curSettings.max_tokens ?? undefined,
-				...(curSettings.options ?? {})
-			},
+			options: buildSavedChatOptions(curSettings, ctx.getKbId ? ctx.getKbId() : ctx.kbId),
 			messages: getMessages(),
 			history
 		});

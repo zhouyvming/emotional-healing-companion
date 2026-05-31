@@ -7,6 +7,22 @@ export interface UploadedFile {
 	parseError?: string;
 }
 
+export interface AgentTraceStep {
+	id: string;
+	type: "plan" | "tool" | "observation" | "final";
+	status: "pending" | "running" | "done" | "error";
+	title: string;
+	summary?: string;
+	toolName?:
+		| "current_time"
+		| "web_search"
+		| "fetch_url"
+		| "query_knowledge_base"
+		| "uploaded_file_context";
+	sources?: { title: string; url?: string; filename?: string }[];
+	createdAt: string;
+}
+
 export interface ChatMessage {
 	id: string;
 	parentId: string | null;
@@ -21,6 +37,7 @@ export interface ChatMessage {
 	error?: boolean;
 	context?: unknown;
 	info?: Record<string, unknown>;
+	agentTrace?: AgentTraceStep[];
 }
 
 export interface ChatHistory {

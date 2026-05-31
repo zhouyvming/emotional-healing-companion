@@ -89,6 +89,48 @@ Providers stored in `localStorage.apiProviders` (also synced to MySQL `api_provi
 - Full architecture docs: `CLAUDE.md`
 - Implementation plan: `.claude/plans/`
 
+## Recent changes (2026-05-31, Agent branch)
+
+**Agent mode v1**: Chat now supports a per-session `chat` / `agent` mode. Agent sessions use
+`src/lib/agent/` with a JSON action protocol (`tool_call` / `final_answer`), a bounded tool loop,
+trace steps on `ChatMessage.agentTrace`, and a collapsible timeline in `Messages.svelte`.
+Agent v1 is read-only: no command execution, filesystem writes, Git operations, browser automation,
+or long-running background jobs.
+
+**Agent tools**: Available read-only tools are `current_time`, `web_search`, `fetch_url`,
+`query_knowledge_base`, and `uploaded_file_context`. Tool outputs are compacted before final
+summarization and sources are preserved as URLs, filenames, or knowledge-base snippet labels.
+
+**Realtime information policy**: Time-sensitive prompts trigger live tools before answering.
+Third-party API models use `/api/current-time` for realtime network time instead of relying on local
+system time or model priors. Agent mode queries a selected knowledge base first, then still performs
+live web/time lookup for realtime/latest/current-date questions.
+
+**Web search**: `/api/web-search` now performs live public search with `day` / `week` / `month`
+freshness, combines recent search/news sources, filters public URLs, records `searchedAt`, and
+returns source/published metadata where available. Weibo hot-search queries get a dedicated
+structured extraction path via real hot-list pages; `fetch-url` also preserves JSON-LD item lists so
+Agent can summarize actual ranked entries instead of bare links.
+
+**Chat persistence and session locks**: Existing chats keep their originally selected model,
+knowledge base, and chat/Agent mode. Once a chat has started, the input area no longer shows model,
+knowledge-base, or mode selectors. Refreshing an Agent session preserves Agent mode from saved chat
+options/history.
+
+**UX fixes**: Assistant placeholders are now created immediately in normal chat before slow
+knowledge-base/web-search preparation so the avatar and typing dots appear right away. Chat route
+switching now reloads by route id with a race guard, fixing URL changes that did not update content.
+The knowledge-base label shown beside `Agent` in message actions is read-only text, not a disabled
+dropdown.
+
+**Settings**: The Advanced tab was removed. Context length (`num_ctx`, default `200000`) moved to
+Preferences. Hidden sampling parameters (`temperature`, `top_p`, `top_k`, `repeat_penalty`,
+`mirostat`, etc.) are written back to code defaults on save instead of being user-adjustable.
+
+**Verification status**: The latest Agent-branch checks passed with `npm.cmd run typecheck`,
+`npm.cmd run test`, `npm.cmd run build`, and `git diff --check`. The expected warning remains the
+default JWT secret warning when `JWT_SECRET` is unset.
+
 ## Recent changes (2026-05-30)
 
 **Current verification status**: the latest full code verification with `npm run verify` passes. The only expected build warning is the default JWT secret warning when `JWT_SECRET` is unset.

@@ -101,6 +101,7 @@
 	export let uploadingFiles: UploadingFile[] = [];
 	export let history: any = {};
 	export let messages: any[] = [];
+	export let agentMode = false;
 	export let onBranchNavigate: () => Promise<void> = async () => {};
 	export let editMessage: Function = async () => {};
 	export let deleteMessage: Function = async () => {};
@@ -529,6 +530,29 @@
 						</button>
 					</div>
 					<div class="flex items-center gap-1">
+						<div
+							class="flex flex-shrink-0 items-center rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs"
+							title="切换聊天模式"
+						>
+							<button
+								type="button"
+								class="w-11 whitespace-nowrap py-1 transition {agentMode
+									? 'text-gray-500 dark:text-gray-400'
+									: 'bg-pink-500 text-white'}"
+								on:click={() => (agentMode = false)}
+							>
+								聊天
+							</button>
+							<button
+								type="button"
+								class="w-12 whitespace-nowrap py-1 transition {agentMode
+									? 'bg-pink-500 text-white'
+									: 'text-gray-500 dark:text-gray-400'}"
+								on:click={() => (agentMode = true)}
+							>
+								Agent
+							</button>
+						</div>
 						<KnowledgeBaseSelector bind:selectedKbId={kbId} />
 						<ModelSelector bind:selectedModels compact={true} />
 						<button
@@ -716,6 +740,53 @@
 							<div
 								class="bg-gray-200 dark:bg-gray-700 rounded-lg py-2 px-4 max-w-[80%] break-words [&_p]:m-0 chat-assistant"
 							>
+								{#if message.agentTrace?.length}
+									<details
+										class="mb-3 rounded-lg border border-gray-300/70 dark:border-gray-600 bg-white/50 dark:bg-gray-800/50 px-3 py-2 text-xs"
+									>
+										<summary class="cursor-pointer select-none text-gray-600 dark:text-gray-300">
+											Agent 步骤 · {message.agentTrace.length}
+										</summary>
+										<div class="mt-2 space-y-2">
+											{#each message.agentTrace as step}
+												<div class="border-l-2 border-pink-300 dark:border-pink-700 pl-2">
+													<div class="flex items-center gap-2 flex-wrap">
+														<span
+															class="font-medium {step.status === 'error'
+																? 'text-red-500'
+																: step.status === 'running'
+																? 'text-pink-500'
+																: 'text-gray-700 dark:text-gray-200'}"
+														>
+															{step.title}
+														</span>
+														<span class="text-[10px] text-gray-400">{step.status}</span>
+													</div>
+													{#if step.summary}
+														<p class="mt-0.5 text-gray-500 dark:text-gray-400">{step.summary}</p>
+													{/if}
+													{#if step.sources?.length}
+														<div class="mt-1 flex flex-wrap gap-1">
+															{#each step.sources as source}
+																{#if source.url}
+																	<a
+																		class="text-pink-500 hover:underline"
+																		href={source.url}
+																		target="_blank"
+																		rel="noreferrer"
+																		>{source.title}</a
+																	>
+																{:else}
+																	<span class="text-gray-500 dark:text-gray-400">{source.title}</span>
+																{/if}
+															{/each}
+														</div>
+													{/if}
+												</div>
+											{/each}
+										</div>
+									</details>
+								{/if}
 								{#if message.error}
 									<div class="text-red-500 dark:text-red-400 text-sm">
 										{@html sanitizeHtml(marked(message.content))}
@@ -750,6 +821,9 @@
 								<span class="text-xs text-gray-500 dark:text-gray-400"
 									>{message.model || selectedModels?.[0] || "未知"}</span
 								>
+								{#if kbId && (message.agentTrace?.length || message.model?.includes("· Agent"))}
+									<KnowledgeBaseSelector selectedKbId={kbId} disabled={true} />
+								{/if}
 								<button
 									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
 									on:click={() => handleCopy(message.content)}

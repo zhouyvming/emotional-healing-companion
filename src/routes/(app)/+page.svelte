@@ -8,10 +8,9 @@
 
 	import MessageInput from "$lib/components/chat/MessageInput.svelte";
 	import Messages from "$lib/components/chat/Messages.svelte";
-	import ModelSelector from "$lib/components/chat/ModelSelector.svelte";
-	import KnowledgeBaseSelector from "$lib/components/chat/KnowledgeBaseSelector.svelte";
 	import Navbar from "$lib/components/layout/Navbar.svelte";
 	import { page } from "$app/stores";
+	import { browser } from "$app/environment";
 
 	const stopRef = { value: false };
 	const abortRef = { value: null as AbortController | null };
@@ -19,6 +18,7 @@
 	let autoScroll = true;
 
 	let selectedModels = [""];
+	let agentMode = browser && localStorage.getItem("chatMode") === "agent";
 	let kbId = "";
 	let title = "";
 	let prompt = "";
@@ -30,6 +30,10 @@
 		currentId: null
 	};
 	let updateCounter = 0;
+
+	$: if (browser) {
+		localStorage.setItem("chatMode", agentMode ? "agent" : "chat");
+	}
 
 	$: updateCounter,
 		(() => {
@@ -78,7 +82,8 @@
 	}
 
 	const handlers = createChatHandlers(getCtx);
-	const { submitPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } = handlers;
+	const { submitPrompt, submitAgentPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } =
+		handlers;
 
 	const onTitleSet = (t: string) => {
 		title = t;
@@ -86,7 +91,11 @@
 
 	const wrappedSubmit = async (userPrompt: string) => {
 		prompt = "";
-		await submitPrompt(userPrompt, onTitleSet, true);
+		if (agentMode) {
+			await submitAgentPrompt(userPrompt, onTitleSet, true);
+		} else {
+			await submitPrompt(userPrompt, onTitleSet, true);
+		}
 		uploadingFiles = [];
 		// 确保侧边栏拿到最新的聊天列表（含生成后的标题）
 		if ($db && !$settings.privacyMode) {
@@ -163,6 +172,7 @@
 				bind:prompt
 				bind:uploadingFiles
 				bind:kbId
+				bind:agentMode
 				submitPrompt={wrappedSubmit}
 				regenerateResponse={wrappedRegenerate}
 				editMessage={wrappedEdit}
@@ -184,6 +194,7 @@
 					bind:selectedModels
 					bind:uploadingFiles
 					bind:kbId
+					bind:agentMode
 					submitPrompt={wrappedSubmit}
 					{stopResponse}
 				/>

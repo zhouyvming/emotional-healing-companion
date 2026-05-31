@@ -18,6 +18,8 @@ import {
 	sendPromptOpenAI
 } from "$lib/chat/openai";
 import { buildSystemPrompt, compressContext } from "$lib/chat/prompts";
+import { runAgent } from "$lib/agent/runner";
+import type { AgentTraceStep } from "$lib/agent/types";
 
 interface Message {
 	id: string;
@@ -33,6 +35,7 @@ interface Message {
 	error?: boolean;
 	context?: any;
 	info?: Record<string, any>;
+	agentTrace?: AgentTraceStep[];
 }
 
 interface UploadedFile {
@@ -82,6 +85,7 @@ async function buildWebSearchContext(userPrompt: string, settings: Record<string
 			headers,
 			body: JSON.stringify({
 				query: userPrompt,
+				freshness: "day",
 				engine: settings.searchEngine ?? "cn.bing.com",
 				customUrl: settings.customSearchUrl ?? ""
 			})
@@ -95,12 +99,19 @@ async function buildWebSearchContext(userPrompt: string, settings: Record<string
 		const results = Array.isArray(data.results) ? data.results.slice(0, 5) : [];
 		if (results.length === 0) return "";
 
-		return results
+		const searchedAt = data.searchedAt ? `搜索时间：${data.searchedAt}\n` : "";
+		const engine = data.engine ? `搜索来源：${data.engine}\n` : "";
+		return (
+			`${searchedAt}${engine}` +
+			results
 			.map(
 				(result: any, index: number) =>
-					`${index + 1}. ${result.title}\n摘要：${result.snippet}\n链接：${result.url}`
+					`${index + 1}. ${result.title}\n来源：${result.source || ""}\n发布时间：${
+						result.publishedAt || "未标注"
+					}\n摘要：${result.snippet}\n链接：${result.url}`
 			)
-			.join("\n\n");
+			.join("\n\n")
+		);
 	} catch (err) {
 		console.error("[联网搜索] 检索失败:", err);
 		return "";
@@ -141,6 +152,25 @@ async function buildKnowledgeBaseContext(kbId: string, userPrompt: string) {
 		console.error("[知识库] 检索失败:", err);
 		return "";
 	}
+}
+
+function buildSavedChatOptions(
+	settings: Record<string, any>,
+	kbId: string | undefined,
+	chatMode: "chat" | "agent"
+) {
+	const { kbId: _savedKbId, chatMode: _savedChatMode, ...modelOptions } = settings.options ?? {};
+	return {
+		seed: settings.seed ?? undefined,
+		temperature: settings.temperature ?? undefined,
+		repeat_penalty: settings.repeat_penalty ?? undefined,
+		top_k: settings.top_k ?? undefined,
+		top_p: settings.top_p ?? undefined,
+		num_ctx: settings.num_ctx ?? undefined,
+		kbId: kbId || undefined,
+		chatMode,
+		...modelOptions
+	};
 }
 
 interface ChatContext {
@@ -296,7 +326,8 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		parentId: string | null,
 		_chatId: string,
 		onTitleSet: (t: string) => void,
-		titleGuard: { generated: boolean } = { generated: false }
+		titleGuard: { generated: boolean } = { generated: false },
+		preparedResponseId?: string
 	) => {
 		const ctx = c();
 		const {
@@ -315,20 +346,24 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		if (!ctx.abortRefs) ctx.abortRefs = [];
 		const abortIndex = ctx.abortRefs.length;
 		ctx.abortRefs.push(abortController);
-		let responseMessageId = uuidv4();
-		let responseMessage: Message = {
-			parentId,
-			id: responseMessageId,
-			childrenIds: [],
-			role: "assistant",
-			content: "",
-			model,
-			timestamp: datetimeNow()
-		};
+		let responseMessageId = preparedResponseId || uuidv4();
+		let responseMessage: Message =
+			preparedResponseId && history.messages[preparedResponseId]
+				? history.messages[preparedResponseId]
+				: {
+						parentId,
+						id: responseMessageId,
+						childrenIds: [],
+						role: "assistant",
+						content: "",
+						model,
+						timestamp: datetimeNow()
+				  };
 
+		responseMessage.model = model;
 		history.messages[responseMessageId] = responseMessage;
 		history.currentId = responseMessageId;
-		if (parentId !== null) {
+		if (!preparedResponseId && parentId !== null) {
 			history.messages[parentId].childrenIds = [
 				...history.messages[parentId].childrenIds,
 				responseMessageId
@@ -342,17 +377,19 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		}
 
 		// 构建消息列表（含图片，剥离 data:...;base64, 前缀）
-		let apiMessages = messages.map((message) => ({
-			role: message.role,
-			content: message.id === parentId && message.role === "user" ? userPrompt : message.content,
-			...(message.images?.length
-				? {
-						images: message.images.map((img: string) =>
-							img.includes(",") ? img.split(",")[1] : img
-						)
-				  }
-				: {})
-		}));
+		let apiMessages = messages
+			.filter((message) => message.id !== responseMessageId)
+			.map((message) => ({
+				role: message.role,
+				content: message.id === parentId && message.role === "user" ? userPrompt : message.content,
+				...(message.images?.length
+					? {
+							images: message.images.map((img: string) =>
+								img.includes(",") ? img.split(",")[1] : img
+							)
+					  }
+					: {})
+			}));
 
 		const systemPrompt = buildSystemPrompt(settings.systemPrompt, settings.emotionSensing);
 		const { messages: compressed, truncated } = compressContext(
@@ -498,21 +535,18 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		}
 
 		// 隐私模式跳过保存
-		const curSettings = c().settings;
+		const saveCtx = c();
+		const curSettings = saveCtx.settings;
 		if (!curSettings.privacyMode) {
 			await db.updateChatById(_chatId, {
-				title: c().title || "New Chat",
+				title: saveCtx.title || "New Chat",
 				models: selectedModels,
-				options: {
-					seed: curSettings.seed ?? undefined,
-					temperature: curSettings.temperature ?? undefined,
-					repeat_penalty: curSettings.repeat_penalty ?? undefined,
-					top_k: curSettings.top_k ?? undefined,
-					top_p: curSettings.top_p ?? undefined,
-					num_ctx: curSettings.num_ctx ?? undefined,
-					...(curSettings.options ?? {})
-				},
-				messages: c().messages,
+				options: buildSavedChatOptions(
+					curSettings,
+					saveCtx.getKbId ? saveCtx.getKbId() : saveCtx.kbId,
+					"chat"
+				),
+				messages: saveCtx.messages,
 				history
 			});
 		}
@@ -532,12 +566,14 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		userPrompt: string,
 		parentId: string | null,
 		_chatId: string,
-		onTitleSet: (t: string) => void
+		onTitleSet: (t: string) => void,
+		preparedResponseIds: string[] = []
 	) => {
 		const ctx = c();
 		const { selectedModels, chats, db } = ctx;
 		const titleGuard = { generated: false };
-		for (const model of selectedModels) {
+		for (const [index, model] of selectedModels.entries()) {
+			const preparedResponseId = preparedResponseIds[index];
 			if (isLocalOpenAIModel(model)) {
 				await sendPromptOpenAI(
 					getLocalOpenAIProvider(ctx.settings),
@@ -550,7 +586,8 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					titleGuard,
 					() => c().messages,
 					() => c().autoScroll,
-					() => c().title
+					() => c().title,
+					preparedResponseId
 				);
 				continue;
 			}
@@ -568,13 +605,185 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					titleGuard,
 					() => c().messages,
 					() => c().autoScroll,
-					() => c().title
+					() => c().title,
+					preparedResponseId
 				);
 			} else {
-				await sendPromptOllama(model, userPrompt, parentId, _chatId, onTitleSet, titleGuard);
+				await sendPromptOllama(
+					model,
+					userPrompt,
+					parentId,
+					_chatId,
+					onTitleSet,
+					titleGuard,
+					preparedResponseId
+				);
 			}
 		}
 		if (!c().settings.privacyMode) {
+			await chats.set(await db.getChats());
+		}
+	};
+
+	const submitAgentPrompt = async (
+		userPrompt: string,
+		onTitleSet: (t: string) => void,
+		isNewChat: boolean
+	) => {
+		const ctx = c();
+		const { selectedModels, messages, history, chatId, settings, db, chats, uploadingFiles } = ctx;
+		const model = selectedModels[0];
+
+		if (!model) {
+			toast.error("未选择模型");
+			return;
+		}
+		if (messages.length !== 0 && !messages.at(-1)?.done) {
+			return;
+		}
+
+		document.getElementById("chat-textarea")?.style.setProperty("height", "");
+
+		const userMessageId = uuidv4();
+		const userMessage: Message = {
+			id: userMessageId,
+			parentId: messages.length !== 0 ? messages.at(-1)!.id : null,
+			childrenIds: [],
+			role: "user",
+			content: userPrompt,
+			timestamp: datetimeNow()
+		};
+
+		if (uploadingFiles && uploadingFiles.length > 0) {
+			userMessage.images = uploadingFiles
+				.filter((f) => f.type.startsWith("image/"))
+				.map((f) => f.data);
+			const docs = uploadingFiles.filter((f) => !f.type.startsWith("image/"));
+			userMessage.files = docs.map((f) => ({
+				name: f.name,
+				type: f.type,
+				data: f.data,
+				parseStatus: f.parseStatus,
+				parseError: f.parseError
+			}));
+		}
+
+		if (messages.length !== 0) {
+			history.messages[messages.at(-1)!.id].childrenIds.push(userMessageId);
+		}
+		history.messages[userMessageId] = userMessage;
+		history.currentId = userMessageId;
+		ctx.notifyUpdate();
+
+		await tick();
+		if (isNewChat && c().messages.length === 1) {
+			if (!settings.privacyMode) {
+				await db.createNewChat({
+					id: chatId,
+					title: "New Chat",
+					models: selectedModels,
+					options: buildSavedChatOptions(settings, ctx.getKbId ? ctx.getKbId() : ctx.kbId, "agent"),
+					messages: c().messages,
+					history
+				});
+			}
+			window.history.replaceState(window.history.state, "", `/chat/${chatId}`);
+			if (!settings.privacyMode) {
+				await chats.set(await db.getChats());
+			}
+		}
+
+		const responseMessageId = uuidv4();
+		const responseMessage: Message = {
+			parentId: userMessageId,
+			id: responseMessageId,
+			childrenIds: [],
+			role: "assistant",
+			content: "",
+			model: `${model} · Agent`,
+			timestamp: datetimeNow(),
+			agentTrace: []
+		};
+		history.messages[responseMessageId] = responseMessage;
+		history.messages[userMessageId].childrenIds = [
+			...history.messages[userMessageId].childrenIds,
+			responseMessageId
+		];
+		history.currentId = responseMessageId;
+		ctx.notifyUpdate();
+
+		const controller = new AbortController();
+		if (!ctx.abortRefs) ctx.abortRefs = [];
+		const abortIndex = ctx.abortRefs.length;
+		ctx.abortRefs.push(controller);
+
+		const contextMessages = c()
+			.messages.filter((message) => message.id !== responseMessageId)
+			.map((message) => ({
+				role: message.role,
+				content: message.content
+			}));
+
+		try {
+			const result = await runAgent({
+				model,
+				userPrompt,
+				settings,
+				messages: contextMessages,
+				kbId: ctx.getKbId ? ctx.getKbId() : ctx.kbId,
+				uploadedFiles: uploadingFiles,
+				signal: controller.signal,
+				shouldStop: () => c().stopRef.value || chatId !== c().chatId,
+				onTraceUpdate: (steps) => {
+					responseMessage.agentTrace = steps;
+					c().notifyUpdate();
+				}
+			});
+
+			responseMessage.content =
+				result.answer?.trim() ||
+				"已完成信息整理，但模型没有返回有效正文。请调整问题后再试。";
+			responseMessage.agentTrace = result.trace;
+			responseMessage.done = true;
+			c().notifyUpdate();
+		} catch (error: any) {
+			responseMessage.error = true;
+			responseMessage.done = true;
+			responseMessage.content =
+				error?.name === "AbortError" ? "Agent 已停止。" : error.message || "Agent 执行失败";
+			c().notifyUpdate();
+		} finally {
+			c().stopRef.value = false;
+			c().abortRefs?.splice(abortIndex, 1);
+		}
+
+		await tick();
+		if (c().autoScroll) {
+			window.scrollTo({ top: document.body.scrollHeight });
+		}
+
+		const saveCtx = c();
+		const curSettings = saveCtx.settings;
+		if (!curSettings.privacyMode) {
+			await db.updateChatById(chatId, {
+				title: saveCtx.title || "New Chat",
+				models: selectedModels,
+				options: buildSavedChatOptions(
+					curSettings,
+					saveCtx.getKbId ? saveCtx.getKbId() : saveCtx.kbId,
+					"agent"
+				),
+				messages: saveCtx.messages,
+				history
+			});
+		}
+
+		const latestMessages = c().messages;
+		const needTitle = latestMessages.length === 2 || !c().title || c().title === "New Chat";
+		if (needTitle && latestMessages.at(1)?.content !== "" && !curSettings.privacyMode) {
+			await generateChatTitle(chatId, userPrompt, onTitleSet);
+		}
+		if (!curSettings.privacyMode) {
 			await chats.set(await db.getChats());
 		}
 	};
@@ -661,15 +870,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 					id: _chatId,
 					title: "New Chat",
 					models: selectedModels,
-					options: {
-						seed: settings.seed ?? undefined,
-						temperature: settings.temperature ?? undefined,
-						repeat_penalty: settings.repeat_penalty ?? undefined,
-						top_k: settings.top_k ?? undefined,
-						top_p: settings.top_p ?? undefined,
-						num_ctx: settings.num_ctx ?? undefined,
-						...(settings.options ?? {})
-					},
+					options: buildSavedChatOptions(settings, ctx.getKbId ? ctx.getKbId() : ctx.kbId, "chat"),
 					messages: c().messages,
 					history
 				});
@@ -680,22 +881,53 @@ export function createChatHandlers(ctx: () => ChatContext) {
 			}
 		}
 
+		const firstModel = selectedModels[0];
+		const preparedResponseIds: string[] = [];
+		if (firstModel) {
+			const provider = findProvider(firstModel);
+			const localProvider = isLocalOpenAIModel(firstModel) ? getLocalOpenAIProvider(settings) : null;
+			const displayModel = localProvider
+				? `${localProvider.name}/${getLocalOpenAIModelId(firstModel)}`
+				: provider
+				? `${provider.name}/${firstModel.split("/").slice(1).join("/") || firstModel}`
+				: firstModel;
+			const responseMessageId = uuidv4();
+			const responseMessage: Message = {
+				id: responseMessageId,
+				parentId: userMessageId,
+				childrenIds: [],
+				role: "assistant",
+				content: "",
+				model: displayModel,
+				timestamp: datetimeNow()
+			};
+			history.messages[responseMessageId] = responseMessage;
+			history.messages[userMessageId].childrenIds = [
+				...history.messages[userMessageId].childrenIds,
+				responseMessageId
+			];
+			history.currentId = responseMessageId;
+			preparedResponseIds[0] = responseMessageId;
+			ctx.notifyUpdate();
+			await tick();
+		}
+
 		setTimeout(() => {
 			window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 		}, 50);
-
-		const webSearchContext = await buildWebSearchContext(userPrompt, settings);
-		if (webSearchContext) {
-			finalPrompt = `${finalPrompt}\n\n[联网搜索结果，仅供回答时参考，不代表本地对话历史]\n${webSearchContext}`;
-		}
 
 		const kbId = ctx.getKbId ? ctx.getKbId() : ctx.kbId;
 		const kbContext = await buildKnowledgeBaseContext(kbId || "", userPrompt);
 		if (kbContext) {
 			finalPrompt = `${finalPrompt}\n\n以下是从知识库中检索到的与用户问题相关的参考信息。请优先基于这些信息回答，如果参考信息不足以回答问题，请如实说明。\n${kbContext}`;
+		} else {
+			const webSearchContext = await buildWebSearchContext(userPrompt, settings);
+			if (webSearchContext) {
+				finalPrompt = `${finalPrompt}\n\n[联网搜索结果，仅供回答时参考，不代表本地对话历史]\n${webSearchContext}`;
+			}
 		}
 
-		await sendPrompt(finalPrompt, userMessageId, chatId, onTitleSet);
+		await sendPrompt(finalPrompt, userMessageId, chatId, onTitleSet, preparedResponseIds);
 	};
 
 	const stopResponse = () => {
@@ -785,6 +1017,7 @@ export function createChatHandlers(ctx: () => ChatContext) {
 		sendPromptOllama,
 		sendPrompt,
 		submitPrompt,
+		submitAgentPrompt,
 		generateChatTitle,
 		setChatTitle,
 		stopResponse,

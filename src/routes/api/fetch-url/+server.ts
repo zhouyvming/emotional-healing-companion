@@ -2,6 +2,43 @@ import { json } from "@sveltejs/kit";
 import { requireAuth, AuthError } from "$lib/server/auth";
 import { isPrivateUrl } from "$lib/utils";
 
+function decodeHtml(value: string) {
+	return value
+		.replace(/&quot;/g, '"')
+		.replace(/&amp;/g, "&")
+		.replace(/&#x27;/g, "'")
+		.replace(/&#39;/g, "'")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">");
+}
+
+function extractJsonLdItemList(html: string) {
+	const blocks = [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+	for (const block of blocks) {
+		try {
+			const parsed = JSON.parse(decodeHtml(block[1]).trim());
+			const candidates = Array.isArray(parsed) ? parsed : [parsed, parsed.mainEntity].filter(Boolean);
+			for (const candidate of candidates) {
+				const items = candidate?.itemListElement;
+				if (!Array.isArray(items) || items.length === 0) continue;
+				const lines = items
+					.slice(0, 50)
+					.map((item: any, index: number) => {
+						const position = item.position || index + 1;
+						const name = item.name || item.item?.name;
+						const url = item.url || item.item?.url;
+						return name ? `${position}. ${name}${url ? ` - ${url}` : ""}` : "";
+					})
+					.filter(Boolean);
+				if (lines.length > 0) return `结构化榜单条目：\n${lines.join("\n")}`;
+			}
+		} catch {
+			// ignore invalid JSON-LD blocks
+		}
+	}
+	return "";
+}
+
 export async function POST({ request }: { request: Request }) {
 	try {
 		requireAuth(request);
@@ -39,6 +76,7 @@ export async function POST({ request }: { request: Request }) {
 
 		const text = await res.text();
 		const html = text.slice(0, 1_000_000);
+		const itemListText = extractJsonLdItemList(html);
 		// 简单提取文本
 		const trimmedText = html
 			.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
@@ -48,7 +86,7 @@ export async function POST({ request }: { request: Request }) {
 			.trim()
 			.slice(0, 8000);
 
-		return json({ content: trimmedText });
+		return json({ content: [itemListText, trimmedText].filter(Boolean).join("\n\n").slice(0, 8000) });
 	} catch (error) {
 		if (error instanceof AuthError) {
 			return json({ error: error.message }, { status: 401 });

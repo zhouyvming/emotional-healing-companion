@@ -1,3 +1,5 @@
+import { datetimeNow } from "$lib/utils";
+
 export const EMOTION_GUIDANCE = `[内部情绪分析指引]
 请根据用户的最新消息感知其情绪状态（如开心、焦虑、悲伤、愤怒、平静等），并在回复中以温暖共情的方式适当回应。
 不要直白地说"我感知到你很XX"，而是自然地用匹配用户情绪的语调来回应。
@@ -7,18 +9,24 @@ export const MARKDOWN_INSTRUCTION = "请使用Markdown格式回复，适当使�
 
 export const DEFAULT_SYSTEM_PROMPT = "你是一个温暖共情的AI助手。";
 
+export const buildCurrentTimeInstruction = () =>
+	`当前本地时间：${datetimeNow()}。如果用户询问当前时间、今天、日期或相对日期，请优先使用这个时间回答，不要声称无法获取当前时间。`;
+
 /**
  * 构建系统提示词（合并用户自定义 + 情绪感知 + Markdown 指令）
  */
 export function buildSystemPrompt(
 	userSystemPrompt?: string,
-	emotionSensing?: boolean
+	emotionSensing?: boolean,
+	includeCurrentTimeInstruction = true
 ): string {
 	let prompt = userSystemPrompt || DEFAULT_SYSTEM_PROMPT;
 	if (emotionSensing !== false) {
 		prompt = `${prompt}\n\n${EMOTION_GUIDANCE}`;
 	}
-	return `${prompt}\n\n${MARKDOWN_INSTRUCTION}`;
+	return `${prompt}\n\n${
+		includeCurrentTimeInstruction ? `${buildCurrentTimeInstruction()}\n\n` : ""
+	}${MARKDOWN_INSTRUCTION}`;
 }
 
 /**

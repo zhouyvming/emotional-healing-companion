@@ -9,7 +9,6 @@
 	import toast from "svelte-french-toast";
 	import { onMount } from "svelte";
 	import { info, settings, models, user } from "$lib/stores";
-	import Advanced from "./Settings/Advanced.svelte";
 	import KnowledgeBaseManager from "./KnowledgeBaseManager.svelte";
 	import { getThirdPartyModels, fetchLocalOpenAIModels, fetchModels } from "$lib/chat/openai";
 	import { authFetch } from "$lib/client/http";
@@ -235,7 +234,7 @@
 
 	// Advanced
 	let requestFormat = "";
-	let options: Record<string, any> = {
+	const hiddenModelDefaults: Record<string, any> = {
 		seed: 0,
 		temperature: 0.8,
 		repeat_penalty: 1.1,
@@ -246,7 +245,9 @@
 		top_k: 40,
 		top_p: 0.9,
 		stop: "",
-		tfs_z: 1,
+		tfs_z: 1
+	};
+	let options: Record<string, any> = {
 		num_ctx: 200000
 	};
 
@@ -388,6 +389,7 @@
 			systemName,
 			ttsRate,
 			ttsVolume,
+			...hiddenModelDefaults,
 			requestFormat: requestFormat !== "" ? requestFormat : undefined
 		};
 
@@ -491,7 +493,6 @@
 		ttsVolume = stored.ttsVolume ?? 1;
 		requestFormat = stored.requestFormat ?? "";
 
-		if (stored.seed !== undefined && stored.seed !== "") options.seed = stored.seed;
 		for (const key of Object.keys(options)) {
 			if (stored[key] !== undefined && stored[key] !== "") {
 				options[key] = stored[key];
@@ -607,41 +608,6 @@
 						/>
 					</svg>
 					模型与API
-				</button>
-
-				<button
-					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab ===
-					'advanced'
-						? 'bg-gray-200 dark:bg-gray-700 font-medium'
-						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
-					on:click={() => {
-						selectedTab = "advanced";
-					}}
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-						class="w-4 h-4 mr-2"
-					>
-						<path
-							fill-rule="evenodd"
-							d="M4.606 12.97a.75.75 0 01-.134 1.051 2.494 2.494 0 00-.93 2.437 2.494 2.494 0 002.437-.93.75.75 0 111.186.918 3.995 3.995 0 01-4.482 1.492.75.75 0 01-.461-.461 3.994 3.994 0 011.492-4.482.75.75 0 01.892-.025z"
-							clip-rule="evenodd"
-						/>
-						<path
-							fill-rule="evenodd"
-							d="M4.606 7.03a.75.75 0 00-.134-1.051 2.494 2.494 0 01-.93-2.437A2.494 2.494 0 005.98 4.473a.75.75 0 101.186-.918 3.995 3.995 0 00-4.482-1.492.75.75 0 00-.461.461 3.994 3.994 0 001.492 4.482.75.75 0 00.892.025z"
-							clip-rule="evenodd"
-						/>
-						<path
-							d="M13.06 4.94a1.5 1.5 0 012.12 0l.94.94a1.5 1.5 0 010 2.12l-1 1a1.5 1.5 0 01-2.12 0l-.94-.94a1.5 1.5 0 010-2.12l1-1z"
-						/>
-						<path
-							d="M9.475 8.525a1.5 1.5 0 012.12 0l.93.93a1.5 1.5 0 010 2.12l-5.24 5.24a1.5 1.5 0 01-2.12 0l-.93-.93a1.5 1.5 0 010-2.12l5.24-5.24z"
-						/>
-					</svg>
-					高级
 				</button>
 
 				<button
@@ -964,6 +930,32 @@
 										bind:checked={responseAutoCopy}
 									/>
 								</label>
+								<div class="py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700">
+									<div class="flex items-center justify-between gap-3">
+										<div>
+											<span class="text-sm">上下文长度</span>
+											<div class="text-xs text-gray-400">
+												控制模型可参考的历史对话长度，数值越大越占用模型资源
+											</div>
+										</div>
+										<input
+											bind:value={options.num_ctx}
+											type="number"
+											class="w-24 text-center text-sm bg-transparent border border-gray-200 dark:border-gray-600 rounded-md py-1 dark:text-gray-300"
+											min="512"
+											max="200000"
+											step="512"
+										/>
+									</div>
+									<input
+										type="range"
+										min="512"
+										max="200000"
+										step="512"
+										bind:value={options.num_ctx}
+										class="mt-2 w-full h-1.5 rounded-full appearance-none cursor-pointer bg-gray-200 dark:bg-gray-600 accent-pink-500"
+									/>
+								</div>
 								<label
 									class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
 								>
@@ -1368,13 +1360,6 @@
 								<div class="text-xs text-gray-400 text-center py-4">暂无配置的 API 提供商</div>
 							{/if}
 						</div>
-					</div>
-				{/if}
-
-				{#if selectedTab === "advanced"}
-					<div class="space-y-1">
-						<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">模型参数</div>
-						<Advanced bind:options />
 					</div>
 				{/if}
 

@@ -9,9 +9,9 @@
 
 	import MessageInput from "$lib/components/chat/MessageInput.svelte";
 	import Messages from "$lib/components/chat/Messages.svelte";
-	import ModelSelector from "$lib/components/chat/ModelSelector.svelte";
 	import Navbar from "$lib/components/layout/Navbar.svelte";
 	import { page } from "$app/stores";
+	import { browser } from "$app/environment";
 
 	let loaded = false;
 	const stopRef = { value: false };
@@ -20,6 +20,7 @@
 	let autoScroll = true;
 
 	let selectedModels = [""];
+	let agentMode = browser && localStorage.getItem("chatMode") === "agent";
 	let kbId = "";
 	let title = "";
 	let prompt = "";
@@ -31,6 +32,12 @@
 		currentId: null
 	};
 	let updateCounter = 0;
+	let loadedChatId = "";
+	let loadSeq = 0;
+
+	$: if (browser) {
+		localStorage.setItem("chatMode", agentMode ? "agent" : "chat");
+	}
 
 	$: updateCounter,
 		(() => {
@@ -78,7 +85,8 @@
 	}
 
 	const handlers = createChatHandlers(getCtx);
-	const { submitPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } = handlers;
+	const { submitPrompt, submitAgentPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } =
+		handlers;
 
 	const onTitleSet = (t: string) => {
 		title = t;
@@ -86,7 +94,11 @@
 
 	const wrappedSubmit = async (userPrompt: string) => {
 		prompt = "";
-		await submitPrompt(userPrompt, onTitleSet, false);
+		if (agentMode) {
+			await submitAgentPrompt(userPrompt, onTitleSet, false);
+		} else {
+			await submitPrompt(userPrompt, onTitleSet, false);
+		}
 		uploadingFiles = [];
 		// 确保侧边栏拿到最新的聊天列表（含生成后的标题）
 		if ($db && !$settings.privacyMode) {
@@ -102,12 +114,31 @@
 		await deleteMessage(messageId);
 	};
 
-	$: if ($page.params.id && $db) {
+	function stripSessionOptions(options: Record<string, any> = {}) {
+		const { kbId: _kbId, chatMode: _chatMode, ...modelOptions } = options;
+		return modelOptions;
+	}
+
+	function inferAgentMode(chat: any, loadedHistory: any) {
+		if (chat?.options?.chatMode === "agent") return true;
+		if (chat?.options?.chatMode === "chat") return false;
+		return Object.values(loadedHistory?.messages ?? {}).some(
+			(message: any) =>
+				Array.isArray(message?.agentTrace) ||
+				(typeof message?.model === "string" && message.model.includes("· Agent"))
+		);
+	}
+
+	$: if ($page.params.id && $db && $page.params.id !== loadedChatId) {
 		(async () => {
-			if (loaded && $chatId === $page.params.id) return;
-			let chat = await loadChat();
+			const id = $page.params.id;
+			const seq = ++loadSeq;
+			loaded = false;
+			let chat = await loadChat(id, seq);
+			if (seq !== loadSeq) return;
 			await tick();
 			if (chat) {
+				loadedChatId = id;
 				loaded = true;
 			} else {
 				await goto("/");
@@ -115,9 +146,10 @@
 		})();
 	}
 
-	const loadChat = async () => {
-		await chatId.set($page.params.id);
-		const chat = await $db.getChatById($chatId);
+	const loadChat = async (id: string, seq: number) => {
+		await chatId.set(id);
+		const chat = await $db.getChatById(id);
+		if (seq !== loadSeq) return null;
 
 		if (chat) {
 			selectedModels = (chat?.models ?? undefined) !== undefined ? chat.models : [chat.model ?? ""];
@@ -126,14 +158,17 @@
 					? chat.history
 					: convertMessagesToHistory(chat.messages);
 			title = chat.title;
+			kbId = typeof chat.options?.kbId === "string" ? chat.options.kbId : "";
+			agentMode = inferAgentMode(chat, history);
 
 			let _settings = JSON.parse(localStorage.getItem("settings") ?? "{}");
 			await settings.set({
 				..._settings,
 				system: chat.system ?? _settings.system,
-				options: chat.options ?? _settings.options
+				options: stripSessionOptions(chat.options ?? _settings.options)
 			});
 			autoScroll = true;
+			updateCounter++;
 
 			await tick();
 			if (messages.length > 0) {
@@ -172,6 +207,7 @@
 					bind:prompt
 					bind:uploadingFiles
 					bind:kbId
+					bind:agentMode
 					submitPrompt={wrappedSubmit}
 					regenerateResponse={wrappedRegenerate}
 					editMessage={wrappedEdit}
@@ -193,6 +229,7 @@
 						bind:selectedModels
 						bind:uploadingFiles
 						bind:kbId
+						bind:agentMode
 						submitPrompt={wrappedSubmit}
 						{stopResponse}
 					/>

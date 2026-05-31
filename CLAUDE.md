@@ -2,6 +2,36 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Agent branch status (2026-05-31)
+
+- The app now has a session-scoped `chat` / `Agent` mode. Agent mode is implemented under
+  `src/lib/agent/` and uses an internal JSON action protocol instead of provider-native tool calls.
+  The model must return exactly one action per turn: `tool_call` or `final_answer`.
+- Agent v1 is read-only. It can call `current_time`, `web_search`, `fetch_url`,
+  `query_knowledge_base`, and `uploaded_file_context`. It cannot execute shell commands, write files,
+  use Git, automate a browser, or run background jobs.
+- `ChatMessage` supports `agentTrace?: AgentTraceStep[]`. Assistant Agent messages show a collapsible
+  trace timeline with tool status, observation summary, and source links.
+- Realtime/latest/current-time questions are tool-first. Third-party API models use the realtime
+  network time endpoint (`/api/current-time`) instead of local system time or model memory. If a
+  knowledge base is selected, Agent still queries it first, but realtime public questions continue to
+  live web/time lookup afterward.
+- `/api/web-search` now performs live search with freshness windows (`day`, `week`, `month`), public
+  URL filtering, search metadata, and recent/news source aggregation. Weibo hot-search queries have a
+  dedicated structured hot-list extraction path, and `/api/fetch-url` preserves JSON-LD item lists.
+- Started chats lock their model, knowledge base, and mode. The input area hides those selectors once
+  a conversation has messages. Refreshing an Agent conversation keeps Agent mode from saved chat
+  options/history.
+- Normal chat now creates the first assistant placeholder immediately, before slow KB/web-search
+  preparation, so the assistant avatar and typing dots appear without waiting for retrieval.
+- `/chat/[id]` reloads by route param id with a race guard, fixing sidebar clicks where the URL
+  changed but the visible conversation did not.
+- Settings no longer exposes the old Advanced sampling controls. `num_ctx` (default `200000`) moved
+  to Preferences. Hidden model sampling values are saved from code defaults.
+- Latest verification on this branch: `npm.cmd run typecheck`, `npm.cmd run test`,
+  `npm.cmd run build`, and `git diff --check` pass. The default `JWT_SECRET` warning is expected in
+  local builds.
+
 ## 常用命令
 
 ```bash
