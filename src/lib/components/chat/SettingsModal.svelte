@@ -3,7 +3,6 @@
 	import {
 		LOCAL_OPENAI_API_BASE_URL,
 		LOCAL_OPENAI_MODEL_PREFIX,
-		WEB_UI_VERSION,
 		normalizeOllamaApiBaseUrl,
 		toUserOllamaApiBaseUrl
 	} from "$lib/constants";
@@ -1351,13 +1350,6 @@
 					<div class="flex flex-col items-center py-6 space-y-4">
 						<div class="text-4xl">🐱</div>
 						<div class="text-lg font-semibold dark:text-gray-200">情感疗愈伴侣</div>
-						<div class="text-sm text-gray-500 dark:text-gray-400">版本 {WEB_UI_VERSION}</div>
-						<div
-							class="text-xs text-gray-400 dark:text-gray-500 text-center max-w-xs leading-relaxed"
-						>
-							基于 Ollama 的本地情感支持聊天机器人。<br />
-							使用本地大语言模型提供温暖、私密的交流体验。
-						</div>
 						<div class="flex gap-3 pt-2">
 							<a
 								href="https://ollama.com"

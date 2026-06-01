@@ -241,9 +241,9 @@
 					on:dragover={handleDragOver}
 					on:drop={handleDrop}
 				>
-					<div class=" flex">
+					<div class="flex items-center">
 						<!-- 文件上传按钮 -->
-						<div class="flex items-center pl-3">
+						<div class="flex items-center pl-3 pr-1">
 							<input
 								type="file"
 								accept="image/*,.txt,.md,.csv,.pdf,.doc,.docx,.xls,.xlsx,.pptx"
@@ -298,7 +298,7 @@
 							}}
 						/>
 
-						<div class="mb-2 mr-2 flex flex-wrap items-center justify-end gap-1 self-end">
+						<div class="mr-2 flex flex-shrink-0 flex-nowrap items-center justify-end gap-1">
 							{#if messages.length === 0}
 								<div
 									class="flex flex-shrink-0 items-center overflow-hidden rounded-lg border border-gray-200 text-xs dark:border-gray-600"
@@ -354,7 +354,7 @@
 								<button
 									class="{prompt !== '' || uploadingFiles.length > 0
 										? 'bg-rose-500 text-white hover:bg-rose-600 dark:hover:bg-rose-400 '
-										: 'text-gray-400 bg-gray-100 dark:text-gray-600 dark:bg-gray-700'} mr-0.5 flex h-8 w-8 items-center justify-center self-center rounded-lg transition"
+										: 'text-gray-400 bg-gray-100 dark:text-gray-600 dark:bg-gray-700'} flex h-8 w-8 items-center justify-center rounded-lg transition"
 									type="submit"
 									disabled={prompt.trim() === "" && uploadingFiles.length === 0}
 								>
@@ -373,7 +373,7 @@
 								</button>
 							{:else}
 								<button
-									class="bg-white hover:bg-rose-50 text-gray-800 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700 transition rounded-lg p-1.5"
+									class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-800 transition hover:bg-rose-50 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
 									type="button"
 									on:click={stopResponse}
 								>
