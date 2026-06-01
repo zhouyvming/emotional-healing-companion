@@ -437,13 +437,16 @@
 			const modelIds = await fetchLocalOpenAIModels(localOpenAIBaseUrl, localOpenAIApiKey);
 			return { models: localOpenAIModelsFromIds(modelIds) };
 		}
-		const res = await authFetch(`${normalizeOllamaApiBaseUrl(url || $settings?.API_BASE_URL)}/tags`, {
-			method: "GET",
-			headers: {
-				Accept: "application/json",
-				"Content-Type": "application/json"
+		const res = await authFetch(
+			`${normalizeOllamaApiBaseUrl(url || $settings?.API_BASE_URL)}/tags`,
+			{
+				method: "GET",
+				headers: {
+					Accept: "application/json",
+					"Content-Type": "application/json"
+				}
 			}
-		});
+		);
 		if (!res.ok) throw await res.json();
 		return res.json();
 	};
@@ -505,12 +508,14 @@
 </script>
 
 <Modal bind:show widthClass="w-[920px] max-w-[calc(100vw-2rem)]">
-	<div>
+	<div class="flex max-h-[calc(100dvh-2rem)] flex-col">
 		<!-- Header -->
-		<div class="flex justify-between items-center dark:text-gray-300 px-6 py-4">
+		<div
+			class="flex items-center justify-between border-b border-rose-100/80 px-6 py-4 dark:border-gray-800 dark:text-gray-300"
+		>
 			<div class="text-lg font-semibold">设置</div>
 			<button
-				class="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+				class="ui-icon-btn"
 				on:click={() => {
 					show = false;
 				}}
@@ -527,18 +532,17 @@
 				</svg>
 			</button>
 		</div>
-		<hr class="dark:border-gray-800" />
 
-		<div class="flex flex-col md:flex-row w-full p-4 md:p-5 md:space-x-5">
+		<div class="flex min-h-0 w-full flex-col p-4 md:flex-row md:space-x-5 md:p-5">
 			<!-- Tabs -->
 			<div
-				class="tabs flex flex-row overflow-x-auto space-x-1 md:space-x-0 md:space-y-1 md:flex-col flex-shrink-0 md:w-36 dark:text-gray-200 text-sm mb-4 md:mb-0"
+				class="tabs mb-4 flex flex-row flex-shrink-0 space-x-1 overflow-x-auto text-sm dark:text-gray-200 md:mb-0 md:w-40 md:flex-col md:space-x-0 md:space-y-1"
 			>
 				<button
 					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab ===
 					'general'
-						? 'bg-gray-200 dark:bg-gray-700 font-medium'
-						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
+						? 'bg-rose-100 text-rose-800 dark:bg-gray-800 dark:text-rose-200 font-medium'
+						: 'hover:bg-rose-50 dark:hover:bg-gray-800'}"
 					on:click={() => {
 						selectedTab = "general";
 					}}
@@ -561,8 +565,8 @@
 				<button
 					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab ===
 					'preferences'
-						? 'bg-gray-200 dark:bg-gray-700 font-medium'
-						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
+						? 'bg-rose-100 text-rose-800 dark:bg-gray-800 dark:text-rose-200 font-medium'
+						: 'hover:bg-rose-50 dark:hover:bg-gray-800'}"
 					on:click={() => {
 						selectedTab = "preferences";
 					}}
@@ -585,8 +589,8 @@
 				<button
 					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab ===
 					'models'
-						? 'bg-gray-200 dark:bg-gray-700 font-medium'
-						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
+						? 'bg-rose-100 text-rose-800 dark:bg-gray-800 dark:text-rose-200 font-medium'
+						: 'hover:bg-rose-50 dark:hover:bg-gray-800'}"
 					on:click={() => {
 						selectedTab = "models";
 					}}
@@ -612,8 +616,8 @@
 				<button
 					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab ===
 					'knowledge'
-						? 'bg-gray-200 dark:bg-gray-700 font-medium'
-						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
+						? 'bg-rose-100 text-rose-800 dark:bg-gray-800 dark:text-rose-200 font-medium'
+						: 'hover:bg-rose-50 dark:hover:bg-gray-800'}"
 					on:click={() => {
 						selectedTab = "knowledge";
 					}}
@@ -636,8 +640,8 @@
 				<button
 					class="px-3 py-2.5 min-w-fit rounded-lg flex items-center transition {selectedTab ===
 					'about'
-						? 'bg-gray-200 dark:bg-gray-700 font-medium'
-						: 'hover:bg-gray-200 dark:hover:bg-gray-800'}"
+						? 'bg-rose-100 text-rose-800 dark:bg-gray-800 dark:text-rose-200 font-medium'
+						: 'hover:bg-rose-50 dark:hover:bg-gray-800'}"
 					on:click={() => {
 						selectedTab = "about";
 					}}
@@ -659,15 +663,13 @@
 			</div>
 
 			<!-- Content -->
-			<div class="flex-1 h-[520px] w-[600px] overflow-y-auto">
+			<div class="min-h-0 w-full overflow-y-auto md:max-h-[calc(100dvh-12rem)] md:w-[700px]">
 				{#if selectedTab === "general"}
 					<div class="flex flex-col space-y-4">
 						<!-- 外观 -->
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">外观</div>
-							<div
-								class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden"
-							>
+							<div class="space-y-1 overflow-hidden ui-card">
 								<button
 									class="flex items-center justify-between py-2.5 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-700 transition"
 									on:click={() =>
@@ -738,7 +740,7 @@
 									<span class="text-sm block py-2.5 px-3">系统头像</span>
 									<div class="flex items-center gap-3 px-3 pb-3">
 										<div
-											class="w-10 h-10 rounded-full bg-pink-200 dark:bg-pink-700 overflow-hidden flex items-center justify-center flex-shrink-0"
+											class="w-10 h-10 rounded-full bg-rose-200 dark:bg-rose-700 overflow-hidden flex items-center justify-center flex-shrink-0"
 										>
 											{#if systemAvatarPreview}
 												<img
@@ -747,12 +749,16 @@
 													class="w-full h-full object-cover"
 												/>
 											{:else}
-												<img src="/systemtouxiang2.png" alt="default" class="w-full h-full object-cover" />
+												<img
+													src="/systemtouxiang2.png"
+													alt="default"
+													class="w-full h-full object-cover"
+												/>
 											{/if}
 										</div>
 										<div class="flex gap-2">
 											<button
-												class="px-3 py-1.5 text-xs font-medium bg-pink-500 hover:bg-pink-600 text-white rounded-md transition"
+												class="min-h-[32px] px-3 text-xs font-medium bg-rose-500 hover:bg-rose-600 text-white rounded-md transition"
 												on:click={() => systemAvatarInput?.click()}
 											>
 												上传
@@ -766,7 +772,7 @@
 											/>
 											{#if systemAvatarPreview}
 												<button
-													class="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition"
+													class="min-h-[32px] px-3 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition"
 													on:click={removeSystemAvatar}
 												>
 													移除
@@ -777,7 +783,6 @@
 								</div>
 							</div>
 						</div>
-
 					</div>
 				{/if}
 
@@ -785,9 +790,7 @@
 					<div class="flex flex-col space-y-4">
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">偏好设置</div>
-							<div
-								class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden"
-							>
+							<div class="space-y-1 overflow-hidden ui-card">
 								<label
 									class="flex items-center justify-between py-2.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
 								>
@@ -797,7 +800,7 @@
 									</div>
 									<input
 										type="checkbox"
-										class="w-4 h-4 rounded accent-pink-500"
+										class="w-4 h-4 rounded accent-rose-500"
 										bind:checked={proactiveGreeting}
 									/>
 								</label>
@@ -810,7 +813,7 @@
 									</div>
 									<input
 										type="checkbox"
-										class="w-4 h-4 rounded accent-pink-500"
+										class="w-4 h-4 rounded accent-rose-500"
 										bind:checked={privacyMode}
 									/>
 								</label>
@@ -820,7 +823,7 @@
 									<span class="text-sm">自动生成标题</span>
 									<input
 										type="checkbox"
-										class="w-4 h-4 rounded accent-pink-500"
+										class="w-4 h-4 rounded accent-rose-500"
 										bind:checked={titleAutoGenerate}
 									/>
 								</label>
@@ -830,7 +833,7 @@
 									<span class="text-sm">生成完成后自动复制</span>
 									<input
 										type="checkbox"
-										class="w-4 h-4 rounded accent-pink-500"
+										class="w-4 h-4 rounded accent-rose-500"
 										bind:checked={responseAutoCopy}
 									/>
 								</label>
@@ -857,7 +860,7 @@
 										max="200000"
 										step="512"
 										bind:value={options.num_ctx}
-										class="mt-2 w-full h-1.5 rounded-full appearance-none cursor-pointer bg-gray-200 dark:bg-gray-600 accent-pink-500"
+										class="mt-2 w-full h-1.5 rounded-full appearance-none cursor-pointer bg-gray-200 dark:bg-gray-600 accent-rose-500"
 									/>
 								</div>
 								<label
@@ -869,7 +872,7 @@
 									</div>
 									<input
 										type="checkbox"
-										class="w-4 h-4 rounded accent-pink-500"
+										class="w-4 h-4 rounded accent-rose-500"
 										bind:checked={webSearch}
 									/>
 								</label>
@@ -907,7 +910,7 @@
 									</div>
 									<input
 										type="checkbox"
-										class="w-4 h-4 rounded accent-pink-500"
+										class="w-4 h-4 rounded accent-rose-500"
 										bind:checked={emotionSensing}
 									/>
 								</label>
@@ -920,7 +923,7 @@
 									</div>
 									<input
 										type="checkbox"
-										class="w-4 h-4 rounded accent-pink-500"
+										class="w-4 h-4 rounded accent-rose-500"
 										bind:checked={topicDirectSend}
 									/>
 								</label>
@@ -929,9 +932,7 @@
 
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">语音朗读</div>
-							<div
-								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-3"
-							>
+							<div class="ui-card p-3 space-y-3">
 								<div>
 									<div class="text-sm dark:text-gray-200">使用浏览器语音朗读</div>
 									<div class="text-xs text-gray-400 mt-1">
@@ -949,7 +950,7 @@
 											min="0.6"
 											max="1.6"
 											step="0.1"
-											class="w-full accent-pink-500"
+											class="w-full accent-rose-500"
 											bind:value={ttsRate}
 											on:change={saveTtsSettings}
 										/>
@@ -963,7 +964,7 @@
 											min="0"
 											max="1"
 											step="0.05"
-											class="w-full accent-pink-500"
+											class="w-full accent-rose-500"
 											bind:value={ttsVolume}
 											on:change={saveTtsSettings}
 										/>
@@ -974,9 +975,7 @@
 
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">AI 人设</div>
-							<div
-								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
-							>
+							<div class="ui-card p-3">
 								<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
 									自定义 AI 的身份、性格和说话风格
 								</div>
@@ -985,13 +984,13 @@
 									<input
 										type="text"
 										bind:value={systemName}
-										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+										class="ui-field w-full"
 										placeholder="小愈"
 									/>
 								</div>
 								<textarea
 									bind:value={systemPrompt}
-									class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
+									class="ui-field w-full resize-none"
 									rows="4"
 									placeholder="例如：你是一个温柔知心的情感陪伴AI，名叫小愈。你用温暖、共情的语气与用户交流..."
 								/>
@@ -1005,15 +1004,10 @@
 						<!-- 连接 -->
 						<div>
 							<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">连接</div>
-							<div
-								class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-3"
-							>
+							<div class="ui-card p-3 space-y-3">
 								<div>
 									<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">本地模型后端</div>
-									<select
-										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-										bind:value={localModelProvider}
-									>
+									<select class="ui-field w-full" bind:value={localModelProvider}>
 										<option value="ollama">Ollama</option>
 										<option value="openai-compatible"
 											>OpenAI 兼容（vLLM / llama.cpp / LM Studio）</option
@@ -1025,14 +1019,8 @@
 									<div>
 										<div class="text-xs text-gray-500 dark:text-gray-400 mb-2">Ollama API 地址</div>
 										<div class="flex gap-2">
-											<input
-												class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
-												bind:value={API_BASE_URL}
-											/>
-											<button
-												class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition text-sm"
-												on:click={checkOllamaConnection}
-											>
+											<input class="ui-field flex-1" bind:value={API_BASE_URL} />
+											<button class="ui-btn-secondary px-3" on:click={checkOllamaConnection}>
 												测试
 											</button>
 										</div>
@@ -1064,24 +1052,21 @@
 										</div>
 										<div class="flex gap-2">
 											<input
-												class="w-32 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+												class="ui-field w-32"
 												placeholder="显示名称"
 												bind:value={localOpenAIName}
 											/>
 											<input
-												class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+												class="ui-field flex-1"
 												placeholder="http://localhost:1234/v1"
 												bind:value={localOpenAIBaseUrl}
 											/>
-											<button
-												class="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md transition text-sm"
-												on:click={checkOllamaConnection}
-											>
+											<button class="ui-btn-secondary px-3" on:click={checkOllamaConnection}>
 												测试
 											</button>
 										</div>
 										<input
-											class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+											class="ui-field w-full"
 											placeholder="API Key（可选，vLLM/LM Studio/llama.cpp 通常留空）"
 											bind:value={localOpenAIApiKey}
 										/>
@@ -1099,18 +1084,16 @@
 								<div class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400">
 									拉取新模型
 								</div>
-								<div
-									class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
-								>
+								<div class="ui-card p-3">
 									<div class="flex gap-2">
 										<input
-											class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+											class="ui-field flex-1"
 											placeholder="例如: llama3:8b, qwen2.5:7b"
 											bind:value={pullModelName}
 											disabled={pulling}
 										/>
 										<button
-											class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+											class="ui-btn-primary"
 											on:click={pullModel}
 											disabled={pulling || !pullModelName.trim()}
 										>
@@ -1136,9 +1119,7 @@
 									>
 								{/if}
 							</div>
-							<div
-								class="space-y-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 overflow-hidden"
-							>
+							<div class="space-y-1 overflow-hidden ui-card">
 								{#if $models.filter((m) => m.source !== "third-party").length === 0}
 									<div class="py-4 text-center text-xs text-gray-400">暂无本地模型</div>
 								{:else}
@@ -1172,7 +1153,7 @@
 													</div>
 												{:else}
 													<button
-														class="flex-shrink-0 p-1 hover:bg-pink-100 dark:hover:bg-pink-900/30 rounded transition ml-1"
+														class="flex-shrink-0 p-1 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded transition ml-1"
 														on:click={() => setDefaultModel(model.name)}
 														title="设为默认模型"
 													>
@@ -1180,7 +1161,7 @@
 															xmlns="http://www.w3.org/2000/svg"
 															viewBox="0 0 20 20"
 															fill="currentColor"
-															class="w-4 h-4 text-pink-400"
+															class="w-4 h-4 text-rose-400"
 														>
 															<path
 																fill-rule="evenodd"
@@ -1234,27 +1215,25 @@
 
 							<!-- 添加提供商 -->
 							{#if showAddProvider}
-								<div
-									class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 space-y-2 mb-3"
-								>
+								<div class="ui-card p-3 space-y-2 mb-3">
 									<input
-										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+										class="ui-field w-full"
 										placeholder="提供商名称（如 DeepSeek）"
 										bind:value={newProviderName}
 									/>
 									<input
-										class="w-full rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+										class="ui-field w-full"
 										placeholder="API 地址（如 https://api.deepseek.com/v1）"
 										bind:value={newProviderUrl}
 									/>
 									<div class="flex gap-2">
 										<input
-											class="flex-1 rounded-md py-2 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+											class="ui-field flex-1"
 											placeholder="API Key"
 											bind:value={newProviderKey}
 										/>
 										<button
-											class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+											class="ui-btn-primary"
 											on:click={() => {
 												addProvider();
 												showAddProvider = false;
@@ -1267,7 +1246,7 @@
 								</div>
 							{:else}
 								<button
-									class="w-full py-2.5 mb-3 rounded-lg bg-pink-50 dark:bg-pink-900/30 border border-dashed border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+									class="w-full py-2.5 mb-3 rounded-lg bg-rose-50 dark:bg-rose-900/30 border border-dashed border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-sm font-medium hover:bg-rose-100 dark:hover:bg-rose-900/50 transition"
 									on:click={() => {
 										showAddProvider = true;
 									}}
@@ -1277,9 +1256,7 @@
 							{/if}
 
 							{#each providers as provider, i}
-								<div
-									class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 mb-2"
-								>
+								<div class="ui-card p-3 mb-2">
 									<div class="flex items-center justify-between mb-2">
 										{#if editingProviderIndex === i}
 											<input
@@ -1335,7 +1312,7 @@
 													<span class="text-xs font-medium">{m.name}</span>
 													<div class="flex items-center gap-2">
 														<button
-															class="text-xs text-pink-400 hover:text-pink-500 transition"
+															class="text-xs text-rose-400 hover:text-rose-500 transition"
 															on:click={() => setDefaultModel(`${provider.name}/${m.id}`)}
 															title="设为默认模型"
 														>
@@ -1401,12 +1378,7 @@
 				<!-- Save button -->
 				{#if selectedTab !== "about" && selectedTab !== "models" && selectedTab !== "knowledge"}
 					<div class="flex justify-center pt-4 mt-2 border-t dark:border-gray-700">
-						<button
-							class="px-6 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition"
-							on:click={saveAllSettings}
-						>
-							保存设置
-						</button>
+						<button class="ui-btn-primary px-6" on:click={saveAllSettings}> 保存设置 </button>
 					</div>
 				{/if}
 			</div>

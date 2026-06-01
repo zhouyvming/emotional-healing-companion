@@ -476,9 +476,7 @@
 			</div>
 		{/if}
 
-		<div
-			class=" text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-800 min-h-screen overflow-auto flex flex-row"
-		>
+		<div class="ui-app min-h-screen overflow-auto flex flex-row">
 			<Sidebar />
 
 			{#if SettingsModalComponent}

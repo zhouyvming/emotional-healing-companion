@@ -355,7 +355,7 @@
 	$: canSend = prompt.trim() !== "" || uploadingFiles.length > 0;
 	$: sendBtnClass = `px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1 ${
 		canSend
-			? "bg-pink-500 text-white hover:bg-pink-600"
+			? "bg-rose-500 text-white hover:bg-rose-600"
 			: "text-gray-400 bg-gray-100 dark:bg-gray-800 dark:text-gray-500"
 	}`;
 
@@ -401,13 +401,15 @@
 </script>
 
 {#if messages.length === 0}
-	<div class="h-full flex flex-col items-center justify-center px-4">
+	<div class="flex h-full flex-col items-center justify-center px-4">
 		<!-- 今日心情 -->
-		<div class="flex items-center gap-2 mb-6">
+		<div
+			class="mb-6 flex items-center gap-2 rounded-full border border-rose-100 bg-white/80 px-3 py-2 shadow-sm shadow-rose-950/5 dark:border-gray-800 dark:bg-gray-900/80 dark:shadow-none"
+		>
 			<span class="text-xs text-gray-400">今日心情：</span>
 			{#each moodOptions as mood}
 				<button
-					class="text-xl hover:scale-125 transition-transform p-1"
+					class="min-h-[36px] min-w-[36px] rounded-full text-xl transition-transform hover:scale-110 hover:bg-rose-50 dark:hover:bg-gray-800"
 					title={mood.label}
 					on:click={async () => {
 						const date = localDateString();
@@ -428,9 +430,9 @@
 		</div>
 
 		<!-- 输入框（DeepSeek 风格，居中） -->
-		<div class="w-full max-w-2xl mb-6">
+		<div class="mb-6 w-full max-w-2xl">
 			<div
-				class="bg-white dark:bg-[#1e1e1e] rounded-2xl border border-gray-200 dark:border-gray-700 focus-within:border-pink-400 transition-colors shadow-sm"
+				class="rounded-lg border border-gray-200 bg-white shadow-sm shadow-gray-950/5 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:shadow-none"
 			>
 				<!-- 上传文件预览 -->
 				{#if uploadingFiles.length > 0}
@@ -445,11 +447,11 @@
 									/>
 								{:else}
 									<div
-										class="h-14 flex flex-col justify-center px-3 bg-gray-100 dark:bg-gray-800 rounded-lg border text-xs text-gray-500 max-w-[120px]"
+										class="h-14 flex max-w-[120px] flex-col justify-center rounded-lg border border-rose-100 bg-[#fbfaf9] px-3 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-950"
 									>
 										<span class="truncate">{file.name}</span>
 										{#if file.parseStatus === "pending"}
-											<span class="text-[10px] text-pink-500 mt-0.5">解析中</span>
+											<span class="text-[10px] text-rose-500 mt-0.5">解析中</span>
 										{:else if file.parseStatus === "done" && file.text}
 											<span class="text-[10px] text-green-500 mt-0.5">已解析</span>
 										{:else if file.parseStatus === "error"}
@@ -479,10 +481,12 @@
 						}
 					}}
 				/>
-				<div class="flex items-center justify-between px-3 pb-2">
-					<div class="flex items-center gap-1">
+				<div
+					class="flex flex-col gap-2 px-3 pb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+				>
+					<div class="flex w-full items-center justify-start gap-1 sm:w-auto">
 						<button
-							class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition"
+							class="ui-icon-btn text-gray-400 hover:text-rose-500"
 							title="上传文件"
 							on:click={() => document.getElementById("msg-upload")?.click()}
 						>
@@ -510,7 +514,7 @@
 							on:change={handleWelcomeFile}
 						/>
 						<button
-							class="p-1.5 text-gray-400 hover:text-pink-500 rounded-lg transition"
+							class="ui-icon-btn text-gray-400 hover:text-rose-500"
 							title="语音输入"
 							on:click={() => toast("语音输入请使用底部输入框")}
 						>
@@ -529,24 +533,26 @@
 							>
 						</button>
 					</div>
-					<div class="flex items-center gap-1">
+					<div
+						class="flex w-full min-w-0 flex-wrap items-center justify-start gap-1 sm:flex-1 sm:justify-end"
+					>
 						<div
 							class="flex flex-shrink-0 items-center rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs"
 							title="切换聊天模式"
 						>
 							<button
 								type="button"
-								class="w-11 whitespace-nowrap py-1 transition {agentMode
+								class="h-8 w-11 whitespace-nowrap transition {agentMode
 									? 'text-gray-500 dark:text-gray-400'
-									: 'bg-pink-500 text-white'}"
+									: 'bg-rose-500 text-white'}"
 								on:click={() => (agentMode = false)}
 							>
 								聊天
 							</button>
 							<button
 								type="button"
-								class="w-12 whitespace-nowrap py-1 transition {agentMode
-									? 'bg-pink-500 text-white'
+								class="h-8 w-12 whitespace-nowrap transition {agentMode
+									? 'bg-rose-500 text-white'
 									: 'text-gray-500 dark:text-gray-400'}"
 								on:click={() => (agentMode = true)}
 							>
@@ -584,7 +590,7 @@
 		<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl w-full mb-6">
 			{#each suggestedTopics as topic}
 				<button
-					class="text-left p-3 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-pink-400 dark:hover:border-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition group flex items-center gap-2 min-w-0"
+					class="group flex min-w-0 items-center gap-2 rounded-lg border border-rose-100 bg-white/70 p-3 text-left transition hover:border-rose-200 hover:bg-rose-50 dark:border-gray-800 dark:bg-gray-900/70 dark:hover:border-gray-700 dark:hover:bg-gray-800"
 					on:click={() => {
 						if ($settings.topicDirectSend) {
 							submitPrompt(topic.text);
@@ -603,7 +609,7 @@
 		</div>
 	</div>
 {:else}
-	<div class="flex flex-col gap-6 px-4 md:px-6 lg:px-8 max-w-6xl mx-auto w-full">
+	<div class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 md:px-6 lg:px-8">
 		{#each messages as message}
 			<div class="flex flex-col">
 				{#if message.role === "user"}
@@ -615,7 +621,7 @@
 								<img src="/user.png" alt="用户" class="w-10 h-10 rounded-full" />
 							{/if}
 							<div
-								class="bg-blue-100 text-gray-800 rounded-lg py-2 px-4 max-w-[80%] w-fit [&_p]:m-0"
+								class="max-w-[80%] w-fit rounded-lg border border-rose-100 bg-rose-50 py-2 px-4 text-gray-800 shadow-sm shadow-rose-950/5 [&_p]:m-0 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-50 dark:shadow-none"
 							>
 								{#if message.images?.length}
 									<div class="flex flex-wrap gap-1 mb-1">
@@ -682,7 +688,7 @@
 								{/if}
 								{#if !message.error}
 									<button
-										class="text-xs text-gray-400 hover:text-pink-500 dark:hover:text-pink-400 transition"
+										class="flex h-8 w-8 items-center justify-center rounded-md text-xs text-gray-400 transition hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-gray-800 dark:hover:text-rose-400"
 										on:click={() => {
 											editingMessageId = message.id;
 											editContent = message.content;
@@ -701,7 +707,7 @@
 										</svg>
 									</button>
 									<button
-										class="text-xs text-gray-400 hover:text-red-500 transition"
+										class="flex h-8 w-8 items-center justify-center rounded-md text-xs text-gray-400 transition hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30"
 										on:click={async () => {
 											await deleteMessage(message.id);
 											toast.success("消息已删除");
@@ -738,24 +744,24 @@
 								<img src="/systemtouxiang2.png" alt="小愈" class="w-10 h-10 rounded-full" />
 							{/if}
 							<div
-								class="bg-gray-200 dark:bg-gray-700 rounded-lg py-2 px-4 max-w-[80%] break-words [&_p]:m-0 chat-assistant"
+								class="max-w-[80%] break-words rounded-lg border border-gray-200 bg-white py-2 px-4 shadow-sm shadow-gray-950/5 [&_p]:m-0 chat-assistant dark:border-gray-800 dark:bg-gray-900 dark:shadow-none"
 							>
 								{#if message.agentTrace?.length}
 									<details
-										class="mb-3 rounded-lg border border-gray-300/70 dark:border-gray-600 bg-white/50 dark:bg-gray-800/50 px-3 py-2 text-xs"
+										class="mb-3 rounded-lg border border-rose-100 bg-rose-50/60 px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-950/60"
 									>
 										<summary class="cursor-pointer select-none text-gray-600 dark:text-gray-300">
 											Agent 步骤 · {message.agentTrace.length}
 										</summary>
 										<div class="mt-2 space-y-2">
 											{#each message.agentTrace as step}
-												<div class="border-l-2 border-pink-300 dark:border-pink-700 pl-2">
+												<div class="border-l-2 border-rose-300 dark:border-rose-700 pl-2">
 													<div class="flex items-center gap-2 flex-wrap">
 														<span
 															class="font-medium {step.status === 'error'
 																? 'text-red-500'
 																: step.status === 'running'
-																? 'text-pink-500'
+																? 'text-rose-500'
 																: 'text-gray-700 dark:text-gray-200'}"
 														>
 															{step.title}
@@ -770,14 +776,15 @@
 															{#each step.sources as source}
 																{#if source.url}
 																	<a
-																		class="text-pink-500 hover:underline"
+																		class="text-rose-500 hover:underline"
 																		href={source.url}
 																		target="_blank"
-																		rel="noreferrer"
-																		>{source.title}</a
+																		rel="noreferrer">{source.title}</a
 																	>
 																{:else}
-																	<span class="text-gray-500 dark:text-gray-400">{source.title}</span>
+																	<span class="text-gray-500 dark:text-gray-400"
+																		>{source.title}</span
+																	>
 																{/if}
 															{/each}
 														</div>
@@ -801,15 +808,15 @@
 								<div class="w-10" />
 								<div class="flex items-center gap-1">
 									<span
-										class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
+										class="inline-block w-1.5 h-1.5 bg-rose-400 rounded-full animate-bounce"
 										style="animation-delay: 0ms"
 									/>
 									<span
-										class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
+										class="inline-block w-1.5 h-1.5 bg-rose-400 rounded-full animate-bounce"
 										style="animation-delay: 150ms"
 									/>
 									<span
-										class="inline-block w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce"
+										class="inline-block w-1.5 h-1.5 bg-rose-400 rounded-full animate-bounce"
 										style="animation-delay: 300ms"
 									/>
 								</div>
@@ -825,7 +832,7 @@
 									<KnowledgeBaseSelector selectedKbId={kbId} disabled={true} />
 								{/if}
 								<button
-									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+									class="flex min-h-[32px] items-center gap-1 rounded-md px-2 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 									on:click={() => handleCopy(message.content)}
 								>
 									<svg
@@ -844,9 +851,10 @@
 									复制
 								</button>
 								<button
-									class="text-xs {speakingMessageId === message.id
-										? 'text-pink-500 dark:text-pink-400'
-										: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'} flex items-center gap-1"
+									class="flex min-h-[32px] items-center gap-1 rounded-md px-2 text-xs {speakingMessageId ===
+									message.id
+										? 'text-rose-500 dark:text-rose-400'
+										: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'} hover:bg-gray-100 dark:hover:bg-gray-800"
 									on:click={() => speakMessage(message)}
 									aria-label={speakingMessageId === message.id ? "停止朗读" : "朗读"}
 									title={speakingMessageId === message.id ? "停止朗读" : "朗读"}
@@ -866,7 +874,7 @@
 									{speakingMessageId === message.id ? "停止" : "朗读"}
 								</button>
 								<button
-									class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+									class="flex min-h-[32px] items-center gap-1 rounded-md px-2 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 									on:click={() => handleCopyMarkdown(message)}
 								>
 									<svg
@@ -886,7 +894,7 @@
 								</button>
 								{#if message.done && !message.error}
 									<button
-										class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+										class="flex min-h-[32px] items-center gap-1 rounded-md px-2 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 										on:click={() => regenerateResponse()}
 									>
 										<svg
@@ -907,7 +915,7 @@
 								{/if}
 								{#if message.done && !message.error && message.parentId && history.messages[message.parentId]?.childrenIds?.length > 1}
 									<button
-										class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+										class="flex h-8 w-8 items-center justify-center rounded-md text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 										on:click={() => showPreviousMessage(message)}
 										title="上一个回复"
 									>
@@ -924,7 +932,7 @@
 										>
 									</button>
 									<button
-										class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+										class="flex h-8 w-8 items-center justify-center rounded-md text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 										on:click={() => showNextMessage(message)}
 										title="下一个回复"
 									>

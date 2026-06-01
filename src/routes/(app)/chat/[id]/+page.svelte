@@ -85,8 +85,14 @@
 	}
 
 	const handlers = createChatHandlers(getCtx);
-	const { submitPrompt, submitAgentPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } =
-		handlers;
+	const {
+		submitPrompt,
+		submitAgentPrompt,
+		stopResponse,
+		regenerateResponse,
+		editMessage,
+		deleteMessage
+	} = handlers;
 
 	const onTitleSet = (t: string) => {
 		title = t;
@@ -196,8 +202,8 @@
 
 {#if loaded}
 	<Navbar {title} sidebarOpen={$sidebarOpen} showActions={true} />
-	<div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''} pt-12">
-		<div class="py-2.5 flex flex-col justify-between w-full max-w-5xl">
+	<div class="ui-page flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''} pt-12">
+		<div class="flex w-full max-w-5xl flex-col justify-between py-2.5">
 			<div class="flex-1 overflow-y-auto">
 				<Messages
 					bind:selectedModels
@@ -221,7 +227,7 @@
 			</div>
 
 			{#if messages.length > 0}
-				<div class="px-3 md:px-0 pb-2">
+				<div class="px-3 pb-3 md:px-0">
 					<MessageInput
 						bind:prompt
 						bind:autoScroll
@@ -238,11 +244,20 @@
 		</div>
 	</div>
 {:else}
-	<div class="min-h-screen w-full flex items-center justify-center">
+	<div class="ui-page flex items-center justify-center">
 		<div class="flex items-center gap-2">
-			<span class="inline-block w-2 h-2 bg-pink-400 rounded-full animate-bounce" style="animation-delay: 0ms" />
-			<span class="inline-block w-2 h-2 bg-pink-400 rounded-full animate-bounce" style="animation-delay: 150ms" />
-			<span class="inline-block w-2 h-2 bg-pink-400 rounded-full animate-bounce" style="animation-delay: 300ms" />
+			<span
+				class="inline-block w-2 h-2 bg-rose-400 rounded-full animate-bounce"
+				style="animation-delay: 0ms"
+			/>
+			<span
+				class="inline-block w-2 h-2 bg-rose-400 rounded-full animate-bounce"
+				style="animation-delay: 150ms"
+			/>
+			<span
+				class="inline-block w-2 h-2 bg-rose-400 rounded-full animate-bounce"
+				style="animation-delay: 300ms"
+			/>
 		</div>
 	</div>
 {/if}

@@ -82,8 +82,14 @@
 	}
 
 	const handlers = createChatHandlers(getCtx);
-	const { submitPrompt, submitAgentPrompt, stopResponse, regenerateResponse, editMessage, deleteMessage } =
-		handlers;
+	const {
+		submitPrompt,
+		submitAgentPrompt,
+		stopResponse,
+		regenerateResponse,
+		editMessage,
+		deleteMessage
+	} = handlers;
 
 	const onTitleSet = (t: string) => {
 		title = t;
@@ -161,8 +167,8 @@
 />
 
 <Navbar {title} sidebarOpen={$sidebarOpen} />
-<div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''} pt-12">
-	<div class="py-2.5 flex flex-col justify-between w-full max-w-5xl">
+<div class="ui-page flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''} pt-12">
+	<div class="flex w-full max-w-5xl flex-col justify-between py-2.5">
 		<div class="flex-1 overflow-y-auto">
 			<Messages
 				bind:selectedModels
@@ -186,7 +192,7 @@
 		</div>
 
 		{#if messages.length > 0}
-			<div class="px-3 md:px-0 pb-2">
+			<div class="px-3 pb-3 md:px-0">
 				<MessageInput
 					bind:prompt
 					bind:autoScroll

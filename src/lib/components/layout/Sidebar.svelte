@@ -27,7 +27,6 @@
 		localStorage.setItem("pinnedChats", JSON.stringify(pinnedIds));
 	}
 
-
 	onMount(async () => {
 		await chats.set(await $db.getChats());
 	});
@@ -91,19 +90,18 @@
 		}
 		return groups;
 	})();
-
 </script>
 
 <div
 	bind:this={navElement}
-	class="h-screen {show
+	class="{show
 		? ''
-		: '-translate-x-[260px]'} w-[260px] fixed top-0 left-0 z-40 transition bg-pink-50 dark:bg-pink-900 text-gray-800 dark:text-gray-200 shadow-2xl text-sm"
+		: '-translate-x-[260px]'} fixed left-0 top-0 z-40 h-[100dvh] w-[260px] border-r border-rose-100/80 bg-white/95 text-sm text-gray-800 shadow-lg shadow-rose-950/5 backdrop-blur-xl transition dark:border-gray-800 dark:bg-gray-950/95 dark:text-gray-200 dark:shadow-none"
 >
-	<div class="py-2.5 my-auto flex flex-col justify-between h-screen">
-		<div class="px-2.5 mt-1 mb-2 flex justify-center space-x-2">
-			<div class="flex w-full">
-				<div class="self-center pl-3 py-2 rounded-l bg-pink-100 dark:bg-pink-800">
+	<div class="relative z-40 my-auto flex h-[100dvh] flex-col overflow-hidden py-2.5">
+		<div class="px-2.5 mt-1 mb-2">
+			<div class="relative">
+				<div class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-rose-500">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						viewBox="0 0 20 20"
@@ -119,7 +117,7 @@
 				</div>
 
 				<input
-					class="w-full rounded-r py-1.5 pl-2.5 pr-4 text-sm text-gray-800 dark:text-gray-300 bg-pink-100 dark:bg-pink-800 outline-none focus:bg-white dark:focus:bg-pink-900 transition"
+					class="ui-field h-10 border-gray-200 bg-white/90 py-2 pl-9 pr-3 dark:border-gray-800 dark:bg-gray-900/90"
 					placeholder="搜索"
 					bind:value={search}
 				/>
@@ -128,23 +126,30 @@
 
 		<div class="px-2.5 flex justify-center space-x-2 mb-1">
 			<button
-				class="flex-grow flex items-center justify-center gap-2 rounded-lg px-3 py-2 bg-pink-100 dark:bg-pink-800 hover:bg-pink-200 dark:hover:bg-pink-700 transition text-sm"
+				class="flex-grow flex min-h-[40px] items-center justify-center gap-2 rounded-lg px-3 py-2 bg-rose-500 text-white hover:bg-rose-600 dark:bg-rose-500 dark:hover:bg-rose-400 transition text-sm font-medium"
 				on:click={async () => {
 					goto("/");
 					await chatId.set(uuidv4());
 				}}
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-					<path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 20 20"
+					fill="currentColor"
+					class="w-4 h-4"
+				>
+					<path
+						d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"
+					/>
 				</svg>
 				<span class="font-medium">新对话</span>
 			</button>
 		</div>
 
 		<!-- 会话列表区域 -->
-		<div class="pl-2.5 flex-1 flex flex-col min-h-0">
+		<div class="pl-2.5 flex min-h-0 flex-1 flex-col overflow-y-auto pr-2.5">
 			<button
-				class="flex items-center justify-between pr-3 py-1.5 hover:bg-pink-100 dark:hover:bg-pink-800 rounded-md transition"
+				class="flex min-h-[36px] items-center justify-between pr-3 py-1.5 hover:bg-rose-50 dark:hover:bg-gray-900 rounded-lg transition"
 				on:click={() => {
 					chatListExpanded = !chatListExpanded;
 				}}
@@ -170,7 +175,7 @@
 				<div class="my-1 flex-1 flex flex-col overflow-y-auto">
 					{#each groupedChats as group}
 						<button
-							class="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 font-medium py-1.5 pl-2 select-none sticky top-0 bg-pink-50 dark:bg-pink-900 hover:bg-pink-100 dark:hover:bg-pink-800 transition rounded-sm"
+							class="sticky top-0 flex min-h-[32px] items-center gap-1 rounded-lg bg-white/95 py-1.5 pl-2 text-xs font-medium text-gray-400 transition hover:bg-rose-50 dark:bg-gray-950/95 dark:text-gray-500 dark:hover:bg-gray-900"
 							on:click={() => {
 								if (collapsedGroups.has(group.label)) {
 									collapsedGroups.delete(group.label);
@@ -204,9 +209,9 @@
 								{#each group.chats as chat}
 									<div class="w-full pr-2 relative group">
 										<button
-											class="w-full flex rounded-md px-3 py-2 hover:bg-pink-100 dark:hover:bg-pink-800 {chat.id ===
+											class="flex min-h-[38px] w-full rounded-lg px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-gray-900 {chat.id ===
 											$chatId
-												? 'bg-pink-200 dark:bg-pink-700'
+												? 'bg-rose-100 text-rose-900 dark:bg-gray-800 dark:text-rose-200'
 												: ''} transition text-left"
 											on:click={() => {
 												loadChat(chat.id);
@@ -234,18 +239,29 @@
 												>
 													{chat.title}
 												</div>
-											<button
-												class="flex-shrink-0 p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition cursor-pointer {pinnedIds.includes(chat.id) ? 'text-amber-500' : 'text-gray-400'}"
-												on:click|stopPropagation={() => togglePin(chat.id)}
-												title={pinnedIds.includes(chat.id) ? "取消置顶" : "置顶"}
-											>
-												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
-													<path d="M11.77 1.16a1.5 1.5 0 012.12 0l.95.95a1.5 1.5 0 010 2.12l-.95.95a1.5 1.5 0 01-2.12 0l-.95-.95a1.5 1.5 0 010-2.12l.95-.95zM8.083 6.035a1.5 1.5 0 01-1.061.44H3.467l3.462 3.462A1.5 1.5 0 017.39 11H6.93a1.5 1.5 0 01-1.06-.44L2.22 6.91a1.5 1.5 0 01-.28-1.692l.886-1.77a1.5 1.5 0 011.558-.836l5.268.388a1.5 1.5 0 011.207 2.207l-.776 1.828z"/>
-												</svg>
-											</button>
+												<button
+													class="flex min-h-[32px] min-w-[32px] flex-shrink-0 items-center justify-center rounded-md opacity-100 transition hover:bg-amber-100 md:opacity-0 md:group-hover:opacity-100 dark:hover:bg-amber-900/30 cursor-pointer {pinnedIds.includes(
+														chat.id
+													)
+														? 'text-amber-500'
+														: 'text-gray-400'}"
+													on:click|stopPropagation={() => togglePin(chat.id)}
+													title={pinnedIds.includes(chat.id) ? "取消置顶" : "置顶"}
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 20 20"
+														fill="currentColor"
+														class="w-3.5 h-3.5"
+													>
+														<path
+															d="M11.77 1.16a1.5 1.5 0 012.12 0l.95.95a1.5 1.5 0 010 2.12l-.95.95a1.5 1.5 0 01-2.12 0l-.95-.95a1.5 1.5 0 010-2.12l.95-.95zM8.083 6.035a1.5 1.5 0 01-1.061.44H3.467l3.462 3.462A1.5 1.5 0 017.39 11H6.93a1.5 1.5 0 01-1.06-.44L2.22 6.91a1.5 1.5 0 01-.28-1.692l.886-1.77a1.5 1.5 0 011.558-.836l5.268.388a1.5 1.5 0 011.207 2.207l-.776 1.828z"
+														/>
+													</svg>
+												</button>
 
 												<button
-													class="flex-shrink-0 p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition cursor-pointer"
+													class="flex min-h-[32px] min-w-[32px] flex-shrink-0 items-center justify-center rounded-md text-gray-400 opacity-100 transition hover:bg-red-100 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100 dark:hover:bg-red-900/30 cursor-pointer"
 													on:click|stopPropagation={async () => {
 														try {
 															await $db.deleteChatById(chat.id);
@@ -285,10 +301,10 @@
 			{/if}
 		</div>
 
-		<div class="px-2.5">
-			<hr class="border-gray-300 dark:border-gray-700 mb-2 w-full" />
-
-			<div class="flex flex-col space-y-0.5">
+		<div
+			class="flex-shrink-0 border-t border-gray-200 bg-white/95 px-2.5 pt-2 pb-[max(env(safe-area-inset-bottom),0.875rem)] dark:border-gray-800 dark:bg-gray-950/95 md:pb-2"
+		>
+			<div class="flex flex-col gap-1">
 				<!-- 清除所有对话 -->
 				{#if showDeleteHistoryConfirm}
 					<div class="flex justify-between rounded-md items-center py-3 px-3.5 w-full transition">
@@ -352,7 +368,7 @@
 					</div>
 				{:else}
 					<button
-						class="flex rounded-md py-3 px-3.5 w-full hover:bg-pink-50 dark:hover:bg-pink-900 transition"
+						class="flex min-h-[38px] w-full items-center rounded-lg px-3 py-1.5 transition hover:bg-rose-50 dark:hover:bg-gray-900"
 						on:click={() => {
 							showDeleteHistoryConfirm = true;
 						}}
@@ -379,7 +395,7 @@
 
 				<!-- 设置 -->
 				<button
-					class="flex rounded-md py-3 px-3.5 w-full hover:bg-pink-50 dark:hover:bg-pink-900 transition"
+					class="flex min-h-[38px] w-full items-center rounded-lg px-3 py-1.5 transition hover:bg-rose-50 dark:hover:bg-gray-900"
 					on:click={async () => {
 						await showSettings.set(true);
 					}}
@@ -403,11 +419,11 @@
 
 				<!-- 用户信息入口 -->
 				<div
-					class="flex items-center gap-3 rounded-md py-2.5 px-3.5 w-full hover:bg-pink-100 dark:hover:bg-pink-800 transition mt-2"
+					class="mt-1 flex min-h-[52px] w-full items-center gap-3 rounded-lg px-3 py-1.5 transition hover:bg-rose-50 dark:hover:bg-gray-900"
 				>
 					<button class="flex items-center gap-3 flex-1 min-w-0" on:click={() => goto("/profile")}>
 						<div
-							class="flex-shrink-0 w-8 h-8 rounded-full bg-pink-200 dark:bg-pink-700 overflow-hidden flex items-center justify-center"
+							class="flex-shrink-0 w-8 h-8 rounded-full bg-rose-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center"
 						>
 							{#if $user?.avatar}
 								<img src={$user.avatar} alt="avatar" class="w-full h-full object-cover" />
@@ -416,7 +432,7 @@
 									xmlns="http://www.w3.org/2000/svg"
 									viewBox="0 0 20 20"
 									fill="currentColor"
-									class="w-5 h-5 text-pink-500 dark:text-pink-300"
+									class="w-5 h-5 text-rose-500 dark:text-rose-300"
 								>
 									<path
 										d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z"
@@ -462,7 +478,7 @@
 	<!-- 移动端遮罩层 -->
 	{#if show}
 		<button
-			class="fixed inset-0 z-30 bg-black/30 md:hidden border-0 cursor-default"
+			class="fixed inset-y-0 left-[260px] right-0 z-30 bg-black/30 md:hidden border-0 cursor-default"
 			on:click={() => {
 				show = false;
 				sidebarOpen.set(false);
@@ -470,26 +486,26 @@
 		/>
 	{/if}
 	<div
-		class="fixed left-0 top-[50dvh] z-40 -translate-y-1/2 transition-transform translate-x-[255px] md:translate-x-[260px] rotate-0"
+		class="fixed left-0 top-[50dvh] z-50 -translate-y-1/2 translate-x-[260px] rotate-0 transition-transform"
 	>
 		<button
-			class=" group"
+			class="group rounded-r-xl border border-l-0 border-rose-100 bg-white/95 shadow-md shadow-rose-950/10 dark:border-gray-800 dark:bg-gray-950/95 md:border-0 md:bg-transparent md:shadow-none"
 			on:click={() => {
 				show = !show;
 				sidebarOpen.set(show);
 			}}
 			><span class="" data-state="closed"
 				><div
-					class="flex h-[72px] w-8 items-center justify-center opacity-20 group-hover:opacity-100 transition"
+					class="flex h-11 w-8 items-center justify-center opacity-80 transition group-hover:opacity-100 md:h-[72px] md:opacity-30"
 				>
 					<div class="flex h-6 w-6 flex-col items-center">
 						<div
-							class="h-3 w-1 rounded-full bg-[#0f0f0f] dark:bg-white rotate-0 translate-y-[0.15rem] {show
+							class="h-3 w-1 rounded-full bg-gray-500 dark:bg-gray-300 rotate-0 translate-y-[0.15rem] {show
 								? 'group-hover:rotate-[15deg]'
 								: 'group-hover:rotate-[-15deg]'}"
 						/>
 						<div
-							class="h-3 w-1 rounded-full bg-[#0f0f0f] dark:bg-white rotate-0 translate-y-[-0.15rem] {show
+							class="h-3 w-1 rounded-full bg-gray-500 dark:bg-gray-300 rotate-0 translate-y-[-0.15rem] {show
 								? 'group-hover:rotate-[-15deg]'
 								: 'group-hover:rotate-[15deg]'}"
 						/>

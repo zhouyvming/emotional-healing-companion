@@ -174,7 +174,7 @@
 		{#if autoScroll === false && messages.length > 0}
 			<div class=" flex justify-center mb-4">
 				<button
-					class=" bg-white border border-gray-100 dark:border-none dark:bg-white/20 p-1.5 rounded-full"
+					class="border border-rose-100 bg-white p-2 rounded-full shadow-sm dark:border-gray-700 dark:bg-gray-900"
 					on:click={() => {
 						autoScroll = true;
 						window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
@@ -196,9 +196,9 @@
 			</div>
 		{/if}
 	</div>
-	<div class="bg-white dark:bg-gray-800">
+	<div class="bg-[#fbfaf9] dark:bg-gray-950">
 		<div class="max-w-4xl px-2.5 -mb-0.5 mx-auto inset-x-0">
-			<div class="bg-gradient-to-t from-white dark:from-gray-800 from-40% pb-2">
+			<div class="bg-gradient-to-t from-[#fbfaf9] from-40% pb-2 dark:from-gray-950">
 				<!-- 上传文件预览 -->
 				{#if uploadingFiles.length > 0}
 					<div class="flex flex-wrap gap-2 mb-2">
@@ -212,11 +212,11 @@
 									/>
 								{:else}
 									<div
-										class="h-16 flex flex-col justify-center px-3 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
+										class="h-16 flex flex-col justify-center px-3 bg-white dark:bg-gray-900 rounded-lg border border-rose-100 dark:border-gray-700"
 									>
 										<span class="text-xs text-gray-500 truncate max-w-[100px]">{file.name}</span>
 										{#if file.parseStatus === "pending"}
-											<span class="text-[10px] text-pink-500 mt-0.5">解析中</span>
+											<span class="text-[10px] text-rose-500 mt-0.5">解析中</span>
 										{:else if file.parseStatus === "done" && file.text}
 											<span class="text-[10px] text-green-500 mt-0.5">已解析</span>
 										{:else if file.parseStatus === "error"}
@@ -236,7 +236,7 @@
 				{/if}
 
 				<form
-					class="flex flex-col relative w-full rounded-xl border dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 focus-within:border-pink-400 transition-colors"
+					class="relative flex w-full flex-col rounded-lg border border-gray-200 bg-white shadow-sm shadow-gray-950/5 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:shadow-none"
 					on:submit|preventDefault={doSubmit}
 					on:dragover={handleDragOver}
 					on:drop={handleDrop}
@@ -254,7 +254,7 @@
 							/>
 							<button
 								type="button"
-								class="p-1.5 text-gray-400 hover:text-pink-500 dark:hover:text-pink-400 transition rounded-lg"
+								class="ui-icon-btn text-gray-400 hover:text-rose-500 dark:hover:text-rose-400"
 								on:click={() => fileInput?.click()}
 								title="上传文件"
 							>
@@ -277,7 +277,7 @@
 
 						<textarea
 							id="chat-textarea"
-							class="dark:bg-gray-800 dark:text-gray-100 outline-none w-full py-3 px-2 pl-2 rounded-xl resize-none focus:ring-0"
+							class="w-full resize-none rounded-lg bg-transparent px-2 py-3 pl-2 text-gray-900 outline-none focus:ring-0 dark:text-gray-100"
 							placeholder="发送消息"
 							bind:value={prompt}
 							on:keydown={(e) => {
@@ -298,25 +298,25 @@
 							}}
 						/>
 
-						<div class="self-end mb-2 flex space-x-0.5 mr-2 items-center">
+						<div class="mb-2 mr-2 flex flex-wrap items-center justify-end gap-1 self-end">
 							{#if messages.length === 0}
 								<div
-									class="flex flex-shrink-0 items-center rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs"
+									class="flex flex-shrink-0 items-center overflow-hidden rounded-lg border border-gray-200 text-xs dark:border-gray-600"
 									title="切换聊天模式"
 								>
 									<button
 										type="button"
-										class="w-11 whitespace-nowrap py-1 transition {agentMode
+										class="h-8 w-11 whitespace-nowrap transition {agentMode
 											? 'text-gray-500 dark:text-gray-400'
-											: 'bg-pink-500 text-white'}"
+											: 'bg-rose-500 text-white'}"
 										on:click={() => (agentMode = false)}
 									>
 										聊天
 									</button>
 									<button
 										type="button"
-										class="w-12 whitespace-nowrap py-1 transition {agentMode
-											? 'bg-pink-500 text-white'
+										class="h-8 w-12 whitespace-nowrap transition {agentMode
+											? 'bg-rose-500 text-white'
 											: 'text-gray-500 dark:text-gray-400'}"
 										on:click={() => (agentMode = true)}
 									>
@@ -331,7 +331,7 @@
 								type="button"
 								class="p-1.5 rounded-lg transition {recording
 									? 'text-red-500 bg-red-100 dark:bg-red-900/30'
-									: 'text-gray-400 hover:text-pink-500 dark:hover:text-pink-400'}"
+									: 'text-gray-400 hover:text-rose-500 dark:hover:text-rose-400'}"
 								on:click={toggleVoice}
 								title="语音输入"
 							>
@@ -353,8 +353,8 @@
 							{#if messages.length == 0 || messages.at(-1)?.done == true}
 								<button
 									class="{prompt !== '' || uploadingFiles.length > 0
-										? 'bg-pink-500 text-white hover:bg-pink-600 dark:hover:bg-pink-400 '
-										: 'text-gray-400 bg-gray-100 dark:text-gray-600 dark:bg-gray-700'} transition rounded-lg p-1 mr-0.5 w-7 h-7 self-center"
+										? 'bg-rose-500 text-white hover:bg-rose-600 dark:hover:bg-rose-400 '
+										: 'text-gray-400 bg-gray-100 dark:text-gray-600 dark:bg-gray-700'} mr-0.5 flex h-8 w-8 items-center justify-center self-center rounded-lg transition"
 									type="submit"
 									disabled={prompt.trim() === "" && uploadingFiles.length === 0}
 								>
@@ -373,7 +373,7 @@
 								</button>
 							{:else}
 								<button
-									class="bg-white hover:bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-800 transition rounded-lg p-1.5"
+									class="bg-white hover:bg-rose-50 text-gray-800 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700 transition rounded-lg p-1.5"
 									type="button"
 									on:click={stopResponse}
 								>

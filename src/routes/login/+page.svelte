@@ -48,10 +48,8 @@
 	}
 </script>
 
-<div class="min-h-screen flex items-center justify-center bg-white dark:bg-gray-800">
-	<div
-		class="max-w-md w-full space-y-8 p-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700"
-	>
+<div class="ui-page flex items-center justify-center px-4">
+	<div class="ui-card w-full max-w-md space-y-8 p-8">
 		<div class="text-center">
 			<h2 class="text-3xl font-bold text-gray-900 dark:text-white">登录</h2>
 		</div>
@@ -67,7 +65,7 @@
 						id="login-username"
 						type="text"
 						bind:value={username}
-						class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:border-pink-400 focus:ring-1 focus:ring-pink-400 outline-none transition"
+						class="ui-field mt-1"
 						required
 					/>
 				</div>
@@ -85,7 +83,7 @@
 								password = e.target.value;
 							}}
 							value={password}
-							class="block w-full px-3 py-2 pr-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:border-pink-400 focus:ring-1 focus:ring-pink-400 outline-none transition"
+							class="ui-field pr-10"
 							required
 						/>
 						<button
@@ -137,11 +135,7 @@
 			</div>
 
 			<div>
-				<button
-					type="submit"
-					disabled={loading}
-					class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-pink-500 hover:bg-pink-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 disabled:opacity-50 transition"
-				>
+				<button type="submit" disabled={loading} class="ui-btn-primary w-full">
 					{loading ? "登录中..." : "登录"}
 				</button>
 			</div>
@@ -149,7 +143,7 @@
 			<div class="text-center">
 				<a
 					href="/register{redirect ? `?redirect=${redirect}` : ''}"
-					class="text-sm text-pink-500 hover:text-pink-600"
+					class="inline-flex min-h-[32px] items-center text-sm text-rose-500 hover:text-rose-600"
 				>
 					还没有账号？立即注册
 				</a>

@@ -23,13 +23,13 @@
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div
-		class="fixed top-0 right-0 left-0 bottom-0 bg-stone-900/50 w-full min-h-screen h-screen flex justify-center z-50 overflow-hidden overscroll-contain"
+		class="fixed inset-0 z-50 flex h-screen min-h-screen w-full justify-center overflow-hidden overscroll-contain bg-gray-950/50 px-4 backdrop-blur-sm"
 		on:click={() => {
 			show = false;
 		}}
 	>
 		<div
-			class="m-auto rounded-xl {widthClass} bg-gray-50 dark:bg-gray-900 shadow-3xl"
+			class="m-auto max-h-[calc(100dvh-2rem)] overflow-hidden rounded-lg {widthClass} border border-rose-100/80 bg-[#fbfaf9] shadow-2xl shadow-rose-950/15 dark:border-gray-800 dark:bg-gray-950 dark:shadow-none"
 			transition:fade={{ delay: 100, duration: 200 }}
 			on:click={(e) => {
 				e.stopPropagation();

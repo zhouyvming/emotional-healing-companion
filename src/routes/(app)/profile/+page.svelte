@@ -182,7 +182,10 @@
 	};
 
 	const handleExportJSON = async () => {
-		if (!$db) { toast.error("暂无数据"); return; }
+		if (!$db) {
+			toast.error("暂无数据");
+			return;
+		}
 		const data = await $db.exportChats();
 		const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
 		const url = URL.createObjectURL(blob);
@@ -195,7 +198,10 @@
 	};
 
 	const handleExportMarkdown = async () => {
-		if (!$db) { toast.error("暂无数据"); return; }
+		if (!$db) {
+			toast.error("暂无数据");
+			return;
+		}
 		const data = await $db.exportChats();
 		let md = "# 情感疗愈伴侣 - 对话记录\n\n";
 		for (const chat of data) {
@@ -217,16 +223,14 @@
 	};
 </script>
 
-<div class="min-h-screen w-full flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''}">
-	<div class="max-w-2xl mx-auto w-full px-4 py-8 space-y-6">
+<div class="ui-page flex justify-center {$sidebarOpen ? 'ml-[260px]' : ''}">
+	<div class="mx-auto w-full max-w-2xl space-y-6 px-4 py-8">
 		<!-- 个人信息卡片 -->
-		<div
-			class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6"
-		>
+		<div class="ui-card p-6">
 			<div class="flex items-center gap-5">
 				<div class="relative flex-shrink-0">
 					<div
-						class="w-20 h-20 rounded-full bg-pink-200 dark:bg-pink-700 overflow-hidden flex items-center justify-center"
+						class="w-20 h-20 rounded-full bg-rose-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center"
 					>
 						{#if $user?.avatar}
 							<img src={$user.avatar} alt="avatar" class="w-full h-full object-cover" />
@@ -235,7 +239,7 @@
 								xmlns="http://www.w3.org/2000/svg"
 								viewBox="0 0 20 20"
 								fill="currentColor"
-								class="w-10 h-10 text-pink-500 dark:text-pink-300"
+								class="w-10 h-10 text-rose-500 dark:text-rose-300"
 							>
 								<path
 									d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z"
@@ -248,33 +252,39 @@
 					{#if editingProfile}
 						<div class="space-y-2">
 							<div>
-							<label class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5" for="profile-username">用户名</label>
-							<input
-								id="profile-username"
-								type="text"
-									class="w-full rounded-md py-1.5 px-2.5 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+								<label
+									class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5"
+									for="profile-username">用户名</label
+								>
+								<input
+									id="profile-username"
+									type="text"
+									class="ui-field py-1.5"
 									bind:value={editUsername}
 								/>
 							</div>
 							<div>
-							<label class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5" for="profile-email">邮箱</label>
-							<input
-								id="profile-email"
-								type="email"
-									class="w-full rounded-md py-1.5 px-2.5 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+								<label
+									class="block text-xs text-gray-500 dark:text-gray-400 mb-0.5"
+									for="profile-email">邮箱</label
+								>
+								<input
+									id="profile-email"
+									type="email"
+									class="ui-field py-1.5"
 									bind:value={editEmail}
 								/>
 							</div>
 							<div class="flex gap-2 pt-1">
 								<button
-									class="px-3 py-1.5 bg-pink-500 hover:bg-pink-600 text-white text-xs font-medium rounded-md transition disabled:opacity-50"
+									class="min-h-[32px] rounded-lg bg-rose-500 px-3 text-xs font-medium text-white transition hover:bg-rose-600 disabled:opacity-50"
 									on:click={handleSaveProfile}
 									disabled={profileSubmitting}
 								>
 									保存
 								</button>
 								<button
-									class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-xs font-medium rounded-md transition"
+									class="min-h-[32px] rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium transition hover:bg-rose-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
 									on:click={cancelEditProfile}
 								>
 									取消
@@ -287,7 +297,7 @@
 							<div class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{$user.email}</div>
 						{/if}
 						<button
-							class="mt-2 text-xs text-pink-500 hover:text-pink-600 dark:text-pink-400 transition"
+							class="mt-2 inline-flex min-h-[32px] items-center text-xs text-rose-500 transition hover:text-rose-600 dark:text-rose-400"
 							on:click={startEditProfile}
 						>
 							编辑资料
@@ -296,12 +306,7 @@
 				</div>
 			</div>
 			<div class="flex gap-3 mt-5">
-				<button
-					class="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition"
-					on:click={() => avatarInput?.click()}
-				>
-					上传头像
-				</button>
+				<button class="ui-btn-primary" on:click={() => avatarInput?.click()}> 上传头像 </button>
 				<input
 					type="file"
 					accept="image/*"
@@ -310,63 +315,65 @@
 					on:change={handleAvatarUpload}
 				/>
 				{#if $user?.avatar}
-					<button
-						class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-sm font-medium rounded-lg transition"
-						on:click={handleRemoveAvatar}
-					>
-						移除头像
-					</button>
+					<button class="ui-btn-secondary" on:click={handleRemoveAvatar}> 移除头像 </button>
 				{/if}
 			</div>
 		</div>
 
 		<!-- 修改密码卡片 -->
-		<div
-			class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6"
-		>
+		<div class="ui-card p-6">
 			{#if showPasswordForm}
 				<h3 class="text-lg font-semibold dark:text-gray-200 mb-4">修改密码</h3>
 				<div class="space-y-3">
 					<div>
-						<label class="block text-sm text-gray-500 dark:text-gray-400 mb-1" for="profile-old-password">当前密码</label>
+						<label
+							class="block text-sm text-gray-500 dark:text-gray-400 mb-1"
+							for="profile-old-password">当前密码</label
+						>
 						<input
 							id="profile-old-password"
 							type="password"
-							class="w-full rounded-lg py-2.5 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+							class="ui-field"
 							placeholder="请输入当前密码"
 							bind:value={oldPassword}
 						/>
 					</div>
 					<div>
-						<label class="block text-sm text-gray-500 dark:text-gray-400 mb-1" for="profile-new-password">新密码</label>
+						<label
+							class="block text-sm text-gray-500 dark:text-gray-400 mb-1"
+							for="profile-new-password">新密码</label
+						>
 						<input
 							id="profile-new-password"
 							type="password"
-							class="w-full rounded-lg py-2.5 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+							class="ui-field"
 							placeholder="请输入新密码"
 							bind:value={newPassword}
 						/>
 					</div>
 					<div>
-						<label class="block text-sm text-gray-500 dark:text-gray-400 mb-1" for="profile-confirm-password">确认新密码</label>
+						<label
+							class="block text-sm text-gray-500 dark:text-gray-400 mb-1"
+							for="profile-confirm-password">确认新密码</label
+						>
 						<input
 							id="profile-confirm-password"
 							type="password"
-							class="w-full rounded-lg py-2.5 px-3 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition"
+							class="ui-field"
 							placeholder="请再次输入新密码"
 							bind:value={confirmPassword}
 						/>
 					</div>
 					<div class="flex gap-3 pt-2">
 						<button
-							class="px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+							class="ui-btn-primary"
 							on:click={handleChangePassword}
 							disabled={passwordSubmitting}
 						>
 							确认修改
 						</button>
 						<button
-							class="px-5 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-sm font-medium rounded-lg transition"
+							class="ui-btn-secondary"
 							on:click={() => {
 								showPasswordForm = false;
 							}}
@@ -377,7 +384,7 @@
 				</div>
 			{:else}
 				<button
-					class="w-full py-3 rounded-lg bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+					class="ui-btn-secondary w-full border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-gray-700 dark:bg-gray-900 dark:text-rose-300"
 					on:click={() => {
 						showPasswordForm = true;
 					}}
@@ -388,9 +395,9 @@
 		</div>
 
 		<!-- 建议卡片 -->
-		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
+		<div class="ui-card p-6">
 			<button
-				class="w-full py-3 rounded-lg bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+				class="ui-btn-secondary w-full border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-gray-700 dark:bg-gray-900 dark:text-rose-300"
 				on:click={() => goto("/advice_table")}
 			>
 				提交建议
@@ -398,9 +405,9 @@
 		</div>
 
 		<!-- 反馈卡片 -->
-		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
+		<div class="ui-card p-6">
 			<button
-				class="w-full py-3 rounded-lg bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+				class="ui-btn-secondary w-full border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-gray-700 dark:bg-gray-900 dark:text-rose-300"
 				on:click={() => goto("/advice_table")}
 			>
 				提交反馈
@@ -408,20 +415,18 @@
 		</div>
 
 		<!-- 导出所有会话 -->
-		<div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6">
+		<div class="ui-card p-6">
 			<h3 class="text-lg font-semibold dark:text-gray-200 mb-1">导出所有会话</h3>
-			<p class="text-sm text-gray-400 dark:text-gray-500 mb-4">
-				将全部对话记录导出到本地文件
-			</p>
+			<p class="text-sm text-gray-400 dark:text-gray-500 mb-4">将全部对话记录导出到本地文件</p>
 			<div class="flex gap-3">
 				<button
-					class="flex-1 py-2.5 bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+					class="ui-btn-secondary flex-1 border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-gray-700 dark:bg-gray-900 dark:text-rose-300"
 					on:click={handleExportJSON}
 				>
 					JSON
 				</button>
 				<button
-					class="flex-1 py-2.5 bg-pink-50 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 text-pink-600 dark:text-pink-400 text-sm font-medium rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/50 transition"
+					class="ui-btn-secondary flex-1 border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-gray-700 dark:bg-gray-900 dark:text-rose-300"
 					on:click={handleExportMarkdown}
 				>
 					Markdown
@@ -430,9 +435,7 @@
 		</div>
 
 		<!-- 账户操作卡片 -->
-		<div
-			class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6"
-		>
+		<div class="ui-card p-6">
 			{#if showLogoutConfirm}
 				<div class="flex items-center justify-center gap-3">
 					<span class="text-sm text-gray-500 dark:text-gray-400">确认退出登录?</span>
@@ -443,7 +446,7 @@
 						确认
 					</button>
 					<button
-						class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-sm font-medium rounded-lg transition"
+						class="ui-btn-secondary"
 						on:click={() => {
 							showLogoutConfirm = false;
 						}}

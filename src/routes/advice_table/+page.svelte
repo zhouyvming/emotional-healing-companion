@@ -66,48 +66,40 @@
 	};
 </script>
 
-<div class="min-h-screen w-full flex justify-center">
-	<div class="max-w-2xl mx-auto w-full px-4 py-8 space-y-6">
+<div class="ui-page flex justify-center">
+	<div class="mx-auto w-full max-w-2xl space-y-6 px-4 py-8">
 		<!-- 建议 -->
-		<div
-			class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6"
-		>
+		<div class="ui-card p-6">
 			<h3 class="text-lg font-semibold dark:text-gray-200 mb-1">您的建议是我们前进的动力</h3>
 			<p class="text-sm text-gray-400 dark:text-gray-500 mb-4">
 				告诉我们您的想法，帮助我们做得更好
 			</p>
 			<textarea
-				class="w-full h-28 rounded-lg py-3 px-4 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
+				class="ui-field h-28 resize-none px-4 py-3"
 				placeholder="请输入您的建议..."
 				bind:value={adviceContent}
 			/>
 			<div class="flex justify-end mt-3">
-				<button
-					class="px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-					on:click={handleAdviceSubmit}
-					disabled={submittingAdvice}
-				>
+				<button class="ui-btn-primary" on:click={handleAdviceSubmit} disabled={submittingAdvice}>
 					{submittingAdvice ? "提交中..." : "提交建议"}
 				</button>
 			</div>
 		</div>
 
 		<!-- 反馈 -->
-		<div
-			class="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6"
-		>
+		<div class="ui-card p-6">
 			<h3 class="text-lg font-semibold dark:text-gray-200 mb-1">您的反馈是我们改进的决心</h3>
 			<p class="text-sm text-gray-400 dark:text-gray-500 mb-4">
 				遇到问题或有改进意见？请随时告诉我们
 			</p>
 			<textarea
-				class="w-full h-28 rounded-lg py-3 px-4 text-sm dark:text-gray-300 dark:bg-gray-900 outline-none border border-gray-200 dark:border-gray-600 focus:border-pink-400 transition resize-none"
+				class="ui-field h-28 resize-none px-4 py-3"
 				placeholder="请输入您的反馈..."
 				bind:value={feedbackContent}
 			/>
 			<div class="flex justify-end mt-3">
 				<button
-					class="px-5 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+					class="ui-btn-primary"
 					on:click={handleFeedbackSubmit}
 					disabled={submittingFeedback}
 				>

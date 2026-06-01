@@ -81,9 +81,7 @@
 
 <div class="space-y-2">
 	{#each paramDefs as param}
-		<div
-			class="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3"
-		>
+		<div class="ui-card p-3">
 			<div class="flex items-center justify-between">
 				<span class="text-sm">{param.label}</span>
 
@@ -108,7 +106,7 @@
 					<button
 						class="text-xs px-2.5 py-1 rounded-md transition {options[param.key] === ''
 							? 'text-gray-400 bg-gray-100 dark:bg-gray-700'
-							: 'text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/30'}"
+							: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30'}"
 						on:click={() => {
 							options[param.key] = options[param.key] === "" ? param.default : "";
 						}}

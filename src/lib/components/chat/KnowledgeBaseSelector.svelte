@@ -28,15 +28,12 @@
 </script>
 
 {#if disabled}
-	<span
-		class="inline-flex items-center text-xs text-gray-500 dark:text-gray-400 max-w-[200px] truncate"
-		title={selectedKbName}
-	>
+	<span class="ui-chip max-w-[140px] truncate sm:max-w-[200px]" title={selectedKbName}>
 		📚 {selectedKbName}
 	</span>
 {:else}
 	<select
-		class="outline-none bg-transparent text-xs rounded-md max-w-[200px] w-auto pr-5 cursor-pointer appearance-none"
+		class="ui-chip min-w-0 max-w-[140px] cursor-pointer appearance-none pr-7 sm:max-w-[200px]"
 		bind:value={selectedKbId}
 		style="background-image:url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 20 20%27%3E%3Cpath stroke=%27%238e8ea0%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%271.5%27 d=%27m6 8 4 4 4-4%27/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right center;background-size:1.2em"
 		title="选择知识库"

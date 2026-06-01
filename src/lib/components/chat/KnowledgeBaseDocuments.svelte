@@ -141,7 +141,7 @@
 	<div class="flex items-center justify-between">
 		<span class="text-xs text-gray-400">文档列表</span>
 		<button
-			class="px-2 py-1 text-xs bg-pink-50 hover:bg-pink-100 dark:bg-pink-900/30 dark:hover:bg-pink-900/50 text-pink-600 dark:text-pink-400 rounded transition"
+			class="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-600 transition hover:bg-rose-100 dark:border-gray-700 dark:bg-gray-900 dark:text-rose-300 dark:hover:bg-gray-800"
 			on:click={() => fileInput?.click()}
 			disabled={uploading}
 		>
@@ -179,7 +179,7 @@
 				</div>
 				{#if doc.status === "error"}
 					<button
-						class="flex-shrink-0 px-1.5 py-0.5 text-[10px] text-pink-500 hover:text-pink-600 transition"
+						class="flex-shrink-0 px-1.5 py-0.5 text-[10px] text-rose-500 hover:text-rose-600 transition"
 						on:click={() => retryDoc(doc.id)}
 						disabled={retrying[doc.id]}
 					>
